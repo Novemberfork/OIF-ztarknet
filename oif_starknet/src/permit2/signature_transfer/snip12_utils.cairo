@@ -75,7 +75,11 @@ pub impl U256StructHash of StructHash<u256> {
 
 pub impl TokenPermissionsStructHash of StructHash<TokenPermissions> {
     fn hash_struct(self: @TokenPermissions) -> felt252 {
-        PoseidonTrait::new().update_with(TOKEN_PERMISSIONS_TYPEHASH).update_with(*self).finalize()
+        PoseidonTrait::new()
+            .update_with(TOKEN_PERMISSIONS_TYPEHASH)
+            .update_with(*self.token)
+            .update_with(self.amount.hash_struct())
+            .finalize()
     }
 }
 
