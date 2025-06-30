@@ -127,25 +127,30 @@ pub mod SignatureTransferComponent {
             data_hash: felt252,
             signature: Array<felt252>,
         ) {
-            let requested_amount = transfer_details.requested_amount;
-
+            // Validate signature deadline
             assert(
                 starknet::get_block_timestamp() <= permit.deadline.try_into().unwrap(),
                 errors::SignatureExpired,
             );
+
+            // Validate transfer amount <= permitted amount
+            let requested_amount = transfer_details.requested_amount;
             assert(requested_amount <= permit.permitted.amount, errors::InvalidAmount);
 
+            // Use nonce
             let mut nonces_component = get_dep_component_mut!(ref self, Nonces);
             nonces_component._use_unordered_nonce(owner, permit.nonce);
 
+            // Validate signature
             let src6_dispatcher = ISRC6Dispatcher { contract_address: owner };
-
             assert(
                 src6_dispatcher.is_valid_signature(data_hash, signature) == starknet::VALIDATED,
                 errors::InvalidSignature,
             );
 
+            // Transfer tokens
             /// TODO: Assert return value
+            // @dev: Needed ? Dispatcher should fail if transfer fails ?
             IERC20Dispatcher { contract_address: permit.permitted.token }
                 .transfer_from(owner, transfer_details.to, requested_amount);
         }
@@ -158,28 +163,36 @@ pub mod SignatureTransferComponent {
             data_hash: felt252,
             signature: Array<felt252>,
         ) {
+            // Validate signature deadline
             assert(
                 starknet::get_block_timestamp() <= permit.deadline.try_into().unwrap(),
                 errors::SignatureExpired,
             );
+
+            // Validate permit & transfer detail lengths
             assert(permit.permitted.len() == transfer_details.len(), errors::LengthMismatch);
 
+            // Use nonce
             let mut nonces_component = get_dep_component_mut!(ref self, Nonces);
             nonces_component._use_unordered_nonce(owner, permit.nonce);
 
+            // Validate signature
             let src6_dispatcher = ISRC6Dispatcher { contract_address: owner };
-
             assert(
                 src6_dispatcher.is_valid_signature(data_hash, signature) == starknet::VALIDATED,
                 errors::InvalidSignature,
             );
 
+            // Iterate over each permitted token and transfer detail
             for (permitted, transfer_detail) in permit.permitted.into_iter().zip(transfer_details) {
+                // Validate requested amount <= permitted amount
                 let requested_amount = *transfer_detail.requested_amount;
                 assert(requested_amount <= *permitted.amount, 'InvalidAmount');
 
+                // Transfer tokens
                 if requested_amount > 0 {
                     /// TODO: Assert return value
+                    // @dev: Needed ? Dispatcher should fail if transfer fails ?
                     IERC20Dispatcher { contract_address: *permitted.token }
                         .transfer_from(owner, *transfer_detail.to, requested_amount);
                 }
