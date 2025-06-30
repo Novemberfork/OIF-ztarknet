@@ -22,6 +22,7 @@ pub mod permit2 {
 ///
 pub mod libraries {
     pub mod allowance;
+    pub mod utils;
     pub mod mocks {
         pub mod erc20;
     }
