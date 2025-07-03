@@ -1,9 +1,9 @@
 use openzeppelin_account::interface::AccountABIDispatcher;
-use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
+use openzeppelin_token::erc20::interface::IERC20Dispatcher;
 use snforge_std::signature::stark_curve::{
     StarkCurveKeyPairImpl, StarkCurveSignerImpl, StarkCurveVerifierImpl,
 };
-use snforge_std::signature::{KeyPair, KeyPairTrait, SignerTrait};
+use snforge_std::signature::{KeyPair, KeyPairTrait};
 use snforge_std::{ContractClassTrait, DeclareResultTrait, declare};
 use starknet::ContractAddress;
 

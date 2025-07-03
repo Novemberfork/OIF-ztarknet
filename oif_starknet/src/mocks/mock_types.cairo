@@ -1,10 +1,7 @@
 use core::hash::{HashStateExTrait, HashStateTrait};
 use core::poseidon::PoseidonTrait;
 use oif_starknet::libraries::utils::selector;
-use openzeppelin_utils::cryptography::snip12::{
-    OffchainMessageHash, SNIP12HashSpanImpl, SNIP12Metadata, StarknetDomain, StructHash,
-};
-use starknet::{ContractAddress, get_caller_address, get_contract_address, get_tx_info};
+use openzeppelin_utils::cryptography::snip12::{SNIP12HashSpanImpl, StructHash};
 
 // Example witness
 #[derive(Drop)]
