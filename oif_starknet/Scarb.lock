@@ -5,7 +5,9 @@ version = 1
 name = "oif_starknet"
 version = "0.1.0"
 dependencies = [
+ "openzeppelin_access",
  "openzeppelin_account",
+ "openzeppelin_introspection",
  "openzeppelin_token",
  "openzeppelin_utils",
  "snforge_std",
