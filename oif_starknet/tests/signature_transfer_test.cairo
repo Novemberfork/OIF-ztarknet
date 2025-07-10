@@ -1,17 +1,17 @@
 use oif_starknet::libraries::bitmap::BitmapPackingTrait;
 use oif_starknet::libraries::permit_hash::{
-    OffchainMessageHashWitnessTrait, PermitBatchStructHash, PermitSingleStructHash,
-    StructHashPermitBatchTransferFrom, StructHashPermitTransferFrom,
-    StructHashWitnessPermitBatchTransferFrom, StructHashWitnessPermitTransferFrom,
-    TokenPermissionsStructHash,
+    OffchainMessageHashWitnessTrait, PermitBatchStructHash, PermitBatchTransferFromStructHash,
+    PermitBatchTransferFromStructHashWitness, PermitSingleStructHash, PermitTransferFromStructHash,
+    PermitTransferFromStructHashWitness, TokenPermissionsStructHash,
 };
 use oif_starknet::mocks::mock_erc20::{IMintableDispatcher, IMintableDispatcherTrait};
-use oif_starknet::mocks::mock_types::{Beta, ExampleWitness, Zeta, _EXAMPLE_WITNESS_TYPE_STRING};
+use oif_starknet::mocks::mock_witness::{Beta, ExampleWitness, Zeta, _EXAMPLE_WITNESS_TYPE_STRING};
 use oif_starknet::permit2::permit2::Permit2::SNIP12MetadataImpl;
 use oif_starknet::permit2::signature_transfer::interface::{
     ISignatureTransferDispatcherTrait, PermitBatchTransferFrom, PermitTransferFrom,
     SignatureTransferDetails, TokenPermissions,
 };
+use openzeppelin_token::erc20::ERC20Component;
 use openzeppelin_token::erc20::interface::IERC20DispatcherTrait;
 use openzeppelin_utils::cryptography::snip12::OffchainMessageHash;
 use snforge_std::signature::SignerTrait;
@@ -32,6 +32,7 @@ pub const DEFAULT_AMOUNT: u256 = E18;
 #[test]
 fn test_permit_transfer_from() {
     let setup = setup();
+    let mut spy = spy_events();
     let nonce = 0;
     let token_permission = TokenPermissions {
         token: setup.token0.contract_address, amount: 10 * E18,
@@ -68,6 +69,22 @@ fn test_permit_transfer_from() {
 
     assert_eq!(end_balance_from, start_balance_from - DEFAULT_AMOUNT);
     assert_eq!(end_balance_to, start_balance_to + DEFAULT_AMOUNT);
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.token0.contract_address,
+                    ERC20Component::Event::Transfer(
+                        ERC20Component::Transfer {
+                            from: setup.from.account.contract_address,
+                            to: setup.to.account.contract_address,
+                            value: DEFAULT_AMOUNT,
+                        },
+                    ),
+                ),
+            ],
+        );
 }
 
 #[test]
@@ -426,8 +443,389 @@ fn test_permit_witness_transfer_from() {
 }
 
 #[test]
-fn test_permit_witness_batch_transfer_from() {}
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_transfer_from_with_invalid_signature_should_panic() {
+    let setup = setup();
+    let default_expiration = get_block_timestamp() + 5;
+    let nonce = 0;
+    let token_permission = TokenPermissions {
+        token: setup.token0.contract_address, amount: 10 * E18,
+    };
+    let permit = PermitTransferFrom {
+        permitted: token_permission, nonce, deadline: default_expiration.into(),
+    };
+    let transfer_details = SignatureTransferDetails {
+        to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+    };
 
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    let message_hash = permit.get_message_hash(setup.to.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    setup
+        .permit2
+        .permit_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+}
+
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_transfer_from_with_invalid_signature_length_should_panic() {
+    let setup = setup();
+    let default_expiration = get_block_timestamp() + 5;
+    let nonce = 0;
+    let token_permission = TokenPermissions {
+        token: setup.token0.contract_address, amount: 10 * E18,
+    };
+    let permit = PermitTransferFrom {
+        permitted: token_permission, nonce, deadline: default_expiration.into(),
+    };
+    let transfer_details = SignatureTransferDetails {
+        to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign msg, use incorrect sig length
+    let message_hash = permit.get_message_hash(setup.from.account.contract_address);
+    let (r, _) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    setup
+        .permit2
+        .permit_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_transfer_from_with_invalid_signature_length_should_panic2() {
+    let setup = setup();
+    let default_expiration = get_block_timestamp() + 5;
+    let nonce = 0;
+    let token_permission = TokenPermissions {
+        token: setup.token0.contract_address, amount: 10 * E18,
+    };
+    let permit = PermitTransferFrom {
+        permitted: token_permission, nonce, deadline: default_expiration.into(),
+    };
+    let transfer_details = SignatureTransferDetails {
+        to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign msg, use incorrect sig length
+    let message_hash = permit.get_message_hash(setup.from.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s, 0];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    setup
+        .permit2
+        .permit_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: signature expired')]
+fn test_permit_transfer_from_when_deadline_passed_should_panic() {
+    let setup = setup();
+    let default_expiration = get_block_timestamp() + 5;
+    let nonce = 0;
+    let token_permission = TokenPermissions {
+        token: setup.token0.contract_address, amount: 10 * E18,
+    };
+    let permit = PermitTransferFrom {
+        permitted: token_permission, nonce, deadline: default_expiration.into(),
+    };
+    let transfer_details = SignatureTransferDetails {
+        to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign msg
+    let message_hash = permit.get_message_hash(setup.from.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    start_cheat_block_timestamp(setup.permit2.contract_address, default_expiration + 1);
+    setup
+        .permit2
+        .permit_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+    stop_cheat_block_timestamp(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_batch_transfer_from_with_invalid_signature_should_panic() {
+    let setup = setup();
+    let nonce = 0;
+    let default_expiration = get_block_timestamp() + 5;
+    let tokens = array![setup.token0.contract_address, setup.token1.contract_address];
+    let token_permissions = tokens
+        .clone()
+        .into_iter()
+        .map(|token| TokenPermissions { token, amount: DEFAULT_AMOUNT })
+        .collect::<Array<_>>()
+        .span();
+    let transfer_details = array![
+        // Transfer 0 tokens
+        SignatureTransferDetails { to: setup.to.account.contract_address, requested_amount: 0 },
+        // Transer some tokens
+        SignatureTransferDetails {
+            to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+        },
+    ]
+        .span();
+    let permit = PermitBatchTransferFrom {
+        permitted: token_permissions, nonce, deadline: (default_expiration).into(),
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign with `to  instead of `from`
+    let message_hash = permit.get_message_hash(setup.to.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    setup
+        .permit2
+        .permit_batch_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_batch_transfer_from_with_invalid_signature_length_should_panic() {
+    let setup = setup();
+    let nonce = 0;
+    let default_expiration = get_block_timestamp() + 5;
+    let tokens = array![setup.token0.contract_address, setup.token1.contract_address];
+    let token_permissions = tokens
+        .clone()
+        .into_iter()
+        .map(|token| TokenPermissions { token, amount: DEFAULT_AMOUNT })
+        .collect::<Array<_>>()
+        .span();
+    let transfer_details = array![
+        // Transfer 0 tokens
+        SignatureTransferDetails { to: setup.to.account.contract_address, requested_amount: 0 },
+        // Transer some tokens
+        SignatureTransferDetails {
+            to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+        },
+    ]
+        .span();
+    let permit = PermitBatchTransferFrom {
+        permitted: token_permissions, nonce, deadline: (default_expiration).into(),
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Mess with signature length
+    let message_hash = permit.get_message_hash(setup.to.account.contract_address);
+    let (r, _) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    setup
+        .permit2
+        .permit_batch_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_batch_transfer_from_with_invalid_signature_length_should_panic2() {
+    let setup = setup();
+    let nonce = 0;
+    let default_expiration = get_block_timestamp() + 5;
+    let tokens = array![setup.token0.contract_address, setup.token1.contract_address];
+    let token_permissions = tokens
+        .clone()
+        .into_iter()
+        .map(|token| TokenPermissions { token, amount: DEFAULT_AMOUNT })
+        .collect::<Array<_>>()
+        .span();
+    let transfer_details = array![
+        // Transfer 0 tokens
+        SignatureTransferDetails { to: setup.to.account.contract_address, requested_amount: 0 },
+        // Transer some tokens
+        SignatureTransferDetails {
+            to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+        },
+    ]
+        .span();
+    let permit = PermitBatchTransferFrom {
+        permitted: token_permissions, nonce, deadline: (default_expiration).into(),
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Mess with signature length
+    let message_hash = permit.get_message_hash(setup.to.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    setup
+        .permit2
+        .permit_batch_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: signature expired')]
+fn test_permit_batch_transfer_from_when_deadline_passed_should_panic() {
+    let setup = setup();
+    let nonce = 0;
+    let default_expiration = get_block_timestamp() + 5;
+    let tokens = array![setup.token0.contract_address, setup.token1.contract_address];
+    let token_permissions = tokens
+        .clone()
+        .into_iter()
+        .map(|token| TokenPermissions { token, amount: DEFAULT_AMOUNT })
+        .collect::<Array<_>>()
+        .span();
+    let transfer_details = array![
+        // Transfer 0 tokens
+        SignatureTransferDetails { to: setup.to.account.contract_address, requested_amount: 0 },
+        // Transer some tokens
+        SignatureTransferDetails {
+            to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+        },
+    ]
+        .span();
+    let permit = PermitBatchTransferFrom {
+        permitted: token_permissions, nonce, deadline: (default_expiration).into(),
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign msg
+    let message_hash = permit.get_message_hash(setup.from.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    start_cheat_caller_address(setup.permit2.contract_address, setup.bystander);
+    start_cheat_block_timestamp(setup.permit2.contract_address, default_expiration + 1);
+    setup
+        .permit2
+        .permit_batch_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+    stop_cheat_block_timestamp(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_transfer_from_with_invalid_spender_should_panic() {
+    let setup = setup();
+    let default_expiration = get_block_timestamp() + 5;
+    let nonce = 0;
+    let token_permission = TokenPermissions {
+        token: setup.token0.contract_address, amount: 10 * E18,
+    };
+    let permit = PermitTransferFrom {
+        permitted: token_permission, nonce, deadline: default_expiration.into(),
+    };
+    let transfer_details = SignatureTransferDetails {
+        to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign msg
+    let message_hash = permit.get_message_hash(setup.from.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    // To address tries to use bystanders permit
+    start_cheat_caller_address(setup.permit2.contract_address, setup.to.account.contract_address);
+    setup
+        .permit2
+        .permit_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'ST: invalid signature')]
+fn test_permit_batch_transfer_with_invalid_spender_should_panic() {
+    let setup = setup();
+    let nonce = 0;
+    let default_expiration = get_block_timestamp() + 5;
+    let tokens = array![setup.token0.contract_address, setup.token1.contract_address];
+    let token_permissions = tokens
+        .clone()
+        .into_iter()
+        .map(|token| TokenPermissions { token, amount: DEFAULT_AMOUNT })
+        .collect::<Array<_>>()
+        .span();
+    let transfer_details = array![
+        // Transfer 0 tokens
+        SignatureTransferDetails { to: setup.to.account.contract_address, requested_amount: 0 },
+        // Transer some tokens
+        SignatureTransferDetails {
+            to: setup.to.account.contract_address, requested_amount: DEFAULT_AMOUNT,
+        },
+    ]
+        .span();
+    let permit = PermitBatchTransferFrom {
+        permitted: token_permissions, nonce, deadline: (default_expiration).into(),
+    };
+
+    // Hashing uses the caller's address, so we must mock it here
+    start_cheat_caller_address_global(setup.bystander);
+    // Sign msg
+    let message_hash = permit.get_message_hash(setup.from.account.contract_address);
+    let (r, s) = setup.from.key_pair.sign(message_hash).unwrap();
+    let signature = array![r, s];
+    stop_cheat_caller_address_global();
+
+    // To address tries to use bystanders permit
+    start_cheat_caller_address(setup.permit2.contract_address, setup.to.account.contract_address);
+    setup
+        .permit2
+        .permit_batch_transfer_from(
+            permit, transfer_details, setup.from.account.contract_address, signature,
+        );
+    stop_cheat_caller_address(setup.permit2.contract_address);
+}
 
 // LEFT OFF HERE:
 // test invalid spender (single, batch, witness, witness batch) fails
@@ -436,6 +834,10 @@ fn test_permit_witness_batch_transfer_from() {}
 // other tests are checked/added ?)
 // ask chat gpt for test inspiration, no need to write them for me yet
 // move on to allowance transfer tests
+
+#[test]
+#[ignore]
+fn test_permit_witness_batch_transfer_from() {}
 
 #[test]
 #[ignore]
