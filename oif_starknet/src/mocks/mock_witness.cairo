@@ -49,8 +49,8 @@ pub fn _U256_TYPE_STRING() -> ByteArray {
 // Normally the u256 type string is attached to the end of this type string,
 // but because snip12/eip712 requires alphabetical sorting for all reference type strings, we
 // break it up to use as a single sub-string in the below example.
-pub fn _TOKEN_PERMISSIONS_TYPE_STRING_PARTIAL() -> ByteArray {
-    "\"TokenPermissions\"(\"token\":\"ContractAddress\",\"amount\":\"u256\")\"u256\"(\"low\":\"u128\",\"high\":\"u128\")"
+pub fn _TOKEN_PERMISSIONS_TYPE_STRING() -> ByteArray {
+    "\"Token Permissions\"(\"Token\":\"ContractAddress\",\"Amount\":\"u256\")"
 }
 
 // NOTE: Here is an example of a witness type string using the above `ExampleWitness` struct.
@@ -66,7 +66,7 @@ pub fn _EXAMPLE_WITNESS_TYPE_STRING() -> ByteArray {
         "\"witness\":\"ExampleWitness\"){}{}{}{}{}",
         _EXAMPLE_WITNESS_TYPE_STRING_PARTIAL(),
         _BETA_TYPE_STRING(),
-        _TOKEN_PERMISSIONS_TYPE_STRING_PARTIAL(),
+        _TOKEN_PERMISSIONS_TYPE_STRING(),
         _U256_TYPE_STRING(),
         _ZETA_TYPE_STRING(),
     )
