@@ -1,1 +1,626 @@
+use core::hash::{HashStateExTrait, HashStateTrait};
+use core::poseidon::PoseidonTrait;
+use oif_starknet::erc7683::interface::{FillInstruction, Output, ResolvedCrossChainOrder};
+use openzeppelin_utils::cryptography::snip12::{SNIP12HashSpanImpl, StructHash};
+use permit2::snip12_utils::permits::_U256_TYPE_HASH;
 
+
+/// @title Base7683 (Cairo)
+/// @notice Replicates the ERC7683 standard for cross-chain order resolution, filling, settlement,
+/// and refunding in Cairo.
+/// @author BootNode (translation by Nethermind)
+/// @dev Contains logic for managing orders without requiring specifics of the order data type.
+/// Notice that settling and refunding are not described in the ERC7683 but it is included here to
+/// provide a common interface for solvers to use.
+#[starknet::component]
+pub mod Base7683 {
+    use core::num::traits::Zero;
+    use oif_starknet::erc7683::interface::{
+        FilledOrder, GaslessCrossChainOrder, IDestinationSettler, IERC7683Extra, IOriginSettler,
+        OnchainCrossChainOrder, Open, ResolvedCrossChainOrder,
+    };
+    use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use permit2::interfaces::signature_transfer::{
+        ISignatureTransferDispatcher, ISignatureTransferDispatcherTrait, PermitBatchTransferFrom,
+        SignatureTransferDetails, TokenPermissions,
+    };
+    use starknet::storage::{
+        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+    };
+    use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
+    use super::{ResolvedCrossChainOrderStructHash, WITNESS_TYPE_STRING};
+
+    /// CONSTANTS ///
+
+    pub const UNKNOWN: felt252 = 0;
+    pub const OPENED: felt252 = 'OPENED';
+    pub const FILLED: felt252 = 'FILLED';
+
+    /// ERRORS ///
+    pub mod Errors {
+        pub const ORDER_OPEN_EXPIRED: felt252 = 'Order open expired';
+        pub const INVALID_ORDER_STATUS: felt252 = 'Invalid order status';
+        pub const INVALID_GASSLESS_ORDER_SETTLER: felt252 = 'Invalid gasless order settler';
+        pub const INVALID_NONCE: felt252 = 'Invalid nonce';
+        pub const INVALID_ORDER_ORIGIN: felt252 = 'Invalid order origin';
+        pub const ORDER_FILL_NOT_EXPIRED: felt252 = 'Order fill not expired';
+        pub const INVALID_NATIVE_AMOUNT: felt252 = 'Invalid native amount';
+    }
+    /// STORAGE ///
+    #[storage]
+    pub struct Storage {
+        permit2_address: ContractAddress,
+        used_nonces: Map<(ContractAddress, felt252), bool>,
+        open_orders: Map<felt252, ByteArray>,
+        filled_orders: Map<felt252, FilledOrder>,
+        order_status: Map<felt252, felt252>,
+    }
+
+    /// EVENTS ///
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        Filled: Filled,
+        Settle: Settle,
+        Refund: Refund,
+        NonceInvalidation: NonceInvalidation,
+        Open: Open,
+    }
+
+
+    /// Emitted when an order is filled.
+    /// param order_id: The ID of the filled order.
+    /// param origin_data: The origin-specific data for the order.
+    /// param filler_data: The filler-specific data for the order.
+    #[derive(Drop, starknet::Event)]
+    struct Filled {
+        order_id: felt252,
+        origin_data: ByteArray,
+        filler_data: ByteArray,
+    }
+
+    /// Emitted when a batch of orders is settled.
+    /// @param order_ids: The IDs of the orders being settled.
+    /// @param orders_filler_data The filler data for the settled orders.
+    #[derive(Drop, starknet::Event)]
+    struct Settle {
+        order_ids: Array<felt252>,
+        orders_filler_data: Array<ByteArray>,
+    }
+
+    /// Emitted when a batch of orders is refunded.
+    /// @param order_ids: The IDs of the refunded orders.
+    #[derive(Drop, starknet::Event)]
+    struct Refund {
+        order_ids: Array<felt252>,
+    }
+
+    /// Emitted when a nonce is invalidated for an address.
+    /// @param owner The address whose nonce was invalidated.
+    /// @param nonce The invalidated nonce.
+    #[derive(Drop, starknet::Event)]
+    struct NonceInvalidation {
+        #[key]
+        owner: ContractAddress,
+        nonce: felt252,
+    }
+
+
+    /// PUBLIC ///
+
+    #[embeddable_as(DestinationSettlerImpl)]
+    impl DestinationSettler<
+        TContractState, +HasComponent<TContractState>, +Base7683Virtual<TContractState>,
+    > of IDestinationSettler<ComponentState<TContractState>> {
+        fn fill(
+            ref self: ComponentState<TContractState>,
+            order_id: felt252,
+            mut origin_data: ByteArray,
+            mut filler_data: ByteArray,
+        ) {
+            assert(
+                self.order_status.entry(order_id).read() == UNKNOWN, Errors::INVALID_ORDER_STATUS,
+            );
+
+            self._fill_order(order_id, ref origin_data, ref filler_data);
+
+            self.order_status.entry(order_id).write(FILLED);
+            self
+                .filled_orders
+                .entry(order_id)
+                .write(
+                    FilledOrder {
+                        filler_data: filler_data.clone(), origin_data: origin_data.clone(),
+                    },
+                );
+
+            self.emit(Filled { order_id, origin_data: origin_data, filler_data: filler_data });
+        }
+    }
+
+    #[embeddable_as(ERC7683ExtraImpl)]
+    impl ERC7683Extra<
+        TContractState, +HasComponent<TContractState>, +Base7683Virtual<TContractState>,
+    > of IERC7683Extra<ComponentState<TContractState>> {
+        /// READS ///
+
+        fn witness_hash(
+            self: @ComponentState<TContractState>, resolved_order: ResolvedCrossChainOrder,
+        ) -> felt252 {
+            resolved_order.hash_struct()
+        }
+
+        fn used_nonces(
+            self: @ComponentState<TContractState>, user: ContractAddress, nonce: felt252,
+        ) -> bool {
+            self.used_nonces.entry((user, nonce)).read()
+        }
+
+        fn open_orders(self: @ComponentState<TContractState>, order_id: felt252) -> ByteArray {
+            self.open_orders.entry(order_id).read()
+        }
+
+        fn filled_orders(self: @ComponentState<TContractState>, order_id: felt252) -> FilledOrder {
+            self.filled_orders.entry(order_id).read()
+        }
+
+        fn order_status(self: @ComponentState<TContractState>, order_id: felt252) -> felt252 {
+            self.order_status.entry(order_id).read()
+        }
+
+
+        /// WRITES ///
+        fn settle(ref self: ComponentState<TContractState>, mut order_ids: Array<felt252>) {
+            let mut orders_origin_data: Array<ByteArray> = array![];
+            let mut orders_filler_data: Array<ByteArray> = array![];
+
+            for order_id in order_ids.clone() {
+                assert(
+                    self.order_status.entry(order_id).read() == FILLED,
+                    Errors::INVALID_ORDER_STATUS,
+                );
+
+                orders_origin_data.append(self.filled_orders.entry(order_id).read().origin_data);
+                orders_filler_data.append(self.filled_orders.entry(order_id).read().filler_data);
+            }
+
+            self._settle_orders(ref order_ids, ref orders_origin_data, ref orders_filler_data);
+
+            self.emit(Settle { order_ids: order_ids, orders_filler_data });
+        }
+
+        fn refund_gasless_cross_chain_order(
+            ref self: ComponentState<TContractState>, mut orders: Array<GaslessCrossChainOrder>,
+        ) {
+            let mut order_ids: Array<felt252> = array![];
+
+            for mut order in orders.clone() {
+                let order_id = self._get_gasless_order_id(ref order);
+                order_ids.append(order_id);
+
+                assert(
+                    self.order_status.entry(order_id).read() == UNKNOWN,
+                    Errors::INVALID_ORDER_STATUS,
+                );
+                assert(
+                    get_block_timestamp().into() >= order.fill_deadline,
+                    Errors::ORDER_FILL_NOT_EXPIRED,
+                );
+            }
+
+            self._refund_gasless_orders(ref orders, ref order_ids);
+
+            self.emit(Refund { order_ids });
+        }
+
+        fn refund_onchain_cross_chain_order(
+            ref self: ComponentState<TContractState>, mut orders: Array<OnchainCrossChainOrder>,
+        ) {
+            let mut order_ids: Array<felt252> = array![];
+
+            for mut order in orders.clone() {
+                let order_id = self._get_onchain_order_id(ref order);
+                order_ids.append(order_id);
+
+                assert(
+                    self.order_status.entry(order_id).read() == UNKNOWN,
+                    Errors::INVALID_ORDER_STATUS,
+                );
+                assert(
+                    get_block_timestamp().into() >= order.fill_deadline,
+                    Errors::ORDER_FILL_NOT_EXPIRED,
+                );
+            }
+
+            self._refund_onchain_orders(ref orders, ref order_ids);
+
+            self.emit(Refund { order_ids });
+        }
+
+        fn invalidate_nonces(ref self: ComponentState<TContractState>, nonce: felt252) {
+            let owner = get_caller_address();
+
+            self._use_nonce(owner, nonce);
+            self.emit(NonceInvalidation { owner, nonce });
+        }
+
+        fn in_valid_nonce(
+            self: @ComponentState<TContractState>, from: ContractAddress, nonce: felt252,
+        ) -> bool {
+            !self.used_nonces.entry((from, nonce)).read()
+        }
+    }
+
+    /// VIRTUAL ///
+    pub trait Base7683Virtual<TContractState> {
+        /// Resolves a GaslessCrossChainOrder into a ResolvedCrossChainOrder.
+        /// @dev To be implemented by the inheriting contract. Contains logic specific to the order
+        /// type and data.
+        ///
+        /// Paramters:
+        /// - `order`: The GaslessCrossChainOrder to resolve.
+        /// - `order_filler_data`: Any filler-defined data required by the settler
+        ///
+        /// Returns a tuple:
+        /// - A ResolvedCrossChainOrder with hydrated data.
+        /// - The unique identifier for the order.
+        /// - The nonce associated with the order.
+        fn _resolve_gasless_order(
+            self: @ComponentState<TContractState>,
+            ref order: GaslessCrossChainOrder,
+            origin_filler_data: ByteArray,
+        ) -> (ResolvedCrossChainOrder, felt252, felt252);
+
+        /// Resolves an OnchainCrossChainOrder into a ResolvedCrossChainOrder.
+        /// @dev To be implemented by the inheriting contract. Contains logic specific to the order
+        /// type and data.
+        ///
+        /// Parameters:
+        /// - `order`: The OnchainCrossChainOrder to resolve.
+        ///
+        /// Returns a tuple:
+        /// - A ResolvedCrossChainOrder with hydrated data.
+        /// - The unique identifier for the order.
+        /// - The nonce associated with the order.
+        fn _resolve_onchain_order(
+            self: @ComponentState<TContractState>, ref order: OnchainCrossChainOrder,
+        ) -> (ResolvedCrossChainOrder, felt252, felt252);
+
+        /// Fills an order with specific origin and filler data.
+        /// @dev To be implemented by the inheriting contract. Defines how to process the origin and
+        /// filler data.
+        ///
+        /// Paramters:
+        /// - `order_id`: The unique identifier for the order to fill.
+        /// - `origin_data`: Data emitted on the origin chain to parameterize the fill.
+        /// - `filler_data`: Data provided by the filler, including preferences and additional
+        /// information.
+        fn _fill_order(
+            ref self: ComponentState<TContractState>,
+            order_id: felt252,
+            ref origin_data: ByteArray,
+            ref filler_data: ByteArray,
+        );
+
+        /// Settles a batch of orders using their origin and filler data.
+        /// @dev To be implemented by the inheriting contract. Contains the specific logic for
+        /// settlement.
+        ///
+        /// Parameters:
+        /// - `order_ids` An array of order IDs to settle.
+        /// - `orders_origin_data`: The origin data for the orders being settled.
+        /// - `orders_filler_data`: The filler data for the orders being settled.
+        fn _settle_orders(
+            ref self: ComponentState<TContractState>,
+            ref order_ids: Array<felt252>,
+            ref orders_origin_data: Array<ByteArray>,
+            ref orders_filler_data: Array<ByteArray>,
+        );
+
+        /// Refunds a batch of OnchainCrossChainOrders.
+        /// @dev To be implemented by the inheriting contract. Contains logic specific to refunds.
+        ///
+        /// Paramters:
+        /// - `orders`: An array of OnchainCrossChainOrders to refund.
+        /// - `order_ids`: An array of IDs for the orders to refund.
+        fn _refund_onchain_orders(
+            ref self: ComponentState<TContractState>,
+            ref orders: Array<OnchainCrossChainOrder>,
+            ref order_ids: Array<felt252>,
+        );
+
+        /// Refunds a batch of GaslessCrossChainOrders.
+        /// @dev To be implemented by the inheriting contract. Contains logic specific to refunds.
+        ///
+        /// Paramters:
+        /// - `orders`: An array of GaslessCrossChainOrders to refund.
+        /// - `order_ids`: An array of IDs for the orders to refund.
+        fn _refund_gasless_orders(
+            ref self: ComponentState<TContractState>,
+            ref orders: Array<GaslessCrossChainOrder>,
+            ref order_ids: Array<felt252>,
+        );
+
+        /// Retrieves the local domain identifier.
+        /// @dev To be implemented by the inheriting contract. Specifies the logic to determine the
+        /// local domain.
+        ///
+        /// Returns:  The local domain ID.
+        fn _local_domain(self: @ComponentState<TContractState>) -> u256;
+
+        /// Computes the unique identifier for a GaslessCrossChainOrder.
+        /// @dev To be implemented by the inheriting contract. Specifies the logic to compute the
+        /// order ID.
+        ///
+        /// Parameter:
+        /// - `order`: The GaslessCrossChainOrder to compute the ID for.
+        ///
+        /// Returns: The unique identifier for the order.
+        fn _get_gasless_order_id(
+            ref self: ComponentState<TContractState>, ref order: GaslessCrossChainOrder,
+        ) -> felt252;
+
+        /// Computes the unique identifier for a OnchainCrossChainOrder.
+        /// @dev To be implemented by the inheriting contract. Specifies the logic to compute the
+        /// order ID.
+        ///
+        /// Parameter:
+        /// - `order`: The OnchainCrossChainOrder to compute the ID for.
+        ///
+        /// Returns: The unique identifier for the order.
+        fn _get_onchain_order_id(
+            ref self: ComponentState<TContractState>, ref order: OnchainCrossChainOrder,
+        ) -> felt252;
+    }
+
+
+    /// INTERNAL ///
+    #[generate_trait]
+    pub impl InternalImpl<TContractState> of InternalTrait<TContractState> {
+        fn _initialize(ref self: ComponentState<TContractState>, permit2_address: ContractAddress) {
+            self.permit2_address.write(permit2_address);
+        }
+
+        /// Marks a nonce as used by setting its bit in the appropriate bitmap.
+        /// @dev Ensures that a nonce cannot be reused by flipping the corresponding bit in the
+        /// bitmap. Reverts if the nonce is already used.
+        ///
+        /// Paramters:
+        /// - `from`: The address for which the nonce is being used.
+        /// - `nonce`: The nonce to mark as used.
+        fn _use_nonce(
+            ref self: ComponentState<TContractState>, user: ContractAddress, nonce: felt252,
+        ) {
+            assert(!self.used_nonces.entry((user, nonce)).read(), Errors::INVALID_NONCE);
+            self.used_nonces.entry((user, nonce)).write(true);
+        }
+
+        /// Executes a batch token transfer using the Permit2 `permitWitnessTransferFrom` method.
+        /// @dev Transfers tokens specified in a resolved cross-chain order to the receiver.
+        ///
+        /// Paramters:
+        /// - `resolved_order`: The resolved order specifying tokens and amounts to transfer.
+        /// - `signature`: The user's signature for the permit.
+        /// - `nonce`: The unique nonce associated with the order.
+        /// - `receiver`: The address that will receive the tokens.
+        fn _permit_transfer_from(
+            ref self: ComponentState<TContractState>,
+            ref resolved_order: ResolvedCrossChainOrder,
+            signature: Array<felt252>,
+            nonce: felt252,
+            receiver: ContractAddress,
+        ) {
+            let mut permitted: Array<TokenPermissions> = array![];
+            let mut transfer_details: Array<SignatureTransferDetails> = array![];
+
+            for output in resolved_order.min_received.clone() {
+                permitted.append(TokenPermissions { token: output.token, amount: output.amount });
+                transfer_details
+                    .append(
+                        SignatureTransferDetails { to: receiver, requested_amount: output.amount },
+                    );
+            }
+
+            let permit = PermitBatchTransferFrom {
+                permitted: permitted.span(), nonce, deadline: resolved_order.open_deadline.into(),
+            };
+
+            ISignatureTransferDispatcher { contract_address: self.permit2_address.read() }
+                .permit_witness_batch_transfer_from(
+                    permit,
+                    transfer_details.span(),
+                    resolved_order.user,
+                    resolved_order.hash_struct(),
+                    WITNESS_TYPE_STRING(),
+                    signature,
+                );
+        }
+    }
+
+    #[embeddable_as(OriginSettlerImpl)]
+    impl OriginSettler<
+        TContractState, +HasComponent<TContractState>, +Base7683Virtual<TContractState>,
+    > of IOriginSettler<ComponentState<TContractState>> {
+        fn open_for(
+            ref self: ComponentState<TContractState>,
+            mut order: GaslessCrossChainOrder,
+            signature: Array<felt252>,
+            mut origin_filler_data: ByteArray,
+        ) {
+            assert(get_block_timestamp().into() < order.open_deadline, Errors::ORDER_OPEN_EXPIRED);
+            assert(
+                order.origin_settler == get_contract_address(),
+                Errors::INVALID_GASSLESS_ORDER_SETTLER,
+            );
+            assert(order.origin_chain_id == self._local_domain(), Errors::INVALID_ORDER_ORIGIN);
+
+            let (mut resolved_order, order_id, nonce) = self
+                ._resolve_gasless_order(ref order, origin_filler_data);
+
+            self
+                .open_orders
+                .entry(order_id)
+                .write(format!("{}{}", order.order_data_type, order.order_data));
+            self.order_status.entry(order_id).write(OPENED);
+
+            self._use_nonce(order.user, nonce);
+            self
+                ._permit_transfer_from(
+                    ref resolved_order, signature, order.nonce, get_contract_address(),
+                );
+
+            self.emit(Open { order_id, resolved_order });
+        }
+
+
+        fn open(ref self: ComponentState<TContractState>, mut order: OnchainCrossChainOrder) {
+            let (mut resolved_order, order_id, nonce) = self._resolve_onchain_order(ref order);
+
+            self
+                .open_orders
+                .entry(order_id)
+                .write(format!("{}{}", order.order_data_type, order.order_data));
+            self.order_status.entry(order_id).write(OPENED);
+            self._use_nonce(get_caller_address(), nonce);
+
+            let mut total_value = 0_u256;
+
+            for output in resolved_order.min_received.clone() {
+                let token = output.token;
+                if token == Zero::<ContractAddress>::zero() {
+                    total_value += output.amount;
+                } else {
+                    IERC20Dispatcher { contract_address: token }
+                        .transfer_from(get_caller_address(), get_contract_address(), output.amount);
+                }
+            }
+
+            /// NOTE: Need to think about this in terms of all starknet tokens are erc20 (no native
+            /// token necessarily)
+            /// 'Pay token' ?
+
+            /// If msg.value != total_value, revert with INVALID_NATIVE_AMOUNT
+
+            self.emit(Open { order_id, resolved_order });
+        }
+
+
+        fn resolve_for(
+            self: @ComponentState<TContractState>,
+            mut order: GaslessCrossChainOrder,
+            origin_filler_data: ByteArray,
+        ) -> ResolvedCrossChainOrder {
+            let (resolved_order, _, _) = self._resolve_gasless_order(ref order, origin_filler_data);
+
+            resolved_order
+        }
+
+        fn resolve(
+            self: @ComponentState<TContractState>, mut order: OnchainCrossChainOrder,
+        ) -> ResolvedCrossChainOrder {
+            let (resolved_order, _, _) = self._resolve_onchain_order(ref order);
+
+            resolved_order
+        }
+    }
+}
+
+pub const RESOLVED_CROSS_CHAIN_ORDER_TYPE_HASH: felt252 = selector!(
+    "\"Resolved Cross Chain Order\"(\"User\":\"ContractAddress\",\"Origin Chain ID\":\"u256\",\"Open Deadline\":\"timestamp\",\"Fill Deadline\":\"timestamp\",\"Order ID\":\"felt\",\"Max Spent\":\"Output*\",\"Min Receive\":\"Output*\",\"Fill Instructions\":\"Fill Instruction*\")\"Fill Instruction\"(\"Destination Chain ID\":\"u256\",\"Destination Settler\":\"ContractAddress\",\"Origin Data\":\"felt*\")\"Output\"(\"Token\":\"ContractAddress\",\"Amount\":\"u256\",\"Recipient\":\"ContractAddress\",\"Chain ID\":\"u256\")\"u256\"(\"low\":\"u128\",\"high\":\"u128\")",
+);
+
+pub const OUTPUT_TYPE_HASH: felt252 = selector!(
+    "\"Output\"(\"Token\":\"ContractAddress\",\"Amount\":\"u256\",\"Recipient\":\"ContractAddress\",\"Chain ID\":\"u256\")\"u256\"(\"low\":\"u128\",\"high\":\"u128\")",
+);
+
+pub const FILL_INSTRUCTION_TYPE_HASH: felt252 = selector!(
+    "\"Fill Instruction\"(\"Destination Chain ID\":\"u256\",\"Destination Settler\":\"ContractAddress\",\"Origin Data\":\"felt*\")\"u256\"(\"low\":\"u128\",\"high\":\"u128\")",
+);
+
+pub fn WITNESS_TYPE_STRING() -> ByteArray {
+    "\"Witness\":\"Resolved Cross Chain Order\")\"Fill Instruction\"(\"Destination Chain ID\":\"u256\",\"Destination Settler\":\"ContractAddress\",\"Origin Data\":\"felt*\")\"Resolved Cross Chain Order\"(\"User\":\"ContractAddress\",\"Origin Chain ID\":\"u256\",\"Open Deadline\":\"timestamp\",\"Fill Deadline\":\"timestamp\",\"Order ID\":\"felt\",\"Max Spent\":\"Output*\",\"Min Receive\":\"Output*\",\"Fill Instructions\":\"Fill Instruction*\")\"Output\"(\"Token\":\"ContractAddress\",\"Amount\":\"u256\",\"Recipient\":\"ContractAddress\",\"Chain ID\":\"u256\")\"Token Permissions\"(\"Token\":\"ContractAddress\",\"Amount\":\"u256\")\"u256\"(\"low\":\"u128\",\"high\":\"u128\")"
+}
+
+pub impl U256StructHash of StructHash<u256> {
+    fn hash_struct(self: @u256) -> felt252 {
+        PoseidonTrait::new().update_with(_U256_TYPE_HASH).update_with(*self).finalize()
+    }
+}
+
+pub impl ResolvedCrossChainOrderStructHash of StructHash<ResolvedCrossChainOrder> {
+    fn hash_struct(self: @ResolvedCrossChainOrder) -> felt252 {
+        let hashed_max_spents = self
+            .max_spent
+            .into_iter()
+            .map(|output| output.hash_struct())
+            .collect::<Array<felt252>>()
+            .span();
+        let hashed_min_receiveds = self
+            .min_received
+            .into_iter()
+            .map(|output| output.hash_struct())
+            .collect::<Array<felt252>>()
+            .span();
+        let hashed_fill_instructions = self
+            .fill_instructions
+            .into_iter()
+            .map(|output| output.hash_struct())
+            .collect::<Array<felt252>>()
+            .span();
+
+        PoseidonTrait::new()
+            .update_with(RESOLVED_CROSS_CHAIN_ORDER_TYPE_HASH)
+            .update_with(*self.user)
+            .update_with(self.origin_chain_id.hash_struct())
+            .update_with(*self.open_deadline)
+            .update_with(*self.fill_deadline)
+            .update_with(*self.order_id)
+            .update_with(hashed_max_spents)
+            .update_with(hashed_min_receiveds)
+            .update_with(hashed_fill_instructions)
+            .finalize()
+    }
+}
+
+pub impl FillInstructionStructHash of StructHash<FillInstruction> {
+    fn hash_struct(self: @FillInstruction) -> felt252 {
+        PoseidonTrait::new()
+            .update_with(FILL_INSTRUCTION_TYPE_HASH)
+            .update_with(self.destination_chain_id.hash_struct())
+            .update_with(*self.destination_settler)
+            .update_with(self.origin_data.hash_struct())
+            .finalize()
+    }
+}
+
+pub impl OutputStructHash of StructHash<Output> {
+    fn hash_struct(self: @Output) -> felt252 {
+        PoseidonTrait::new()
+            .update_with(OUTPUT_TYPE_HASH)
+            .update_with(*self.token)
+            .update_with(self.amount.hash_struct())
+            .update_with(*self.recipient)
+            .update_with(self.chain_id.hash_struct())
+            .finalize()
+    }
+}
+
+pub impl SpanFelt252StructHash of StructHash<Span<felt252>> {
+    fn hash_struct(self: @Span<felt252>) -> felt252 {
+        let mut state = PoseidonTrait::new();
+        for el in (*self) {
+            state = state.update_with(*el);
+        }
+        state.finalize()
+    }
+}
+
+pub impl ArrayFelt252StructHash of StructHash<Array<felt252>> {
+    fn hash_struct(self: @Array<felt252>) -> felt252 {
+        let mut state = PoseidonTrait::new();
+        for el in (self) {
+            state = state.update_with(*el);
+        }
+        state.finalize()
+    }
+}
