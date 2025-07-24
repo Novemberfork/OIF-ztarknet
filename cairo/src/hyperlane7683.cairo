@@ -1,5 +1,3 @@
-use starknet::ContractAddress;
-
 #[starknet::contract]
 pub mod Hyperlane7683 {
     use oif_starknet::libraries::hyperlane7683_message::Hyperlane7683Message;
