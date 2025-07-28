@@ -123,6 +123,7 @@ pub mod BasicSwap7683Component {
             origin_domain: u32,
             order_ids: @Array<u256>,
             orders_filler_data: @Array<Bytes>,
+            value: u256,
         );
 
         /// @dev Should be implemented by the messaging layer for dispatching a refunding
@@ -132,7 +133,10 @@ pub mod BasicSwap7683Component {
         /// - `origin_domain`: The origin domain of the orders.
         /// - `order_ids`: The IDs of the orders to refund.
         fn _dispatch_refund(
-            ref self: ComponentState<TContractState>, origin_domain: u32, order_ids: @Array<u256>,
+            ref self: ComponentState<TContractState>,
+            origin_domain: u32,
+            order_ids: @Array<u256>,
+            value: u256,
         );
     }
 

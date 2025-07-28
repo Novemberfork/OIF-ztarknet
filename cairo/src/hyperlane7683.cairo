@@ -210,13 +210,14 @@ pub mod Hyperlane7683 {
             origin_domain: u32,
             order_ids: @Array<u256>,
             orders_filler_data: @Array<Bytes>,
+            value: u256,
         ) {
             let mut contract_state = self.get_contract_mut();
             contract_state
                 .gas_router
                 ._Gas_router_dispatch(
                     origin_domain.try_into().unwrap(),
-                    0, // confusion here
+                    value,
                     Hyperlane7683Message::encode_settle(
                         order_ids.span(), orders_filler_data.span(),
                     ),
@@ -235,13 +236,14 @@ pub mod Hyperlane7683 {
             ref self: BasicSwap7683Component::ComponentState<ContractState>,
             origin_domain: u32,
             order_ids: @Array<u256>,
+            value: u256,
         ) {
             let mut contract_state = self.get_contract_mut();
             contract_state
                 .gas_router
                 ._Gas_router_dispatch(
                     origin_domain.try_into().unwrap(),
-                    0, // confusion here
+                    value,
                     Hyperlane7683Message::encode_refund(order_ids.span()),
                     contract_state.mailbox_client.get_hook(),
                 );
