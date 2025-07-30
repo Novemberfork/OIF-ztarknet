@@ -3,45 +3,38 @@
 //    fn users(self: @TState) -> Array<starknet::ContractAddress>;
 //}
 
-#[starknet::contract]
+#[starknet::component]
 pub mod BaseTest {
-    use permit2::libraries::utils::selector;
     use snforge_std::signature::SignerTrait;
     use snforge_std::signature::stark_curve::{
         StarkCurveKeyPairImpl, StarkCurveSignerImpl, StarkCurveVerifierImpl,
     };
     use core::hash::{HashStateExTrait, HashStateTrait};
     use core::poseidon::PoseidonTrait;
-    use openzeppelin_utils::cryptography::snip12::{
-        SNIP12HashSpanImpl, SNIP12Metadata, StarknetDomain, StructHash,
-    };
+    use openzeppelin_utils::cryptography::snip12::{SNIP12HashSpanImpl, StructHash};
 
-    use alexandria_bytes::{Bytes, BytesTrait};
+    use alexandria_bytes::{Bytes};
     use starknet::{ContractAddress, get_contract_address};
     use permit2::interfaces::{
-        signature_transfer::{PermitTransferFrom, PermitBatchTransferFrom, TokenPermissions},
+        signature_transfer::{PermitBatchTransferFrom, TokenPermissions},
         permit2::{IPermit2Dispatcher, IPermit2DispatcherTrait},
     };
     use permit2::snip12_utils::permits::{TokenPermissionsStructHash, U256StructHash};
     use oif_starknet::erc7683::interface::{
-        IERC7683ExtraDispatcher, IERC7683ExtraDispatcherTrait, Open, GaslessCrossChainOrder,
+        IERC7683ExtraDispatcher, IERC7683ExtraDispatcherTrait, GaslessCrossChainOrder,
         OnchainCrossChainOrder, ResolvedCrossChainOrder,
     };
-    use oif_starknet::base7683::Base7683Component;
     use oif_starknet::libraries::order_encoder::OpenOrderEncoder;
     use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
 
     use crate::common::{
-        ETH_ADDRESS, pop_log, pop_log_raw, generate_account, deploy_eth, deploy_erc20,
-        deploy_permit2, deal, deal_multiple,
+        ETH_ADDRESS, pop_log_raw, generate_account, deploy_eth, deploy_erc20, deploy_permit2,
+        deal_multiple,
     };
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
-    use snforge_std::signature::{KeyPair, KeyPairTrait};
     use crate::common::Account;
-
-    use snforge_std::{start_cheat_caller_address, stop_cheat_caller_address, replace_bytecode};
 
     const E18: u256 = 10_000_000_000_000_000_000;
     const origin: u32 = 1;
@@ -66,65 +59,67 @@ pub mod BaseTest {
         base7683: ContractAddress,
     }
 
-
-    #[constructor]
-    fn constructor(ref self: ContractState) {
-        let kaka = generate_account();
-        let karp = generate_account();
-        let veg = generate_account();
-        let counter_part: ContractAddress = 'counterpart'.try_into().unwrap();
-
-        let eth = deploy_eth();
-        let input_token = deploy_erc20("Input Token", "IN");
-        let output_token = deploy_erc20("Output Token", "OUT");
-
-        let permit2 = deploy_permit2();
-        let DOMAIN_SEPARATOR = IPermit2Dispatcher { contract_address: permit2 }.DOMAIN_SEPARATOR();
-        self.DOMAIN_SEPARATOR.write(DOMAIN_SEPARATOR);
-
-        deal_multiple(
-            array![
-                input_token.contract_address,
-                output_token.contract_address,
-                eth.contract_address,
-                eth.contract_address,
-            ],
-            array![
-                kaka.account.contract_address,
-                karp.account.contract_address,
-                veg.account.contract_address,
-            ],
-            1_000_000_000 * E18,
-        );
-
-        self.balance_id.entry(kaka.account.contract_address).write(0);
-        self.balance_id.entry(karp.account.contract_address).write(1);
-        self.balance_id.entry(veg.account.contract_address).write(2);
-        self.balance_id.entry(counter_part).write(3);
-
-        self.kaka.write(kaka.account.contract_address);
-        self.kaka_key_pair.write((kaka.key_pair.secret_key, kaka.key_pair.public_key));
-
-        self.karp.write(kaka.account.contract_address);
-        self.karp_key_pair.write((karp.key_pair.secret_key, karp.key_pair.public_key));
-
-        self.veg.write(kaka.account.contract_address);
-        self.veg_key_pair.write((veg.key_pair.secret_key, veg.key_pair.public_key));
-
-        self.counter_part.write(counter_part);
-    }
-
-
     #[generate_trait]
     pub impl InternalImpl<TState> of InternalTrait<TState> {
+        fn init(ref self: ComponentState<TState>) {
+            let kaka = generate_account();
+            let karp = generate_account();
+            let veg = generate_account();
+            let counter_part: ContractAddress = 'counterpart'.try_into().unwrap();
+
+            let eth = deploy_eth();
+            let input_token = deploy_erc20("Input Token", "IN");
+            let output_token = deploy_erc20("Output Token", "OUT");
+
+            let permit2 = deploy_permit2();
+            let DOMAIN_SEPARATOR = IPermit2Dispatcher { contract_address: permit2 }
+                .DOMAIN_SEPARATOR();
+            self.DOMAIN_SEPARATOR.write(DOMAIN_SEPARATOR);
+
+            deal_multiple(
+                array![
+                    input_token.contract_address,
+                    output_token.contract_address,
+                    eth.contract_address,
+                    eth.contract_address,
+                ],
+                array![
+                    kaka.account.contract_address,
+                    karp.account.contract_address,
+                    veg.account.contract_address,
+                ],
+                1_000_000_000 * E18,
+            );
+
+            self.balance_id.entry(kaka.account.contract_address).write(0);
+            self.balance_id.entry(karp.account.contract_address).write(1);
+            self.balance_id.entry(veg.account.contract_address).write(2);
+            self.balance_id.entry(counter_part).write(3);
+
+            self.kaka.write(kaka.account.contract_address);
+            self.kaka_key_pair.write((kaka.key_pair.secret_key, kaka.key_pair.public_key));
+
+            self.karp.write(kaka.account.contract_address);
+            self.karp_key_pair.write((karp.key_pair.secret_key, karp.key_pair.public_key));
+
+            self.veg.write(kaka.account.contract_address);
+            self.veg_key_pair.write((veg.key_pair.secret_key, veg.key_pair.public_key));
+
+            self.counter_part.write(counter_part);
+        }
+
+
         fn _prepare_onchain_order(
-            self: @ContractState, order_data: Bytes, fill_deadline: u64, order_data_type: felt252,
+            self: @ComponentState<TState>,
+            order_data: Bytes,
+            fill_deadline: u64,
+            order_data_type: felt252,
         ) -> OnchainCrossChainOrder {
             OnchainCrossChainOrder { order_data, fill_deadline, order_data_type }
         }
 
         fn _prepare_gasless_order(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             origin_settler: ContractAddress,
             user: ContractAddress,
             origin_chain_id: u32,
@@ -147,7 +142,7 @@ pub mod BaseTest {
         }
 
         fn _get_order_id_from_logs(
-            self: @ContractState, order: OnchainCrossChainOrder, signature: Bytes,
+            self: @ComponentState<TState>, order: OnchainCrossChainOrder, signature: Bytes,
         ) -> (u256, ResolvedCrossChainOrder) {
             let (keys, mut data) = pop_log_raw(get_contract_address());
 
@@ -159,7 +154,7 @@ pub mod BaseTest {
             (order_id, resolved_order)
         }
 
-        fn _token_balances(self: @ContractState, token: IERC20Dispatcher) -> Array<u256> {
+        fn _token_balances(self: @ComponentState<TState>, token: IERC20Dispatcher) -> Array<u256> {
             array![
                 token.balance_of(self.kaka.read()),
                 token.balance_of(self.karp.read()),
@@ -167,7 +162,7 @@ pub mod BaseTest {
                 token.balance_of(self.counter_part.read()),
             ]
         }
-        fn _balances(self: @ContractState) -> Array<u256> {
+        fn _balances(self: @ComponentState<TState>) -> Array<u256> {
             let eth = IERC20Dispatcher { contract_address: ETH_ADDRESS() };
             array![
                 eth.balance_of(self.kaka.read()),
@@ -190,7 +185,7 @@ pub mod BaseTest {
         );
 
         //fn _get_permit_witness_signature(
-        //    self: @ContractState,
+        //    self: @ComponentState<TState>,
         //    spender: ContractAddress,
         //    permit: PermitTransferFrom,
         //    signer: Account,
@@ -217,7 +212,7 @@ pub mod BaseTest {
         //}
 
         fn _get_permit_batch_witness_signature(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             signer: Account,
             spender: ContractAddress,
             permit: PermitBatchTransferFrom,
@@ -249,7 +244,7 @@ pub mod BaseTest {
         }
 
         fn _default_erc20_permit_multiple(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             tokens: Array<ContractAddress>,
             nonce: felt252,
             amount: u256,
@@ -264,7 +259,7 @@ pub mod BaseTest {
         }
 
         fn _get_signature(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             signer: Account,
             spender: ContractAddress,
             witness: felt252,
@@ -289,7 +284,7 @@ pub mod BaseTest {
         }
 
         fn _assert_resolved_order(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             resolved_order: ResolvedCrossChainOrder,
             order_data: Bytes,
             user: ContractAddress,
@@ -326,7 +321,7 @@ pub mod BaseTest {
             assert_eq!(resolved_order.fill_deadline, fill_deadline);
         }
 
-        fn _order_data_by_id(self: @ContractState, order_id: u256) -> Bytes {
+        fn _order_data_by_id(self: @ComponentState<TState>, order_id: u256) -> Bytes {
             let (_, order_data): (felt252, @Bytes) = IERC7683ExtraDispatcher {
                 contract_address: self.base7683.read(),
             }
@@ -337,7 +332,7 @@ pub mod BaseTest {
         }
 
         fn _assert_open_order_inner(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             order_id: u256,
             sender: ContractAddress,
             order_data: Bytes,
@@ -362,7 +357,7 @@ pub mod BaseTest {
         }
 
         fn _assert_open_order(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             order_id: u256,
             sender: ContractAddress,
             order_data: Bytes,
@@ -388,7 +383,7 @@ pub mod BaseTest {
         }
 
         fn _assert_order(
-            self: @ContractState,
+            self: @ComponentState<TState>,
             order_id: u256,
             order_data: Bytes,
             balances_before: Array<u256>,
@@ -421,7 +416,7 @@ pub mod BaseTest {
         }
 
         /// PUBLIC ///
-        fn set_base7683(ref self: ContractState, base7683: ContractAddress) {
+        fn set_base7683(ref self: ComponentState<TState>, base7683: ContractAddress) {
             self.base7683.write(base7683);
         }
     }
