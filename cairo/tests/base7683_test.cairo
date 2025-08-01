@@ -1,5 +1,6 @@
 use alexandria_bytes::{Bytes, BytesTrait, BytesStore};
 use core::num::traits::Bounded;
+use core::keccak::compute_keccak_byte_array;
 use snforge_std::signature::stark_curve::{
     StarkCurveKeyPairImpl, StarkCurveSignerImpl, StarkCurveVerifierImpl,
 };
@@ -8,6 +9,7 @@ use permit2::snip12_utils::permits::{TokenPermissionsStructHash, U256StructHash}
 use openzeppelin_utils::cryptography::snip12::{SNIP12HashSpanImpl, StructHash};
 use oif_starknet::base7683::{
     SpanFelt252StructHash, ArrayFelt252StructHash, Base7683Component, Base7683Component::Filled,
+    Base7683Component::Settle, Base7683Component::Refund,
 };
 use oif_starknet::erc7683::interface::{
     Output, FilledOrder, GaslessCrossChainOrder, Open, Base7683ABIDispatcherTrait,
@@ -21,7 +23,7 @@ use snforge_std::{
     EventsFilterTrait,
 };
 use crate::mocks::mock_base7683::{IMockBase7683Dispatcher, IMockBase7683DispatcherTrait};
-use crate::_base_test::{
+use crate::base_test::{
     BaseTestSetup, setup as base_setup, _prepare_onchain_order, _balances, _assert_open_order,
     _assert_resolved_order, _get_signature,
 };
@@ -85,7 +87,6 @@ pub fn _prepare_gasless_order(
         order_data_type,
     }
 }
-
 
 #[test]
 #[fuzzer]
@@ -397,7 +398,7 @@ fn test_fill_works() {
     let setup = setup();
 
     let order_data = Into::<ByteArray, Bytes>::into("some order data");
-    let order_id = 123_u256;
+    let order_id = 'someId'.into();
     let mut filler_data: Bytes = BytesTrait::new_empty();
     filler_data.append_address(setup.veg.account.contract_address);
 
@@ -442,7 +443,7 @@ fn test_fill_works() {
 fn test_fill_INVALID_ORDER_STATUS_FILLED() {
     let setup = setup();
     let order_data = Into::<ByteArray, Bytes>::into("some order data");
-    let order_id = 123_u256;
+    let order_id = 'someId'.into();
     let mut filler_data: Bytes = BytesTrait::new_empty();
     filler_data.append_address(setup.veg.account.contract_address);
 
@@ -485,40 +486,368 @@ fn test_fill_INVALID_ORDER_STATUS_OPENED(fill_deadline: u64) {
 }
 
 #[test]
-fn test_settle_works() {}
+fn test_settle_works() {
+    let setup = setup();
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let filler_data = Into::<ByteArray, Bytes>::into("some filler data");
+    let order_id = 'someOrderId';
+
+    // Fill order, then settle order
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    setup.base_full.fill(order_id, order_data.clone(), filler_data.clone());
+
+    let order_ids = array![order_id];
+    let orders_filler_data = array![filler_data.clone()];
+
+    let mut spy = spy_events();
+    setup.base_full.settle(order_ids.clone(), 0);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.base.contract_address,
+                    Base7683Component::Event::Settle(
+                        Base7683Component::Settle {
+                            order_ids: order_ids.clone(), orders_filler_data,
+                        },
+                    ),
+                ),
+            ],
+        );
+
+    assert_eq!(setup.base_full.order_status(order_id), setup.base_full.FILLED());
+    assert_eq!(setup.base.settled_order_ids()[0], @order_id);
+    assert(setup.base.settled_orders_origin_data()[0] == @order_data, 'Order data incorrect');
+    assert(setup.base.settled_orders_filler_data()[0] == @filler_data, 'Filler data incorrect');
+
+    stop_cheat_caller_address(setup.base.contract_address);
+}
 
 #[test]
-fn test_settle_multiple_works() {}
+fn test_settle_multiple_works() {
+    let setup = setup();
+    let order_data1 = Into::<ByteArray, Bytes>::into("some order data 1");
+    let filler_data1 = Into::<ByteArray, Bytes>::into("some order data 1");
+    let order_id1 = 'someOrderId 1'.into();
+    let order_data2 = Into::<ByteArray, Bytes>::into("some order data 2");
+    let filler_data2 = Into::<ByteArray, Bytes>::into("some order data 2");
+    let order_id2 = 'someOrderId 2'.into();
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    setup.base_full.fill(order_id1, order_data1.clone(), filler_data1.clone());
+    setup.base_full.fill(order_id2, order_data2.clone(), filler_data2.clone());
+
+    let order_ids = array![order_id1, order_id2];
+    let orders_filler_data = array![filler_data1.clone(), filler_data2.clone()];
+
+    let mut spy = spy_events();
+    setup.base_full.settle(order_ids.clone(), 0);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.base.contract_address,
+                    Base7683Component::Event::Settle(
+                        Base7683Component::Settle {
+                            order_ids: order_ids.clone(),
+                            orders_filler_data: orders_filler_data.clone(),
+                        },
+                    ),
+                ),
+            ],
+        );
+
+    assert_eq!(setup.base_full.order_status(order_id1), setup.base_full.FILLED());
+    assert_eq!(*setup.base.settled_order_ids()[0], order_id1);
+    assert(setup.base.settled_orders_origin_data()[0] == @order_data1, 'Order data incorrect 1');
+    assert(setup.base.settled_orders_filler_data()[0] == @filler_data1, 'Filler data incorrect 1');
+
+    assert_eq!(setup.base_full.order_status(order_id2), setup.base_full.FILLED());
+    assert_eq!(*setup.base.settled_order_ids()[1], order_id2);
+    assert(setup.base.settled_orders_origin_data()[1] == @order_data2, 'Order data incorrect 2');
+    assert(setup.base.settled_orders_filler_data()[1] == @filler_data2, 'Filler data incorrect 2');
+
+    stop_cheat_caller_address(setup.base.contract_address);
+}
 
 #[test]
 #[should_panic(expected: 'Invalid order status')]
-fn test_settle_INVALID_ORDER_STATUS() {}
+fn test_settle_INVALID_ORDER_STATUS() {
+    let setup = setup();
+    let order_id = 'someOrderId'.into();
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    let order_ids = array![order_id];
+    setup.base_full.settle(order_ids, 0);
+    stop_cheat_caller_address(setup.base.contract_address);
+}
 
 #[test]
-fn test_refund_onChain_works() {}
+fn test_refund_onChain_works() {
+    let setup = setup();
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() - 1;
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let order = _prepare_onchain_order(order_data.clone(), fill_deadline, 'someOrderType');
+    let orders = array![order];
+    let order_id = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data.clone()));
+    let order_ids = array![order_id];
+
+    let mut spy = spy_events();
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    setup.base_full.refund_onchain_cross_chain_order(orders, 0);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.base.contract_address,
+                    Base7683Component::Event::Refund(
+                        Base7683Component::Refund { order_ids: order_ids.clone() },
+                    ),
+                ),
+            ],
+        );
+
+    assert_eq!(
+        setup.base_full.order_status(order_id), setup.base_full.UNKNOWN(),
+    ); // refunding does not change the status
+    assert_eq!(*setup.base.refunded_order_ids()[0], order_id);
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 
 #[test]
-fn test_refund_multi_onChain_works() {}
+fn test_refund_multi_onChain_works() {
+    let setup = setup();
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() - 1;
+    let order_data = Into::<ByteArray, Bytes>::into("some order data 1");
+    let order_data2 = Into::<ByteArray, Bytes>::into("some order data 2");
+    let order = _prepare_onchain_order(order_data.clone(), fill_deadline, 'someOrderType');
+    let order2 = _prepare_onchain_order(order_data2.clone(), fill_deadline, 'someOrderType');
+    let orders = array![order, order2];
+    let order_id = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data.clone()));
+    let order_id2 = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data2.clone()));
+    let order_ids = array![order_id, order_id2];
+
+    let mut spy = spy_events();
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    setup.base_full.refund_onchain_cross_chain_order(orders, 0);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.base.contract_address,
+                    Base7683Component::Event::Refund(
+                        Base7683Component::Refund { order_ids: order_ids.clone() },
+                    ),
+                ),
+            ],
+        );
+
+    assert_eq!(
+        setup.base_full.order_status(order_id), setup.base_full.UNKNOWN(),
+    ); // refunding does not change the status
+    assert_eq!(*setup.base.refunded_order_ids()[0], order_id);
+    assert_eq!(
+        setup.base_full.order_status(order_id2), setup.base_full.UNKNOWN(),
+    ); // refunding does not change the status
+    assert_eq!(*setup.base.refunded_order_ids()[1], order_id2);
+
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 
 #[test]
 #[should_panic(expected: 'Invalid order status')]
-fn test_refund_onChain_INVALID_ORDER_STATUS() {}
+fn test_refund_onChain_INVALID_ORDER_STATUS() {
+    let setup = setup();
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() - 1;
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let order = _prepare_onchain_order(order_data.clone(), fill_deadline, 'someOrderType');
+    let order_id = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data.clone()));
+    let filler_data = Into::<ByteArray, Bytes>::into("some filler data");
+
+    setup.base_full.fill(order_id, order_data.clone(), filler_data);
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    let orders = array![order];
+    setup.base_full.refund_onchain_cross_chain_order(orders, 0);
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 
 #[test]
 #[should_panic(expected: 'Order fill not expired')]
-fn test_refund_onChain_ORDER_FILL_NOT_EXPIRED() {}
+fn test_refund_onChain_ORDER_FILL_NOT_EXPIRED() {
+    let setup = setup();
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let fill_deadline = starknet::get_block_timestamp() + 1;
+    let order = _prepare_onchain_order(order_data.clone(), fill_deadline, 'someOrderType');
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    let orders = array![order];
+    setup.base_full.refund_onchain_cross_chain_order(orders, 0);
+    stop_cheat_caller_address(setup.base.contract_address);
+}
 
 #[test]
-fn test_refund_gasless_works() {}
+fn test_refund_gasless_works() {
+    let setup = setup();
+    let permit_nonce = 0;
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() - 1;
+    let open_deadline = starknet::get_block_timestamp() - 10;
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let order = _prepare_gasless_order(
+        order_data.clone(),
+        permit_nonce,
+        open_deadline,
+        fill_deadline,
+        'someOrderType',
+        setup.clone(),
+    );
+    let orders = array![order];
+    let order_id = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data.clone()));
+    let order_ids = array![order_id];
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    println!("aaa");
+
+    let mut spy = spy_events();
+    setup.base_full.refund_gasless_cross_chain_order(orders, 0);
+    println!("bbb");
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.base.contract_address,
+                    Base7683Component::Event::Refund(
+                        Base7683Component::Refund { order_ids: order_ids.clone() },
+                    ),
+                ),
+            ],
+        );
+
+    assert_eq!(
+        setup.base_full.order_status(order_id), setup.base_full.UNKNOWN(),
+    ); // refunding does not change the status
+    assert_eq!(*setup.base.refunded_order_ids()[0], order_id);
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 
 #[test]
-fn test_refund_multi_gasless_work() {}
+fn test_refund_multi_gasless_work() {
+    let setup = setup();
+    let permit_nonce = 0;
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() - 1;
+    let open_deadline = starknet::get_block_timestamp() - 10;
+    let order_data1 = Into::<ByteArray, Bytes>::into("some order data 1");
+    let order_id1 = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data1.clone()));
+    let order1 = _prepare_gasless_order(
+        order_data1.clone(),
+        permit_nonce,
+        open_deadline,
+        fill_deadline,
+        'someOrderType',
+        setup.clone(),
+    );
+    let order_data2 = Into::<ByteArray, Bytes>::into("some order data2");
+    let order_id2 = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data2.clone()));
+    let order2 = _prepare_gasless_order(
+        order_data2.clone(),
+        permit_nonce,
+        open_deadline,
+        fill_deadline,
+        'someOrderType',
+        setup.clone(),
+    );
+    let orders = array![order1, order2];
+    let order_ids = array![order_id1, order_id2];
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    let mut spy = spy_events();
+    setup.base_full.refund_gasless_cross_chain_order(orders, 0);
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    setup.base.contract_address,
+                    Base7683Component::Event::Refund(
+                        Base7683Component::Refund { order_ids: order_ids.clone() },
+                    ),
+                ),
+            ],
+        );
+
+    assert_eq!(
+        setup.base_full.order_status(order_id1), setup.base_full.UNKNOWN(),
+    ); // refunding does not change the status
+    assert_eq!(*setup.base.refunded_order_ids()[0], order_id1);
+
+    assert_eq!(
+        setup.base_full.order_status(order_id2), setup.base_full.UNKNOWN(),
+    ); // refunding does not change the status
+    assert_eq!(*setup.base.refunded_order_ids()[1], order_id2);
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 
 #[test]
 #[should_panic(expected: 'Invalid order status')]
-fn test_refund_gasless_INVALID_ORDER_STATUS() {}
+fn test_refund_gasless_INVALID_ORDER_STATUS() {
+    let setup = setup();
+    let permit_nonce = 0;
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() - 1;
+    let open_deadline = starknet::get_block_timestamp() - 10;
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let order = _prepare_gasless_order(
+        order_data.clone(),
+        permit_nonce,
+        open_deadline,
+        fill_deadline,
+        'someOrderType',
+        setup.clone(),
+    );
+    let order_id = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data.clone()));
+    let filler_data = Into::<ByteArray, Bytes>::into("some filler data");
+
+    setup.base_full.fill(order_id, order_data.clone(), filler_data);
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    let orders = array![order];
+    setup.base_full.refund_gasless_cross_chain_order(orders, 0);
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 
 #[test]
 #[should_panic(expected: 'Order fill not expired')]
-fn test_refund_gasless_ORDER_FILL_NOT_EXPIRED() {}
+fn test_refund_gasless_ORDER_FILL_NOT_EXPIRED() {
+    let setup = setup();
+    let permit_nonce = 0;
+    start_cheat_block_timestamp_global(123);
+    let fill_deadline = starknet::get_block_timestamp() + 2;
+    let open_deadline = starknet::get_block_timestamp() - 10;
+    let order_data = Into::<ByteArray, Bytes>::into("some order data");
+    let order = _prepare_gasless_order(
+        order_data.clone(),
+        permit_nonce,
+        open_deadline,
+        fill_deadline,
+        'someOrderType',
+        setup.clone(),
+    );
+    let orders = array![order];
+
+    start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
+    setup.base_full.refund_gasless_cross_chain_order(orders, 0);
+    stop_cheat_caller_address(setup.base.contract_address);
+    stop_cheat_block_timestamp_global();
+}
 

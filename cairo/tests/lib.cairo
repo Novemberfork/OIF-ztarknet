@@ -5,7 +5,7 @@ pub mod mocks {
     pub mod mock_erc20;
     pub mod mock_permit2;
 }
-pub mod _base_test;
+pub mod base_test;
 pub mod base7683_test;
 pub mod basic_swap7683_test;
 pub mod common;

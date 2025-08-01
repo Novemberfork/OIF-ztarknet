@@ -85,16 +85,16 @@ pub mod Base7683Component {
     /// @param order_ids: The IDs of the orders being settled.
     /// @param orders_filler_data The filler data for the settled orders.
     #[derive(Drop, starknet::Event)]
-    struct Settle {
-        order_ids: Array<u256>,
-        orders_filler_data: Array<Bytes>,
+    pub struct Settle {
+        pub order_ids: Array<u256>,
+        pub orders_filler_data: Array<Bytes>,
     }
 
     /// Emitted when a batch of orders is refunded.
     /// @param order_ids: The IDs of the refunded orders.
     #[derive(Drop, starknet::Event)]
-    struct Refund {
-        order_ids: Array<u256>,
+    pub struct Refund {
+        pub order_ids: Array<u256>,
     }
 
     /// Emitted when a nonce is invalidated for an address.

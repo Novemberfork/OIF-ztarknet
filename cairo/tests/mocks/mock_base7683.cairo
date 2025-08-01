@@ -1,5 +1,4 @@
-use starknet::ContractAddress;
-use alexandria_bytes::{Bytes, BytesTrait};
+use alexandria_bytes::Bytes;
 #[starknet::interface]
 pub trait IMockBase7683<TState> {
     fn set_native(ref self: TState, is_native: bool);
@@ -17,7 +16,7 @@ pub trait IMockBase7683<TState> {
 
 #[starknet::contract]
 pub mod MockBase7683 {
-    use alexandria_bytes::{Bytes, BytesStore, BytesTrait};
+    use alexandria_bytes::{Bytes, BytesStore};
     use core::keccak::compute_keccak_byte_array;
     use core::num::traits::Bounded;
     use oif_starknet::base7683::Base7683Component;
@@ -30,8 +29,7 @@ pub mod MockBase7683 {
     use openzeppelin_utils::cryptography::snip12::StructHashStarknetDomainImpl;
     use starknet::ContractAddress;
     use starknet::storage::{
-        Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
-        Vec, VecTrait,
+        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
 
     /// COMPONENT INJECTION ///
@@ -39,8 +37,6 @@ pub mod MockBase7683 {
     component!(path: BasicSwap7683Component, storage: basic_swap7683, event: BasicSwap7683Event);
 
     /// EXTERNAL ///
-
-    /// Base7683
     #[abi(embed_v0)]
     pub impl OriginSettlerImpl =
         Base7683Component::OriginSettlerImpl<ContractState>;
@@ -50,10 +46,8 @@ pub mod MockBase7683 {
     #[abi(embed_v0)]
     pub impl ExtraImpl = Base7683Component::ERC7683ExtraImpl<ContractState>;
 
+    /// INTERNAL ///
     impl BaseInternalImpl = Base7683Component::InternalImpl<ContractState>;
-
-    /// BasicSwap7683
-    impl BasicSwapInternalImpl = BasicSwap7683Component::InternalImpl<ContractState>;
 
     /// STORAGE ///
     #[storage]
@@ -318,10 +312,13 @@ pub mod MockBase7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
-            BasicSwapInternalImpl::_refund_gasless_orders(
-                ref contract_state.basic_swap7683, orders, order_ids, value,
-            );
+            let mut self = self.get_contract_mut();
+
+            self.refunded_order_ids_len.write(order_ids.len());
+
+            for i in 0..order_ids.len() {
+                self.refunded_order_ids.entry(i).write(*order_ids[i]);
+            };
         }
 
         fn _local_domain(self: @Base7683Component::ComponentState<ContractState>) -> u32 {
@@ -339,91 +336,6 @@ pub mod MockBase7683 {
             self: @Base7683Component::ComponentState<ContractState>, order: @OnchainCrossChainOrder,
         ) -> u256 {
             compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order.order_data.clone()))
-        }
-    }
-
-    /// BASIC SWAP OVERRIDES ///
-    impl BasicSwapVirtualImpl of BasicSwap7683Component::BasicSwapVirtual<ContractState> {
-        /// Dispatches a settlement message to the specified domain.
-        /// @dev Encodes the settle message using Hyperlane7683Message and dispatches it via the
-        /// GasRouter.
-        ///
-        /// Parameters:
-        /// - `origin_domain`: The domain to which the settlement message is sent.
-        /// - `order_ids`: The IDs of the orders to settle.
-        /// - `orders_filler_data`: The filler data for the orders.
-        fn _dispatch_settle(
-            ref self: BasicSwap7683Component::ComponentState<ContractState>,
-            origin_domain: u32,
-            order_ids: @Array<u256>,
-            orders_filler_data: @Array<Bytes>,
-            value: u256,
-        ) { //
-        // // let mut contract_state = self.get_contract_mut();
-        // // contract_state
-        // //     .gas_router
-        // //     ._Gas_router_dispatch(
-        // //         origin_domain.try_into().unwrap(),
-        // //         value,
-        // //         Hyperlane7683Message::encode_settle(
-        // //             order_ids.span(), orders_filler_data.span(),
-        // //         ),
-        // //         contract_state.mailbox_client.get_hook(),
-        // //     );
-        }
-
-        /// Dispatches a refund message to the specified domain.
-        /// @dev Encodes the refund message using Hyperlane7683Message and dispatches it via the
-        /// GasRouter.
-        ///
-        /// Parameters:
-        /// - `origin_domain`: The domain to which the refund message is sent.
-        /// - `order_dds`: The IDs of the orders to refund.
-        fn _dispatch_refund(
-            ref self: BasicSwap7683Component::ComponentState<ContractState>,
-            origin_domain: u32,
-            order_ids: @Array<u256>,
-            value: u256,
-        ) { //
-        // // let mut contract_state = self.get_contract_mut();
-        // // contract_state
-        // //     .gas_router
-        // //     ._Gas_router_dispatch(
-        // //         origin_domain.try_into().unwrap(),
-        // //         value,
-        // //         Hyperlane7683Message::encode_refund(order_ids.span()),
-        // //         contract_state.mailbox_client.get_hook(),
-        // //     );
-        }
-
-        fn _handle_settle_order(
-            ref self: BasicSwap7683Component::ComponentState<ContractState>,
-            message_origin: u32,
-            message_sender: ContractAddress,
-            order_id: u256,
-            receiver: ContractAddress,
-        ) {
-            let mut contract_state = self.get_contract_mut();
-
-            BasicSwapInternalImpl::_handle_settle_order(
-                ref contract_state.basic_swap7683,
-                message_origin,
-                message_sender,
-                order_id,
-                receiver,
-            );
-        }
-
-        fn _handle_refund_order(
-            ref self: BasicSwap7683Component::ComponentState<ContractState>,
-            message_origin: u32,
-            message_sender: ContractAddress,
-            order_id: u256,
-        ) {
-            let mut contract_state = self.get_contract_mut();
-            BasicSwapInternalImpl::_handle_refund_order(
-                ref contract_state.basic_swap7683, message_origin, message_sender, order_id,
-            );
         }
     }
 }
