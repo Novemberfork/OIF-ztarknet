@@ -34,7 +34,6 @@ pub mod MockBase7683 {
 
     /// COMPONENT INJECTION ///
     component!(path: Base7683Component, storage: base7683, event: Base7683Event);
-    component!(path: BasicSwap7683Component, storage: basic_swap7683, event: BasicSwap7683Event);
 
     /// EXTERNAL ///
     #[abi(embed_v0)]
