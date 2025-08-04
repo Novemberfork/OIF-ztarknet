@@ -85,8 +85,15 @@ pub mod OrderEncoder {
         let (offset, destination_domain) = order_data.read_u32(offset);
         let (offset, destination_settler) = order_data.read_address(offset);
         let (offset, fill_deadline) = order_data.read_u64(offset);
-        let (offset, data_size) = order_data.read_usize(offset);
-        let (_, data) = order_data.read_bytes(offset, data_size);
+
+        let order_data_size = order_data.size();
+        let data = if (order_data_size - offset > 0) {
+            println!("order_data exists");
+            let (_, _data) = order_data.read_bytes(offset, order_data_size - offset);
+            _data
+        } else {
+            BytesTrait::new_empty()
+        };
 
         OrderData {
             sender,
@@ -100,7 +107,7 @@ pub mod OrderEncoder {
             destination_domain,
             destination_settler,
             fill_deadline,
-            data: data,
+            data,
         }
     }
 }
