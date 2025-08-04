@@ -4,7 +4,7 @@ use core::keccak::compute_keccak_byte_array;
 use snforge_std::signature::stark_curve::{
     StarkCurveKeyPairImpl, StarkCurveSignerImpl, StarkCurveVerifierImpl,
 };
-use crate::common::pop_event;
+use crate::common::{pop_event, Account};
 use permit2::snip12_utils::permits::{TokenPermissionsStructHash, U256StructHash};
 use openzeppelin_utils::cryptography::snip12::{SNIP12HashSpanImpl, StructHash};
 use oif_starknet::base7683::{
@@ -12,10 +12,12 @@ use oif_starknet::base7683::{
     Base7683Component::Settle, Base7683Component::Refund,
 };
 use oif_starknet::erc7683::interface::{
-    Output, FilledOrder, GaslessCrossChainOrder, Open, Base7683ABIDispatcherTrait,
+    Base7683ABIDispatcher, Base7683ABIDispatcherTrait, Output, FilledOrder, GaslessCrossChainOrder,
+    Open,
 };
 use oif_starknet::libraries::order_encoder::{BytesDefault};
-use openzeppelin_token::erc20::interface::{IERC20DispatcherTrait};
+use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
+use starknet::ContractAddress;
 use snforge_std::{
     start_cheat_caller_address, start_cheat_caller_address_global,
     start_cheat_block_timestamp_global, stop_cheat_block_timestamp_global, EventSpyAssertionsTrait,
@@ -24,7 +26,7 @@ use snforge_std::{
 };
 use crate::mocks::mock_base7683::{IMockBase7683Dispatcher, IMockBase7683DispatcherTrait};
 use crate::base_test::{
-    BaseTestSetup, setup as base_setup, _prepare_onchain_order, _balances, _assert_open_order,
+    BaseTestSetup, base_setup, _prepare_onchain_order, _balances, _assert_open_order,
     _assert_resolved_order, _get_signature,
 };
 
@@ -712,12 +714,9 @@ fn test_refund_gasless_works() {
     let order_id = compute_keccak_byte_array(@Into::<Bytes, ByteArray>::into(order_data.clone()));
     let order_ids = array![order_id];
     start_cheat_caller_address(setup.base.contract_address, setup.veg.account.contract_address);
-    println!("aaa");
 
     let mut spy = spy_events();
     setup.base_full.refund_gasless_cross_chain_order(orders, 0);
-    println!("bbb");
-
     spy
         .assert_emitted(
             @array![

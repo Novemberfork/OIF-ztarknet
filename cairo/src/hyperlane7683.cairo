@@ -36,7 +36,11 @@ pub mod Hyperlane7683 {
     impl BaseInternalImpl = Base7683Component::InternalImpl<ContractState>;
 
     /// BasicSwap7683
+    #[abi(embed_v0)]
+    impl BasicSwapExtraImpl =
+        BasicSwap7683Component::BasicSwapExtraImpl<ContractState>;
     impl BasicSwapInternalImpl = BasicSwap7683Component::InternalImpl<ContractState>;
+
 
     // Ownable
     #[abi(embed_v0)]
@@ -145,13 +149,9 @@ pub mod Hyperlane7683 {
             orders_filler_data: @Array<Bytes>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_settle_orders(
-                ref contract_state.basic_swap7683,
-                order_ids,
-                orders_origin_data,
-                orders_filler_data,
-                value,
+                ref self.basic_swap7683, order_ids, orders_origin_data, orders_filler_data, value,
             );
         }
 
@@ -162,9 +162,9 @@ pub mod Hyperlane7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_refund_onchain_orders(
-                ref contract_state.basic_swap7683, orders, order_ids, value,
+                ref self.basic_swap7683, orders, order_ids, value,
             );
         }
 
@@ -174,9 +174,9 @@ pub mod Hyperlane7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_refund_gasless_orders(
-                ref contract_state.basic_swap7683, orders, order_ids, value,
+                ref self.basic_swap7683, orders, order_ids, value,
             );
         }
 
@@ -187,20 +187,20 @@ pub mod Hyperlane7683 {
         fn _get_gasless_order_id(
             self: @Base7683Component::ComponentState<ContractState>, order: @GaslessCrossChainOrder,
         ) -> u256 {
-            let contract_state = self.get_contract();
-            BasicSwapInternalImpl::_get_gasless_order_id(contract_state.basic_swap7683, order)
+            let self = self.get_contract();
+            BasicSwapInternalImpl::_get_gasless_order_id(self.basic_swap7683, order)
         }
 
         fn _get_onchain_order_id(
             self: @Base7683Component::ComponentState<ContractState>, order: @OnchainCrossChainOrder,
         ) -> u256 {
-            let contract_state = self.get_contract();
-            BasicSwapInternalImpl::_get_onchain_order_id(contract_state.basic_swap7683, order)
+            let self = self.get_contract();
+            BasicSwapInternalImpl::_get_onchain_order_id(self.basic_swap7683, order)
         }
     }
 
     /// BASIC SWAP OVERRIDES ///
-    impl BasicSwap7683VirtualImpl of BasicSwap7683Component::Virtual<ContractState> {
+    pub impl BasicSwap7683VirtualImpl of BasicSwap7683Component::Virtual<ContractState> {
         /// Dispatches a settlement message to the specified domain.
         /// @dev Encodes the settle message using Hyperlane7683Message and dispatches it via the
         /// GasRouter.
@@ -216,8 +216,8 @@ pub mod Hyperlane7683 {
             orders_filler_data: @Array<Bytes>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
-            contract_state
+            let mut self = self.get_contract_mut();
+            self
                 .gas_router
                 ._Gas_router_dispatch(
                     origin_domain.try_into().unwrap(),
@@ -225,7 +225,7 @@ pub mod Hyperlane7683 {
                     Hyperlane7683Message::encode_settle(
                         order_ids.span(), orders_filler_data.span(),
                     ),
-                    contract_state.mailbox_client.get_hook(),
+                    self.mailbox_client.get_hook(),
                 );
         }
 
@@ -242,14 +242,14 @@ pub mod Hyperlane7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
-            contract_state
+            let mut self = self.get_contract_mut();
+            self
                 .gas_router
                 ._Gas_router_dispatch(
                     origin_domain.try_into().unwrap(),
                     value,
                     Hyperlane7683Message::encode_refund(order_ids.span()),
-                    contract_state.mailbox_client.get_hook(),
+                    self.mailbox_client.get_hook(),
                 );
         }
 
@@ -260,14 +260,10 @@ pub mod Hyperlane7683 {
             order_id: u256,
             receiver: ContractAddress,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
 
             BasicSwapInternalImpl::_handle_settle_order(
-                ref contract_state.basic_swap7683,
-                message_origin,
-                message_sender,
-                order_id,
-                receiver,
+                ref self.basic_swap7683, message_origin, message_sender, order_id, receiver,
             );
         }
 
@@ -277,9 +273,9 @@ pub mod Hyperlane7683 {
             message_sender: ContractAddress,
             order_id: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_handle_refund_order(
-                ref contract_state.basic_swap7683, message_origin, message_sender, order_id,
+                ref self.basic_swap7683, message_origin, message_sender, order_id,
             );
         }
     }
@@ -292,7 +288,7 @@ pub mod Hyperlane7683 {
             sender: u256,
             message: Bytes,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             let (settle, order_ids, orders_filler_data) = Hyperlane7683Message::decode(message);
             let sender: ContractAddress = TryInto::<u256, felt252>::try_into(sender)
                 .expect('Err casting u256 -> felt252')
@@ -309,7 +305,7 @@ pub mod Hyperlane7683 {
                             .read_address(0);
 
                         BasicSwap7683VirtualImpl::_handle_settle_order(
-                            ref contract_state.basic_swap7683,
+                            ref self.basic_swap7683,
                             origin.try_into().unwrap(),
                             sender.try_into().unwrap(),
                             *order_ids.at(i),
@@ -318,7 +314,7 @@ pub mod Hyperlane7683 {
                     },
                     false => {
                         BasicSwap7683VirtualImpl::_handle_refund_order(
-                            ref contract_state.basic_swap7683,
+                            ref self.basic_swap7683,
                             origin.try_into().unwrap(),
                             sender.try_into().unwrap(),
                             *order_ids.at(i),

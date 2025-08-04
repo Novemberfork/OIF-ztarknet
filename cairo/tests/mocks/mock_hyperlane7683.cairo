@@ -33,6 +33,7 @@ pub mod MockHyperlane7683 {
     use contracts::client::router_component::RouterComponent::IMessageRecipientInternalHookTrait;
     use oif_starknet::base7683::Base7683Component;
     use oif_starknet::base7683::Base7683Component::{DestinationSettler, OriginSettler};
+    use oif_starknet::hyperlane7683::Hyperlane7683;
     use oif_starknet::basic_swap7683::BasicSwap7683Component;
     use oif_starknet::erc7683::interface::{
         GaslessCrossChainOrder, OnchainCrossChainOrder, ResolvedCrossChainOrder,
@@ -44,8 +45,6 @@ pub mod MockHyperlane7683 {
     use starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
     };
-    use super::IMockHyperlane7683;
-
 
     /// COMPONENT INJECTION ///
     component!(path: Base7683Component, storage: base7683, event: Base7683Event);
@@ -54,8 +53,6 @@ pub mod MockHyperlane7683 {
     component!(path: RouterComponent, storage: router, event: RouterEvent);
     component!(path: GasRouterComponent, storage: gas_router, event: GasRouterEvent);
     component!(path: MailboxclientComponent, storage: mailbox_client, event: MailboxClientEvent);
-
-    /// EXTERNAL ///
 
     /// Base7683
     #[abi(embed_v0)]
@@ -108,7 +105,6 @@ pub mod MockHyperlane7683 {
         settled_order_receiver_len: usize,
         settled_message_origin_len: usize,
         settled_message_sender_len: usize,
-        /////////
         #[substorage(v0)]
         base7683: Base7683Component::Storage,
         #[substorage(v0)]
@@ -191,13 +187,9 @@ pub mod MockHyperlane7683 {
             orders_filler_data: @Array<Bytes>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_settle_orders(
-                ref contract_state.basic_swap7683,
-                order_ids,
-                orders_origin_data,
-                orders_filler_data,
-                value,
+                ref self.basic_swap7683, order_ids, orders_origin_data, orders_filler_data, value,
             );
         }
 
@@ -208,9 +200,9 @@ pub mod MockHyperlane7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_refund_onchain_orders(
-                ref contract_state.basic_swap7683, orders, order_ids, value,
+                ref self.basic_swap7683, orders, order_ids, value,
             );
         }
 
@@ -220,9 +212,9 @@ pub mod MockHyperlane7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
+            let mut self = self.get_contract_mut();
             BasicSwapInternalImpl::_refund_gasless_orders(
-                ref contract_state.basic_swap7683, orders, order_ids, value,
+                ref self.basic_swap7683, orders, order_ids, value,
             );
         }
 
@@ -233,15 +225,15 @@ pub mod MockHyperlane7683 {
         fn _get_gasless_order_id(
             self: @Base7683Component::ComponentState<ContractState>, order: @GaslessCrossChainOrder,
         ) -> u256 {
-            let contract_state = self.get_contract();
-            BasicSwapInternalImpl::_get_gasless_order_id(contract_state.basic_swap7683, order)
+            let self = self.get_contract();
+            BasicSwapInternalImpl::_get_gasless_order_id(self.basic_swap7683, order)
         }
 
         fn _get_onchain_order_id(
             self: @Base7683Component::ComponentState<ContractState>, order: @OnchainCrossChainOrder,
         ) -> u256 {
-            let contract_state = self.get_contract();
-            BasicSwapInternalImpl::_get_onchain_order_id(contract_state.basic_swap7683, order)
+            let self = self.get_contract();
+            BasicSwapInternalImpl::_get_onchain_order_id(self.basic_swap7683, order)
         }
     }
 
@@ -254,8 +246,8 @@ pub mod MockHyperlane7683 {
             orders_filler_data: @Array<Bytes>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
-            contract_state
+            let mut self = self.get_contract_mut();
+            self
                 .gas_router
                 ._Gas_router_dispatch(
                     origin_domain.try_into().unwrap(),
@@ -263,7 +255,7 @@ pub mod MockHyperlane7683 {
                     Hyperlane7683Message::encode_settle(
                         order_ids.span(), orders_filler_data.span(),
                     ),
-                    contract_state.mailbox_client.get_hook(),
+                    self.mailbox_client.get_hook(),
                 );
         }
 
@@ -273,14 +265,14 @@ pub mod MockHyperlane7683 {
             order_ids: @Array<u256>,
             value: u256,
         ) {
-            let mut contract_state = self.get_contract_mut();
-            contract_state
+            let mut self = self.get_contract_mut();
+            self
                 .gas_router
                 ._Gas_router_dispatch(
                     origin_domain.try_into().unwrap(),
                     value,
                     Hyperlane7683Message::encode_refund(order_ids.span()),
-                    contract_state.mailbox_client.get_hook(),
+                    self.mailbox_client.get_hook(),
                 );
         }
 
@@ -376,6 +368,7 @@ pub mod MockHyperlane7683 {
         }
     }
 
+    /// EXTRA PUBLIC ///
     #[abi(embed_v0)]
     pub impl MockHyperlane7683Impl of super::IMockHyperlane7683<ContractState> {
         fn refunded_message_origin(self: @ContractState) -> Array<u32> {
