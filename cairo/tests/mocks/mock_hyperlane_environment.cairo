@@ -10,7 +10,7 @@ pub trait IMockHyperlaneEnvironment<TState> {
     fn igps(self: @TState, domain: u32) -> ITestInterchainGasPaymentDispatcher;
     fn isms(self: @TState, domain: u32) -> ITestISMDispatcher;
     fn process_next_pending_message(ref self: TState);
-    fn process_next_pending_message_from_destination(ref self: TState, value: u256);
+    fn process_next_pending_message_from_destination(ref self: TState);
 }
 
 #[starknet::contract]
@@ -53,9 +53,17 @@ pub mod MockHyperlaneEnvironment {
         self.origin_domain.write(origin_domain);
         self.destination_domain.write(destination_domain);
 
-        // Deploy Mailboxes
-        let _mailbox_class_hash: ClassHash = MockMailbox::TEST_CLASS_HASH.try_into().unwrap();
+        // Deploy ISMs
+        let (_ism_o_addr, _): (ContractAddress, Span<felt252>) = deploy_syscall(
+            ism_class_hash, 'some salt', array![].span(), false,
+        )
+            .expect('ism o failed');
+        let (_ism_d_addr, _): (ContractAddress, Span<felt252>) = deploy_syscall(
+            ism_class_hash, 'some more salt', array![].span(), false,
+        )
+            .expect('ism d failed');
 
+        // Deploy Mailboxes
         let (_mailbox_o_addr, _): (ContractAddress, Span<felt252>) = deploy_syscall(
             mailbox_class_hash,
             'some salt',
@@ -71,19 +79,7 @@ pub mod MockHyperlaneEnvironment {
         )
             .expect('mailbox d failed');
 
-        // Deploy ISMs
-        let _ism_class_hash: ClassHash = TestInterchainGasPayment::TEST_CLASS_HASH
-            .try_into()
-            .unwrap();
-
-        let (_ism_o_addr, _): (ContractAddress, Span<felt252>) = deploy_syscall(
-            ism_class_hash, 'some salt', array![].span(), false,
-        )
-            .expect('ism o failed');
-        let (_ism_d_addr, _): (ContractAddress, Span<felt252>) = deploy_syscall(
-            ism_class_hash, 'some more salt', array![].span(), false,
-        )
-            .expect('ism d failed');
+        assert(_mailbox_o_addr != _mailbox_d_addr, 'mailboxes must be different');
 
         let origin_mailbox = IMockMailboxDispatcher { contract_address: _mailbox_o_addr };
         let destination_mailbox = IMockMailboxDispatcher { contract_address: _mailbox_d_addr };
@@ -99,7 +95,7 @@ pub mod MockHyperlaneEnvironment {
         IOwnableDispatcher { contract_address: origin_mailbox.contract_address }
             .transfer_ownership(starknet::get_caller_address());
 
-        IOwnableDispatcher { contract_address: origin_mailbox.contract_address }
+        IOwnableDispatcher { contract_address: destination_mailbox.contract_address }
             .transfer_ownership(starknet::get_caller_address());
 
         self.mailboxes.entry(origin_domain).write(origin_mailbox);
@@ -138,7 +134,7 @@ pub mod MockHyperlaneEnvironment {
                 .process_next_inbound_message();
         }
 
-        fn process_next_pending_message_from_destination(ref self: ContractState, value: u256) {
+        fn process_next_pending_message_from_destination(ref self: ContractState) {
             self.mailboxes.entry(self.origin_domain.read()).read().process_next_inbound_message();
         }
     }

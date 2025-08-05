@@ -1,36 +1,28 @@
 use alexandria_bytes::{Bytes, BytesTrait, BytesStore};
 use crate::common::{
-    Account, deal, deal_multiple, deploy_permit2, deploy_eth, deploy_erc20,
+    Account, ETH_ADDRESS, deal_eth, deal_multiple, deploy_permit2, deploy_eth, deploy_erc20,
     deploy_mock_hyperlane7683, generate_account,
 };
 use contracts::client::router_component::{IRouterDispatcher, IRouterDispatcherTrait};
-use contracts::client::gas_router_component::{
-    IGasRouterDispatcher, IGasRouterDispatcherTrait, GasRouterComponent::GasRouterConfig,
-};
+use contracts::client::gas_router_component::{IGasRouterDispatcher, IGasRouterDispatcherTrait};
 use snforge_std::{
     start_cheat_block_timestamp_global, start_cheat_caller_address_global,
     stop_cheat_caller_address_global, ContractClassTrait, DeclareResultTrait, declare,
 };
 use permit2::interfaces::permit2::{IPermit2Dispatcher, IPermit2DispatcherTrait};
-use core::num::traits::{Bounded, Pow};
-use core::keccak::compute_keccak_byte_array;
+use core::num::traits::Pow;
 use snforge_std::signature::stark_curve::{
     StarkCurveKeyPairImpl, StarkCurveSignerImpl, StarkCurveVerifierImpl,
 };
 use permit2::snip12_utils::permits::{TokenPermissionsStructHash, U256StructHash};
-use openzeppelin_utils::cryptography::snip12::{SNIP12HashSpanImpl, StructHash};
-use oif_starknet::libraries::order_encoder::{OrderData, OrderEncoder, ContractAddressDefault};
-use oif_starknet::base7683::{
-    SpanFelt252StructHash, ArrayFelt252StructHash, Base7683Component, Base7683Component::Filled,
-    Base7683Component::Settle, Base7683Component::Refund,
-};
-use oif_starknet::erc7683::interface::{
-    Output, FilledOrder, ResolvedCrossChainOrder, GaslessCrossChainOrder, Open,
-    Base7683ABIDispatcher, Base7683ABIDispatcherTrait,
-};
-use oif_starknet::basic_swap7683::BasicSwap7683Component;
-use oif_starknet::libraries::order_encoder::{BytesDefault};
+use openzeppelin_utils::cryptography::snip12::SNIP12HashSpanImpl;
+use openzeppelin_access::ownable::interface::{IOwnableDispatcher, IOwnableDispatcherTrait};
 use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
+use oif_starknet::libraries::order_encoder::ContractAddressDefault;
+use oif_starknet::libraries::hyperlane7683_message::{Hyperlane7683Message};
+use oif_starknet::base7683::{SpanFelt252StructHash, ArrayFelt252StructHash};
+use oif_starknet::erc7683::interface::{ResolvedCrossChainOrder};
+use oif_starknet::libraries::order_encoder::{BytesDefault};
 use starknet::{ContractAddress, ClassHash};
 use snforge_std::{
     start_cheat_caller_address, EventSpyAssertionsTrait, stop_cheat_caller_address, spy_events,
@@ -39,23 +31,23 @@ use snforge_std::{
 use crate::mocks::mock_hyperlane_environment::{
     IMockHyperlaneEnvironmentDispatcher, IMockHyperlaneEnvironmentDispatcherTrait,
 };
-use crate::mocks::mock_base7683::{IMockBase7683Dispatcher, IMockBase7683DispatcherTrait};
 use crate::mocks::mock_hyperlane7683::{
     IMockHyperlane7683Dispatcher, IMockHyperlane7683DispatcherTrait,
 };
-use crate::mocks::mock_basic_swap7683::{
-    IMockBasicSwap7683Dispatcher, IMockBasicSwap7683DispatcherTrait,
-};
+
 use crate::base_test::{
-    BaseTestSetup, setup as base_setup, _prepare_gasless_order as __prepare_gasless_order,
-    _balances, _assert_open_order, _get_signature, _prepare_onchain_order,
+    _eth_balances, _prepare_gasless_order as __prepare_gasless_order, _balances, _assert_open_order,
+    _get_signature, _prepare_onchain_order,
 };
 use mocks::test_interchain_gas_payment::{
     ITestInterchainGasPaymentDispatcher, ITestInterchainGasPaymentDispatcherTrait,
 };
-use contracts::interfaces::{IMailboxClient, IMailboxDispatcher, IMailboxDispatcherTrait};
-use crate::mocks::mock_mailbox::{MockMailbox};
-use crate::mocks::test_interchain_gas_payment::{TestInterchainGasPayment};
+use contracts::interfaces::{
+    IMailboxClientDispatcher, IMailboxClientDispatcherTrait, IMailboxDispatcher,
+    IMailboxDispatcherTrait,
+};
+use crate::mocks::mock_mailbox::{Call, IMockMailboxDispatcherTrait};
+use contracts::hooks::libs::standard_hook_metadata::standard_hook_metadata::StandardHookMetadata;
 
 
 const GAS_LIMIT: u256 = 60_000;
@@ -181,32 +173,49 @@ pub fn deploy_igp() -> ITestInterchainGasPaymentDispatcher {
     ITestInterchainGasPaymentDispatcher { contract_address }
 }
 
+fn declare_mock_mailbox() -> ClassHash {
+    let contract = declare("MockMailbox").unwrap().contract_class();
+    *contract.class_hash
+}
+
+fn declare_test_ism() -> ClassHash {
+    let contract = declare("TestISM").unwrap().contract_class();
+    *contract.class_hash
+}
+
 pub fn setup() -> HyperlaneTestSetup {
-    let admin = 'admin'.try_into().unwrap();
-    let owner = 'owner'.try_into().unwrap();
-    let sender = 'sender'.try_into().unwrap();
-
-    // Declare mock contracts
-    start_cheat_caller_address_global(owner);
-    let _contract = declare("MockMailbox").unwrap();
-    let mock_mailbox_class_hash = _contract.contract_class().class_hash;
-    let _contract = declare("TestInterchainGasPayment").unwrap();
-    let mock_ism_class_hash = _contract.contract_class().class_hash;
-
-    let origin = 1;
-    let destination = 2;
-
-    let environment = deploy_environment(
-        origin, destination, *mock_mailbox_class_hash, *mock_ism_class_hash,
-    );
-    let igp = deploy_igp();
-    let gas_payment_quote = igp.quote_gas_payment(GAS_LIMIT);
-
+    // Deploy erc20s
     let permit2 = deploy_permit2();
     let _eth = deploy_eth();
     let input_token = deploy_erc20("Input Token", "IN");
     let output_token = deploy_erc20("Output Token", "OUT");
 
+    // Deploy TestInterchainGasPayment
+    let igp = deploy_igp();
+    let gas_payment_quote = igp.quote_gas_payment(GAS_LIMIT);
+
+    //
+    let origin = 1;
+    let destination = 2;
+    let DOMAIN_SEPARATOR = IPermit2Dispatcher { contract_address: permit2 }.DOMAIN_SEPARATOR();
+
+    // Generate accounts
+    let admin = 'admin'.try_into().unwrap();
+    let owner = 'owner'.try_into().unwrap();
+    let sender = 'sender'.try_into().unwrap();
+    let kaka = generate_account();
+    let karp = generate_account();
+    let veg = generate_account();
+    let counterpart: ContractAddress = 'counterpart'.try_into().unwrap();
+
+    // Deploy hyperlane environment
+    let mock_mailbox_class_hash = declare_mock_mailbox();
+    let mock_ism_class_hash = declare_test_ism();
+    let environment = deploy_environment(
+        origin, destination, mock_mailbox_class_hash, mock_ism_class_hash,
+    );
+
+    // Deploy origin and destination routers
     let origin_router = deploy_mock_hyperlane7683(
         permit2,
         environment.mailboxes(origin).contract_address,
@@ -222,11 +231,6 @@ pub fn setup() -> HyperlaneTestSetup {
         environment.isms(destination).contract_address,
     );
 
-    IMailboxDispatcher { contract_address: environment.mailboxes(origin).contract_address }
-        .set_default_hook(igp.contract_address);
-    IMailboxDispatcher { contract_address: environment.mailboxes(destination).contract_address }
-        .set_default_hook(igp.contract_address);
-
     let origin_router_b32: u256 = Into::<
         felt252, u256,
     >::into(origin_router.contract_address.into());
@@ -235,12 +239,6 @@ pub fn setup() -> HyperlaneTestSetup {
     >::into(destination_router.contract_address.into());
     let destination_router_override_b32: u256 = Default::default();
 
-    let DOMAIN_SEPARATOR = IPermit2Dispatcher { contract_address: permit2 }.DOMAIN_SEPARATOR();
-
-    let kaka = generate_account();
-    let karp = generate_account();
-    let veg = generate_account();
-    let counterpart: ContractAddress = 'counterpart'.try_into().unwrap();
     let users = array![
         kaka.account.contract_address,
         karp.account.contract_address,
@@ -251,6 +249,18 @@ pub fn setup() -> HyperlaneTestSetup {
         igp.contract_address,
     ];
 
+    // Set default and required hooks for the mailbox dispatchers
+    IMailboxDispatcher { contract_address: environment.mailboxes(origin).contract_address }
+        .set_default_hook(igp.contract_address);
+    IMailboxDispatcher { contract_address: environment.mailboxes(origin).contract_address }
+        .set_required_hook(igp.contract_address);
+
+    IMailboxDispatcher { contract_address: environment.mailboxes(destination).contract_address }
+        .set_default_hook(igp.contract_address);
+    IMailboxDispatcher { contract_address: environment.mailboxes(destination).contract_address }
+        .set_required_hook(igp.contract_address);
+
+    // Fund accounts
     deal_multiple(
         array![
             input_token.contract_address,
@@ -301,6 +311,9 @@ fn enroll_routers(setup: HyperlaneTestSetup) {
     let origin_router_address = setup.origin_router.contract_address;
     let destination_router_address = setup.destination_router.contract_address;
 
+    let o1 = IOwnableDispatcher { contract_address: origin_router_address }.owner();
+    let o2 = IOwnableDispatcher { contract_address: destination_router_address }.owner();
+
     start_cheat_caller_address(origin_router_address, setup.owner);
     IRouterDispatcher { contract_address: origin_router_address }
         .enroll_remote_router(setup.destination, setup.destination_router_b32);
@@ -308,7 +321,7 @@ fn enroll_routers(setup: HyperlaneTestSetup) {
         .set_destination_gas(Option::None, Option::Some(setup.destination), Option::Some(60_000));
     stop_cheat_caller_address(origin_router_address);
 
-    start_cheat_caller_address(destination_router_address, setup.admin);
+    start_cheat_caller_address(destination_router_address, setup.owner);
     IRouterDispatcher { contract_address: destination_router_address }
         .enroll_remote_router(setup.origin, setup.origin_router_b32);
     IGasRouterDispatcher { contract_address: destination_router_address }
@@ -370,6 +383,229 @@ fn test_fuzz_enroll_remote_routers(mut count: u8, mut domain: u32, mut router: u
 
         assert_eq!(@actual_router, routers.at(i.into()));
         assert_eq!(actual_domains.at(i.into()), domains.at(i.into()));
+    }
+}
+
+fn assert_igp_payment(_balance_before: u256, _balance_after: u256, setup: HyperlaneTestSetup) {
+    let expected_gas_payment: u256 = GAS_LIMIT * setup.igp.gas_price();
+
+    assert_eq!(_balance_before - _balance_after, expected_gas_payment);
+    assert_eq!(*_eth_balances(array![setup.igp.contract_address])[0], expected_gas_payment);
+}
+
+
+pub impl ContractAddressIntoBytes of Into<ContractAddress, Bytes> {
+    fn into(self: ContractAddress) -> Bytes {
+        let mut bytes = BytesTrait::new_empty();
+        bytes.append_address(self.into());
+        bytes
+    }
+}
+
+#[test]
+fn test__dispatch_settle_works() {
+    let setup = setup();
+    enroll_routers(setup.clone());
+    deal_eth(setup.kaka.account.contract_address, 1_000_000);
+
+    let receiver1: ContractAddress = 'receiver1'.try_into().unwrap();
+    let receiver2: ContractAddress = 'receiver2'.try_into().unwrap();
+    let orders_filler_data: Array<Bytes> = array![receiver1.into(), receiver2.into()];
+    let order_ids: Array<u256> = array!['someOrderId1'.into(), 'someOrderId2'.into()];
+
+    // Set allownace for hyperlane7683 to spend ETH tokens
+    start_cheat_caller_address(ETH_ADDRESS(), setup.kaka.account.contract_address);
+    IERC20Dispatcher { contract_address: ETH_ADDRESS() }
+        .approve(setup.origin_router.contract_address, 1_000_000);
+    stop_cheat_caller_address(ETH_ADDRESS());
+
+    start_cheat_caller_address(
+        setup.origin_router.contract_address, setup.kaka.account.contract_address,
+    );
+    setup
+        .origin_router
+        .dispatch_settle(
+            setup.destination,
+            order_ids.clone(),
+            orders_filler_data.clone(),
+            setup.gas_payment_quote,
+        );
+
+    stop_cheat_caller_address(setup.origin_router.contract_address);
+
+    start_cheat_caller_address_global(setup.kaka.account.contract_address);
+    let expected_metadata = StandardHookMetadata::override_gas_limits(
+        IGasRouterDispatcher { contract_address: setup.origin_router.contract_address }
+            .destination_gas(setup.destination),
+    );
+    stop_cheat_caller_address_global();
+
+    let expected_call = Call {
+        destination_domain: setup.destination,
+        recipient_address: Into::<
+            felt252, u256,
+        >::into(setup.destination_router.contract_address.into()),
+        message_body: Hyperlane7683Message::encode_settle(
+            order_ids.span(), orders_filler_data.span(),
+        ),
+        fee_amount: setup.gas_payment_quote,
+        metadata: Option::Some(expected_metadata),
+        hook: Option::Some(
+            IMailboxClientDispatcher { contract_address: setup.origin_router.contract_address }
+                .get_hook(),
+        ),
+    };
+
+    let actual_call = setup.environment.mailboxes(setup.origin).latest_call();
+
+    assert(expected_call == actual_call, 'Dispatch call does not match');
+}
+
+#[test]
+fn test__dispatch_refund_works() {
+    let setup = setup();
+    enroll_routers(setup.clone());
+    deal_eth(setup.kaka.account.contract_address, 1_000_000);
+
+    let order_ids: Array<u256> = array!['someOrderId1'.into(), 'someOrderId2'.into()];
+
+    // Set allownace for hyperlane7683 to spend ETH tokens
+    start_cheat_caller_address(ETH_ADDRESS(), setup.kaka.account.contract_address);
+    IERC20Dispatcher { contract_address: ETH_ADDRESS() }
+        .approve(setup.origin_router.contract_address, 1_000_000);
+    stop_cheat_caller_address(ETH_ADDRESS());
+
+    start_cheat_caller_address(
+        setup.origin_router.contract_address, setup.kaka.account.contract_address,
+    );
+    setup
+        .origin_router
+        .dispatch_refund(setup.destination, order_ids.clone(), setup.gas_payment_quote);
+
+    stop_cheat_caller_address(setup.origin_router.contract_address);
+
+    start_cheat_caller_address_global(setup.kaka.account.contract_address);
+    let expected_metadata = StandardHookMetadata::override_gas_limits(
+        IGasRouterDispatcher { contract_address: setup.origin_router.contract_address }
+            .destination_gas(setup.destination),
+    );
+    stop_cheat_caller_address_global();
+
+    let expected_call = Call {
+        destination_domain: setup.destination,
+        recipient_address: Into::<
+            felt252, u256,
+        >::into(setup.destination_router.contract_address.into()),
+        message_body: Hyperlane7683Message::encode_refund(order_ids.span()),
+        fee_amount: setup.gas_payment_quote,
+        metadata: Option::Some(expected_metadata),
+        hook: Option::Some(
+            IMailboxClientDispatcher { contract_address: setup.origin_router.contract_address }
+                .get_hook(),
+        ),
+    };
+
+    let actual_call = setup.environment.mailboxes(setup.origin).latest_call();
+
+    assert(expected_call == actual_call, 'Dispatch call does not match');
+}
+
+
+#[test]
+fn test__handle_settle_works() {
+    let setup = setup();
+    enroll_routers(setup.clone());
+    deal_eth(setup.kaka.account.contract_address, 1_000_000);
+
+    let receiver1: ContractAddress = 'receiver1'.try_into().unwrap();
+    let receiver2: ContractAddress = 'receiver2'.try_into().unwrap();
+    let orders_filler_data: Array<Bytes> = array![receiver1.into(), receiver2.into()];
+    let order_ids: Array<u256> = array!['someOrderId1'.into(), 'someOrderId2'.into()];
+
+    // Set allownace for hyperlane7683 to spend ETH tokens
+    start_cheat_caller_address(ETH_ADDRESS(), setup.kaka.account.contract_address);
+    IERC20Dispatcher { contract_address: ETH_ADDRESS() }
+        .approve(setup.destination_router.contract_address, 1_000_000);
+    stop_cheat_caller_address(ETH_ADDRESS());
+
+    start_cheat_caller_address(
+        setup.destination_router.contract_address, setup.kaka.account.contract_address,
+    );
+    setup
+        .destination_router
+        .dispatch_settle(
+            setup.origin, order_ids.clone(), orders_filler_data.clone(), setup.gas_payment_quote,
+        );
+    stop_cheat_caller_address(setup.origin_router.contract_address);
+
+    setup.environment.process_next_pending_message_from_destination();
+
+    assert_eq!(*setup.origin_router.settled_message_origin()[0], setup.destination);
+    assert_eq!(*setup.origin_router.settled_message_origin()[1], setup.destination);
+
+    assert_eq!(
+        *setup.origin_router.settled_message_sender()[0], setup.destination_router.contract_address,
+    );
+    assert_eq!(
+        *setup.origin_router.settled_message_sender()[1], setup.destination_router.contract_address,
+    );
+    assert_eq!(*setup.origin_router.settled_order_id()[0], *order_ids[0]);
+    assert_eq!(*setup.origin_router.settled_order_id()[1], *order_ids[1]);
+
+    assert_eq!(*setup.origin_router.settled_order_receiver()[0], receiver1);
+    assert_eq!(*setup.origin_router.settled_order_receiver()[1], receiver2);
+}
+
+#[test]
+fn test__handle_refund_works() {
+    let setup = setup();
+    enroll_routers(setup.clone());
+    deal_eth(setup.kaka.account.contract_address, 1_000_000);
+
+    let order_ids: Array<u256> = array!['someOrderId1'.into(), 'someOrderId2'.into()];
+
+    // Set allownace for hyperlane7683 to spend ETH tokens
+    start_cheat_caller_address(ETH_ADDRESS(), setup.kaka.account.contract_address);
+    IERC20Dispatcher { contract_address: ETH_ADDRESS() }
+        .approve(setup.destination_router.contract_address, 1_000_000);
+    stop_cheat_caller_address(ETH_ADDRESS());
+
+    start_cheat_caller_address(
+        setup.destination_router.contract_address, setup.kaka.account.contract_address,
+    );
+    setup
+        .destination_router
+        .dispatch_refund(setup.origin, order_ids.clone(), setup.gas_payment_quote);
+    stop_cheat_caller_address(setup.origin_router.contract_address);
+
+    setup.environment.process_next_pending_message_from_destination();
+
+    assert_eq!(*setup.origin_router.refunded_order_id()[0], *order_ids[0]);
+    assert_eq!(*setup.origin_router.refunded_order_id()[1], *order_ids[1]);
+}
+
+
+pub impl OptionBytesCloneImpl of Clone<Option<Bytes>> {
+    fn clone(self: @Option<Bytes>) -> Option<Bytes> {
+        match self {
+            Option::Some(bytes) => Option::Some(bytes.clone()),
+            Option::None(()) => Option::None(()),
+        }
+    }
+}
+pub impl BytesDebugImpl of core::fmt::Debug<Bytes> {
+    fn fmt(self: @Bytes, ref f: core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+        write!(f, "\"")?;
+        core::fmt::Display::fmt(self, ref f)?;
+        write!(f, "\"")
+    }
+}
+
+pub impl BytesDisplayImpl of core::fmt::Display<Bytes> {
+    fn fmt(self: @Bytes, ref f: core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+        let self: ByteArray = self.clone().into();
+
+        write!(f, "{self}")
     }
 }
 
