@@ -100,6 +100,10 @@ pub fn deploy_mock_hyperlane7683(
     IMockHyperlane7683Dispatcher { contract_address }
 }
 
+pub fn deal_eth(to: ContractAddress, amount: u256) {
+    IMintableDispatcher { contract_address: ETH_ADDRESS() }.mint(to, amount);
+}
+
 
 pub fn deal(token: ContractAddress, to: ContractAddress, amount: u256) {
     IMintableDispatcher { contract_address: token }.mint(to, amount);
