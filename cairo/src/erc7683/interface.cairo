@@ -214,7 +214,7 @@ pub struct OnchainCrossChainOrder {
 /// orderData.
 /// @dev Intended to improve integration generalization by allowing fillers to compute the exact
 /// input and output information of any order
-#[derive(Serde, Drop, Default, PartialEq)]
+#[derive(Serde, Drop, Clone, Default, PartialEq)]
 pub struct ResolvedCrossChainOrder {
     pub user: ContractAddress,
     pub origin_chain_id: u32,
@@ -227,7 +227,7 @@ pub struct ResolvedCrossChainOrder {
 }
 
 /// Tokens that must be received for a valid order fulfillment
-#[derive(Serde, Clone, Drop, Default, PartialEq)]
+#[derive(Serde, Drop, Copy, Default, PartialEq)]
 pub struct Output {
     pub token: ContractAddress,
     pub amount: u256,
@@ -236,7 +236,7 @@ pub struct Output {
 }
 
 /// Instructions to parameterize each leg of the fill
-#[derive(Serde, Drop, Default, PartialEq)]
+#[derive(Serde, Drop, Clone, Default, PartialEq)]
 pub struct FillInstruction {
     pub destination_chain_id: u32,
     pub destination_settler: ContractAddress,

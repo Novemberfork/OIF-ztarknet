@@ -17,8 +17,8 @@ use alexandria_bytes::{Bytes, BytesTrait};
 pub mod Base7683Component {
     use alexandria_bytes::{Bytes, BytesStore};
     use oif_starknet::erc7683::interface::{
-        FilledOrder, GaslessCrossChainOrder, IDestinationSettler, IERC7683Extra, IOriginSettler,
-        OnchainCrossChainOrder, Open, ResolvedCrossChainOrder,
+        Output, FilledOrder, GaslessCrossChainOrder, IDestinationSettler, IERC7683Extra,
+        IOriginSettler, OnchainCrossChainOrder, Open, ResolvedCrossChainOrder,
     };
     use oif_starknet::libraries::order_encoder::OpenOrderEncoder;
     use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
@@ -92,7 +92,7 @@ pub mod Base7683Component {
 
     /// Emitted when a batch of orders is refunded.
     /// @param order_ids: The IDs of the refunded orders.
-    #[derive(Drop, starknet::Event)]
+    #[derive(Drop, starknet::Event, PartialEq)]
     pub struct Refund {
         pub order_ids: Array<u256>,
     }
@@ -275,8 +275,10 @@ pub mod Base7683Component {
                     Errors::INVALID_ORDER_STATUS,
                 );
 
-                orders_origin_data.append(self.filled_orders.entry(*order_id).read().origin_data);
-                orders_filler_data.append(self.filled_orders.entry(*order_id).read().filler_data);
+                let filled_order = self.filled_orders.entry(*order_id).read();
+
+                orders_origin_data.append(filled_order.origin_data);
+                orders_filler_data.append(filled_order.filler_data);
             };
 
             self._settle_orders(@order_ids, @orders_origin_data, @orders_filler_data, value);

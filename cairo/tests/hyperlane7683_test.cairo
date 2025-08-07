@@ -16,7 +16,6 @@ use snforge_std::signature::stark_curve::{
 };
 use permit2::snip12_utils::permits::{TokenPermissionsStructHash, U256StructHash};
 use openzeppelin_utils::cryptography::snip12::SNIP12HashSpanImpl;
-use openzeppelin_access::ownable::interface::{IOwnableDispatcher, IOwnableDispatcherTrait};
 use openzeppelin_token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
 use oif_starknet::libraries::order_encoder::ContractAddressDefault;
 use oif_starknet::libraries::hyperlane7683_message::{Hyperlane7683Message};
@@ -24,10 +23,7 @@ use oif_starknet::base7683::{SpanFelt252StructHash, ArrayFelt252StructHash};
 use oif_starknet::erc7683::interface::{ResolvedCrossChainOrder};
 use oif_starknet::libraries::order_encoder::{BytesDefault};
 use starknet::{ContractAddress, ClassHash};
-use snforge_std::{
-    start_cheat_caller_address, EventSpyAssertionsTrait, stop_cheat_caller_address, spy_events,
-    EventSpyTrait,
-};
+use snforge_std::{start_cheat_caller_address, stop_cheat_caller_address};
 use crate::mocks::mock_hyperlane_environment::{
     IMockHyperlaneEnvironmentDispatcher, IMockHyperlaneEnvironmentDispatcherTrait,
 };
@@ -35,10 +31,7 @@ use crate::mocks::mock_hyperlane7683::{
     IMockHyperlane7683Dispatcher, IMockHyperlane7683DispatcherTrait,
 };
 
-use crate::base_test::{
-    _eth_balances, _prepare_gasless_order as __prepare_gasless_order, _balances, _assert_open_order,
-    _get_signature, _prepare_onchain_order,
-};
+use crate::base_test::_eth_balances;
 use mocks::test_interchain_gas_payment::{
     ITestInterchainGasPaymentDispatcher, ITestInterchainGasPaymentDispatcherTrait,
 };
@@ -310,9 +303,6 @@ pub fn setup() -> HyperlaneTestSetup {
 fn enroll_routers(setup: HyperlaneTestSetup) {
     let origin_router_address = setup.origin_router.contract_address;
     let destination_router_address = setup.destination_router.contract_address;
-
-    let o1 = IOwnableDispatcher { contract_address: origin_router_address }.owner();
-    let o2 = IOwnableDispatcher { contract_address: destination_router_address }.owner();
 
     start_cheat_caller_address(origin_router_address, setup.owner);
     IRouterDispatcher { contract_address: origin_router_address }

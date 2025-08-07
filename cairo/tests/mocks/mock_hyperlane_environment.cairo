@@ -21,11 +21,11 @@ pub mod MockHyperlaneEnvironment {
     };
     use super::*;
     use crate::mocks::mock_mailbox::{
-        IMockMailboxDispatcher, IMockMailboxDispatcherTrait, MockMailbox,
+        IMockMailboxDispatcher, IMockMailboxDispatcherTrait
     };
     use crate::common::ETH_ADDRESS;
     use crate::mocks::test_interchain_gas_payment::{
-        ITestInterchainGasPaymentDispatcher, TestInterchainGasPayment,
+        ITestInterchainGasPaymentDispatcher,
     };
     use crate::mocks::test_ism::{ITestISMDispatcher};
     use starknet::syscalls::{deploy_syscall};

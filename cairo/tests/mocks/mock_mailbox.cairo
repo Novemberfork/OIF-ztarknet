@@ -315,7 +315,6 @@ pub mod MockMailbox {
             self.emit(DispatchId { id });
 
             // HOOKS
-
             let required_hook_address = self.required_hook.read();
             let required_hook = ITestPostDispatchHookDispatcher {
                 contract_address: required_hook_address,

@@ -88,7 +88,6 @@ pub mod OrderEncoder {
 
         let order_data_size = order_data.size();
         let data = if (order_data_size - offset > 0) {
-            println!("order_data exists");
             let (_, _data) = order_data.read_bytes(offset, order_data_size - offset);
             _data
         } else {

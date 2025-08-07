@@ -110,7 +110,9 @@ fn test_open_works(fill_deadline: u64) {
     setup.base_full.open(order);
     let Open {
         order_id, resolved_order,
-    } = pop_event::<Open>(setup.base.contract_address, selector!("Open"), spy.get_events().events);
+    } =
+        pop_event::<Open>(setup.base.contract_address, selector!("Open"), spy.get_events().events)
+            .expect('Open event not found');
 
     _assert_resolved_order(
         resolved_order,
@@ -200,7 +202,9 @@ fn test_open_for_works(mut open_deadline: u64, fill_deadline: u64) {
     setup.base_full.open_for(order, sig, Default::default());
     let Open {
         order_id, resolved_order,
-    } = pop_event::<Open>(setup.base.contract_address, selector!("Open"), spy.get_events().events);
+    } =
+        pop_event::<Open>(setup.base.contract_address, selector!("Open"), spy.get_events().events)
+            .expect('Open event not found');
 
     _assert_resolved_order(
         resolved_order,
