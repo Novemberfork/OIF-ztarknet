@@ -1,4 +1,4 @@
-module oif_go
+module golang
 
 go 1.24.5
 
