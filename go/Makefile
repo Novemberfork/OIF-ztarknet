@@ -11,6 +11,8 @@ help:
 	@echo "  lint     - Run linter"
 	@echo "  verify-hyperlane  - Verify pre-deployed Hyperlane7683 contracts"
 	@echo "  deploy-tokens     - Deploy ERC20 tokens to all forked networks"
+	@echo "  open-basic-order  - Open a basic hardcoded test order"
+	@echo "  open-random-order - Open a randomly generated test order"
 	@echo "  start-networks - Start all testnet forks with color-coded logging"
 	@echo "  kill-networks  - Stop all running networks"
 
@@ -26,14 +28,6 @@ build:
 # Run the solver
 run: build
 	./bin/solver
-
-# Verify pre-deployed Hyperlane7683 contracts on forked networks
-verify-hyperlane: build-verify-hyperlane
-	./bin/verify-hyperlane
-
-# Deploy ERC20 tokens to all forked networks
-deploy-tokens: build-deploy-tokens
-	./bin/deploy-tokens
 
 # Start all testnet forks with color-coded logging
 start-networks:
@@ -52,6 +46,22 @@ kill-networks:
 	@pkill -f "anvil" 2>/dev/null || true
 	@echo "✅ All networks stopped"
 
+# Verify pre-deployed Hyperlane7683 contracts on forked networks
+verify-hyperlane: build-verify-hyperlane
+	./bin/verify-hyperlane
+
+# Deploy ERC20 tokens to all forked networks
+deploy-tokens: build-deploy-tokens
+	./bin/deploy-tokens
+
+# Open a basic hardcoded test order
+open-basic-order: build-open-order
+	./bin/open-order basic
+
+# Open a randomly generated test order
+open-random-order: build-open-order
+	./bin/open-order random
+
 # Build Hyperlane7683 verification tool
 build-verify-hyperlane:
 	go build -o bin/verify-hyperlane ./cmd/verify-hyperlane
@@ -59,6 +69,10 @@ build-verify-hyperlane:
 # Build token deployment tool
 build-deploy-tokens:
 	go build -o bin/deploy-tokens ./cmd/deploy-tokens
+
+# Build order opening tool
+build-open-order:
+	go build -o bin/open-order ./cmd/open-order
 
 # Run tests
 test:
