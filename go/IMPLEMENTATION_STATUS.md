@@ -14,6 +14,7 @@
   - `make start-networks` to start local networks
   - `make stop-networks` to stop local networks
   - `make verify-hyperlane` to verify hyperlane7683 is deployed on evm networks
+  - `make deploy-tokens` to deploy erc20 tokens, fund accounts, and setup allowances
 
 ## 🚧 **IN PROGRESS - NEXT PRIORITY**
 
