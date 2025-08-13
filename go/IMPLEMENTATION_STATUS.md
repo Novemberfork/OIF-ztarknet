@@ -15,16 +15,17 @@
   - `make stop-networks` to stop local networks
   - `make verify-hyperlane` to verify hyperlane7683 is deployed on evm networks
   - `make deploy-tokens` to deploy erc20 tokens, fund accounts, and setup allowances
+  - `make open-basic-order` to open a simple onchain order
+  - `make open-random-order` to open a random onchain order (random origin, destination, in/out amounts, etc.)
 
 ## 🚧 **IN PROGRESS - NEXT PRIORITY**
 
 ### **📋 Order Opening (Current Focus)**
 
-- [ ] **Create order opening command** - `make open-order` to open orders on hyperlane contracts
+- [ ] **Replace mock events** with real Hyperlane7683 event subscriptions for `Open` events
 
 ## 📋 **TODO - Next Focus**
 
-- [ ] **Replace mock events** with real Hyperlane7683 event subscriptions for `Open` events
 - [ ] **Real intent validation** - Check token balances, amounts, etc.
 - [ ] **Rule evaluation** - Apply business logic to real orders
 - [ ] **Transaction execution** - Build and send fill transactions

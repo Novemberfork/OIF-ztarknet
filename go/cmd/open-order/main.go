@@ -307,21 +307,40 @@ func executeOrder(order OrderConfig) {
 	}
 	fmt.Printf("   🔎 localDomain (on-chain): %d\n", localDomain)
 
-    // Preflight: balances and allowances on origin for input token
+    	// Preflight: balances and allowances on origin for input token
     inputToken := originNetwork.orcaCoinAddress
     owner := auth.From
     spender := originNetwork.hyperlaneAddress
-    bal, err := getErc20Balance(client, inputToken, owner)
+    
+    // Get initial balances
+    initialUserBalance, err := getErc20Balance(client, inputToken, owner)
     if err == nil {
-        fmt.Printf("   🔍 InputToken balance(owner): %s\n", bal.String())
+        fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", initialUserBalance.String())
     } else {
-        fmt.Printf("   ⚠️  Could not read balance: %v\n", err)
+        fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
     }
+    
+    initialHyperlaneBalance, err := getErc20Balance(client, inputToken, spender)
+    if err == nil {
+        fmt.Printf("   🔍 Initial InputToken balance(hyperlane): %s\n", initialHyperlaneBalance.String())
+    } else {
+        fmt.Printf("   ⚠️  Could not read initial hyperlane balance: %v\n", err)
+    }
+    
     allowance, err := getErc20Allowance(client, inputToken, owner, spender)
     if err == nil {
         fmt.Printf("   🔍 InputToken allowance(owner→settler): %s\n", allowance.String())
     } else {
         fmt.Printf("   ⚠️  Could not read allowance: %v\n", err)
+    }
+    
+    // Store initial balances for comparison
+    initialBalances := struct {
+        userBalance     *big.Int
+        hyperlaneBalance *big.Int
+    }{
+        userBalance:     initialUserBalance,
+        hyperlaneBalance: initialHyperlaneBalance,
     }
 
 	// Pick a fresh senderNonce recognized by the contract to avoid InvalidNonce
@@ -387,6 +406,14 @@ func executeOrder(order OrderConfig) {
 		fmt.Printf("   ✅ Order opened successfully!\n")
 		fmt.Printf("   📊 Gas used: %d\n", receipt.GasUsed)
 		fmt.Printf("   🎯 Order ID: %s\n", calculateOrderId(orderData))
+		
+		// Verify that balances actually changed as expected
+		fmt.Printf("   🔍 Verifying balance changes...\n")
+		if err := verifyBalanceChanges(client, inputToken, owner, spender, initialBalances, order.InputAmount); err != nil {
+			fmt.Printf("   ⚠️  Balance verification failed: %v\n", err)
+		} else {
+			fmt.Printf("   ✅ Balance changes verified - order was actually opened!\n")
+		}
 	} else {
 		fmt.Printf("   ❌ Order opening failed\n")
 		fmt.Printf("   🔍 Transaction hash: %s\n", tx.Hash().Hex())
@@ -870,4 +897,75 @@ func calculateOrderId(orderData OrderData) string {
 	encoded := encodeOrderData(orderData)
 	hash := crypto.Keccak256Hash(encoded)
 	return hash.Hex()
+}
+
+// verifyBalanceChanges verifies that opening an order actually transferred tokens
+func verifyBalanceChanges(client *ethclient.Client, tokenAddress, userAddress, hyperlaneAddress common.Address, initialBalances struct {
+	userBalance     *big.Int
+	hyperlaneBalance *big.Int
+}, expectedTransferAmount *big.Int) error {
+	// Wait a moment for the transaction to be fully processed
+	time.Sleep(2 * time.Second)
+	
+	// Get final balances
+	finalUserBalance, err := getErc20Balance(client, tokenAddress, userAddress)
+	if err != nil {
+		return fmt.Errorf("failed to get final user balance: %w", err)
+	}
+	
+	finalHyperlaneBalance, err := getErc20Balance(client, tokenAddress, hyperlaneAddress)
+	if err != nil {
+		return fmt.Errorf("failed to get final hyperlane balance: %w", err)
+	}
+	
+	// Calculate actual changes
+	userBalanceChange := new(big.Int).Sub(initialBalances.userBalance, finalUserBalance)
+	hyperlaneBalanceChange := new(big.Int).Sub(finalHyperlaneBalance, initialBalances.hyperlaneBalance)
+	
+	// Print balance changes
+	fmt.Printf("     💰 User balance change: %s → %s (Δ: %s)\n", 
+		formatTokenAmount(initialBalances.userBalance), 
+		formatTokenAmount(finalUserBalance), 
+		formatTokenAmount(userBalanceChange))
+	
+	fmt.Printf("     💰 Hyperlane balance change: %s → %s (Δ: %s)\n", 
+		formatTokenAmount(initialBalances.hyperlaneBalance), 
+		formatTokenAmount(finalHyperlaneBalance), 
+		formatTokenAmount(hyperlaneBalanceChange))
+	
+	// Verify the changes match expectations
+	if userBalanceChange.Cmp(expectedTransferAmount) != 0 {
+		return fmt.Errorf("user balance decreased by %s, expected %s", 
+			formatTokenAmount(userBalanceChange), 
+			formatTokenAmount(expectedTransferAmount))
+	}
+	
+	if hyperlaneBalanceChange.Cmp(expectedTransferAmount) != 0 {
+		return fmt.Errorf("hyperlane balance increased by %s, expected %s", 
+			formatTokenAmount(hyperlaneBalanceChange), 
+			formatTokenAmount(expectedTransferAmount))
+	}
+	
+	// Verify total supply is preserved (user decrease = hyperlane increase)
+	if userBalanceChange.Cmp(hyperlaneBalanceChange) != 0 {
+		return fmt.Errorf("balance changes don't match: user decreased by %s, hyperlane increased by %s", 
+			formatTokenAmount(userBalanceChange), 
+			formatTokenAmount(hyperlaneBalanceChange))
+	}
+	
+	return nil
+}
+
+// formatTokenAmount formats a token amount for display (converts from wei to tokens)
+func formatTokenAmount(amount *big.Int) string {
+	if amount == nil {
+		return "0"
+	}
+	
+	// Convert from wei (18 decimals) to tokens
+	tokenAmount := new(big.Float).Quo(
+		new(big.Float).SetInt(amount), 
+		new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)))
+	
+	return tokenAmount.Text('f', 2) + " tokens"
 }
