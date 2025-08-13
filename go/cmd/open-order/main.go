@@ -45,8 +45,8 @@ func loadNetworks() error {
 	}
 
 	networks = []NetworkConfig{
-		{"Sepolia", "http://localhost:8545", 11156380, common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"), common.Address{}, common.Address{}},
-		{"Optimism Sepolia", "http://localhost:8546", 11156391, common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"), common.Address{}, common.Address{}},
+		{"Sepolia", "http://localhost:8545", 11155111, common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"), common.Address{}, common.Address{}},
+		{"Optimism Sepolia", "http://localhost:8546", 11155420, common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"), common.Address{}, common.Address{}},
 		{"Arbitrum Sepolia", "http://localhost:8547", 421614, common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"), common.Address{}, common.Address{}},
 		{"Base Sepolia", "http://localhost:8548", 84532, common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"), common.Address{}, common.Address{}},
 	}
@@ -300,48 +300,48 @@ func executeOrder(order OrderConfig) {
 		log.Fatalf("Destination network not found: %s", order.DestinationChain)
 	}
 
-    // Read localDomain from the origin Hyperlane contract to guarantee it matches on-chain
+	// Read localDomain from the origin Hyperlane contract to guarantee it matches on-chain
 	localDomain, err := getLocalDomain(client, originNetwork.hyperlaneAddress)
 	if err != nil {
 		log.Fatalf("Failed to read localDomain from origin contract: %v", err)
 	}
 	fmt.Printf("   🔎 localDomain (on-chain): %d\n", localDomain)
 
-    	// Preflight: balances and allowances on origin for input token
-    inputToken := originNetwork.orcaCoinAddress
-    owner := auth.From
-    spender := originNetwork.hyperlaneAddress
-    
-    // Get initial balances
-    initialUserBalance, err := getErc20Balance(client, inputToken, owner)
-    if err == nil {
-        fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", initialUserBalance.String())
-    } else {
-        fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
-    }
-    
-    initialHyperlaneBalance, err := getErc20Balance(client, inputToken, spender)
-    if err == nil {
-        fmt.Printf("   🔍 Initial InputToken balance(hyperlane): %s\n", initialHyperlaneBalance.String())
-    } else {
-        fmt.Printf("   ⚠️  Could not read initial hyperlane balance: %v\n", err)
-    }
-    
-    allowance, err := getErc20Allowance(client, inputToken, owner, spender)
-    if err == nil {
-        fmt.Printf("   🔍 InputToken allowance(owner→settler): %s\n", allowance.String())
-    } else {
-        fmt.Printf("   ⚠️  Could not read allowance: %v\n", err)
-    }
-    
-    // Store initial balances for comparison
-    initialBalances := struct {
-        userBalance     *big.Int
-        hyperlaneBalance *big.Int
-    }{
-        userBalance:     initialUserBalance,
-        hyperlaneBalance: initialHyperlaneBalance,
-    }
+	// Preflight: balances and allowances on origin for input token
+	inputToken := originNetwork.orcaCoinAddress
+	owner := auth.From
+	spender := originNetwork.hyperlaneAddress
+
+	// Get initial balances
+	initialUserBalance, err := getErc20Balance(client, inputToken, owner)
+	if err == nil {
+		fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", initialUserBalance.String())
+	} else {
+		fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
+	}
+
+	initialHyperlaneBalance, err := getErc20Balance(client, inputToken, spender)
+	if err == nil {
+		fmt.Printf("   🔍 Initial InputToken balance(hyperlane): %s\n", initialHyperlaneBalance.String())
+	} else {
+		fmt.Printf("   ⚠️  Could not read initial hyperlane balance: %v\n", err)
+	}
+
+	allowance, err := getErc20Allowance(client, inputToken, owner, spender)
+	if err == nil {
+		fmt.Printf("   🔍 InputToken allowance(owner→settler): %s\n", allowance.String())
+	} else {
+		fmt.Printf("   ⚠️  Could not read allowance: %v\n", err)
+	}
+
+	// Store initial balances for comparison
+	initialBalances := struct {
+		userBalance      *big.Int
+		hyperlaneBalance *big.Int
+	}{
+		userBalance:      initialUserBalance,
+		hyperlaneBalance: initialHyperlaneBalance,
+	}
 
 	// Pick a fresh senderNonce recognized by the contract to avoid InvalidNonce
 	senderNonce, err := pickValidSenderNonce(client, originNetwork.hyperlaneAddress, auth.From)
@@ -406,7 +406,7 @@ func executeOrder(order OrderConfig) {
 		fmt.Printf("   ✅ Order opened successfully!\n")
 		fmt.Printf("   📊 Gas used: %d\n", receipt.GasUsed)
 		fmt.Printf("   🎯 Order ID: %s\n", calculateOrderId(orderData))
-		
+
 		// Verify that balances actually changed as expected
 		fmt.Printf("   🔍 Verifying balance changes...\n")
 		if err := verifyBalanceChanges(client, inputToken, owner, spender, initialBalances, order.InputAmount); err != nil {
@@ -428,11 +428,11 @@ func executeOrder(order OrderConfig) {
 			fmt.Printf("   📝 Transaction data: 0x%x\n", txDetails.Data())
 		}
 
-        // Simulate to get revert data and decode any custom errors
-        fmt.Printf("   🔍 Simulating call to decode revert...\n")
-        if err := simulateAndDecodeRevert(client, originNetwork.hyperlaneAddress, auth.From, openCalldata); err != nil {
-            fmt.Printf("   ❌ Failed to simulate/decode revert: %v\n", err)
-        }
+		// Simulate to get revert data and decode any custom errors
+		fmt.Printf("   🔍 Simulating call to decode revert...\n")
+		if err := simulateAndDecodeRevert(client, originNetwork.hyperlaneAddress, auth.From, openCalldata); err != nil {
+			fmt.Printf("   ❌ Failed to simulate/decode revert: %v\n", err)
+		}
 	}
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
@@ -440,73 +440,89 @@ func executeOrder(order OrderConfig) {
 
 // Minimal ERC20 helpers
 func getErc20Balance(client *ethclient.Client, token common.Address, owner common.Address) (*big.Int, error) {
-    abiStr := `[{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
-    p, err := abi.JSON(strings.NewReader(abiStr))
-    if err != nil { return nil, err }
-    data, err := p.Pack("balanceOf", owner)
-    if err != nil { return nil, err }
-    msg := ethereum.CallMsg{To: &token, Data: data}
-    res, err := client.CallContract(context.Background(), msg, nil)
-    if err != nil { return nil, err }
-    var out *big.Int
-    if err := p.UnpackIntoInterface(&out, "balanceOf", res); err != nil { return nil, err }
-    return out, nil
+	abiStr := `[{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
+	p, err := abi.JSON(strings.NewReader(abiStr))
+	if err != nil {
+		return nil, err
+	}
+	data, err := p.Pack("balanceOf", owner)
+	if err != nil {
+		return nil, err
+	}
+	msg := ethereum.CallMsg{To: &token, Data: data}
+	res, err := client.CallContract(context.Background(), msg, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out *big.Int
+	if err := p.UnpackIntoInterface(&out, "balanceOf", res); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func getErc20Allowance(client *ethclient.Client, token common.Address, owner, spender common.Address) (*big.Int, error) {
-    abiStr := `[{"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"address","name":"","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
-    p, err := abi.JSON(strings.NewReader(abiStr))
-    if err != nil { return nil, err }
-    data, err := p.Pack("allowance", owner, spender)
-    if err != nil { return nil, err }
-    msg := ethereum.CallMsg{To: &token, Data: data}
-    res, err := client.CallContract(context.Background(), msg, nil)
-    if err != nil { return nil, err }
-    var out *big.Int
-    if err := p.UnpackIntoInterface(&out, "allowance", res); err != nil { return nil, err }
-    return out, nil
+	abiStr := `[{"inputs":[{"internalType":"address","name":"","type":"address"},{"internalType":"address","name":"","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
+	p, err := abi.JSON(strings.NewReader(abiStr))
+	if err != nil {
+		return nil, err
+	}
+	data, err := p.Pack("allowance", owner, spender)
+	if err != nil {
+		return nil, err
+	}
+	msg := ethereum.CallMsg{To: &token, Data: data}
+	res, err := client.CallContract(context.Background(), msg, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out *big.Int
+	if err := p.UnpackIntoInterface(&out, "allowance", res); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // simulateAndDecodeRevert runs an eth_call with the same calldata and decodes common custom errors
 func simulateAndDecodeRevert(client *ethclient.Client, to, from common.Address, data []byte) error {
-    msg := ethereum.CallMsg{To: &to, From: from, Data: data, Gas: 2_000_000}
-    _, err := client.CallContract(context.Background(), msg, nil)
-    if err == nil {
-        fmt.Printf("   ✅ eth_call succeeded (unexpected for a failing tx)\n")
-        return nil
-    }
-    // Expecting a "execution reverted"-style error; extract data if present
-    // go-ethereum attaches the revert data to the error string; we can do a second call with a custom tracer,
-    // or parse with the built-in helper. Simpler: do CallContract with a big gas and then fetch debug via error string.
-    // As a fallback, attempt to decode if the provider returns the revert data hex in err.Error().
+	msg := ethereum.CallMsg{To: &to, From: from, Data: data, Gas: 2_000_000}
+	_, err := client.CallContract(context.Background(), msg, nil)
+	if err == nil {
+		fmt.Printf("   ✅ eth_call succeeded (unexpected for a failing tx)\n")
+		return nil
+	}
+	// Expecting a "execution reverted"-style error; extract data if present
+	// go-ethereum attaches the revert data to the error string; we can do a second call with a custom tracer,
+	// or parse with the built-in helper. Simpler: do CallContract with a big gas and then fetch debug via error string.
+	// As a fallback, attempt to decode if the provider returns the revert data hex in err.Error().
 
-    errStr := err.Error()
-    // Look for "data: 0x..." substring
-    idx := strings.Index(errStr, "data: 0x")
-    if idx == -1 {
-        fmt.Printf("   ⚠️  No revert data found in error string: %s\n", errStr)
-        return nil
-    }
-    hexData := errStr[idx+6:]
-    // Trim trailing context
-    if sp := strings.Index(hexData, "]"); sp != -1 {
-        hexData = hexData[:sp]
-    }
-    hexData = strings.TrimSpace(hexData)
-    if strings.HasSuffix(hexData, ",") {
-        hexData = hexData[:len(hexData)-1]
-    }
-    if strings.HasPrefix(hexData, "0x") {
-        hexData = hexData[2:]
-    }
-    revertData, decErr := hex.DecodeString(hexData)
-    if decErr != nil || len(revertData) < 4 {
-        fmt.Printf("   ⚠️  Could not parse revert data from error: %v\n", decErr)
-        return nil
-    }
+	errStr := err.Error()
+	// Look for "data: 0x..." substring
+	idx := strings.Index(errStr, "data: 0x")
+	if idx == -1 {
+		fmt.Printf("   ⚠️  No revert data found in error string: %s\n", errStr)
+		return nil
+	}
+	hexData := errStr[idx+6:]
+	// Trim trailing context
+	if sp := strings.Index(hexData, "]"); sp != -1 {
+		hexData = hexData[:sp]
+	}
+	hexData = strings.TrimSpace(hexData)
+	if strings.HasSuffix(hexData, ",") {
+		hexData = hexData[:len(hexData)-1]
+	}
+	if strings.HasPrefix(hexData, "0x") {
+		hexData = hexData[2:]
+	}
+	revertData, decErr := hex.DecodeString(hexData)
+	if decErr != nil || len(revertData) < 4 {
+		fmt.Printf("   ⚠️  Could not parse revert data from error: %v\n", decErr)
+		return nil
+	}
 
-    // Known custom errors
-    errorABI := `[
+	// Known custom errors
+	errorABI := `[
         {"type":"error","name":"InvalidOrderType","inputs":[{"type":"bytes32","name":"orderType"}]},
         {"type":"error","name":"InvalidOriginDomain","inputs":[{"type":"uint32","name":"originDomain"}]},
         {"type":"error","name":"InvalidOrderId","inputs":[]},
@@ -517,26 +533,26 @@ func simulateAndDecodeRevert(client *ethclient.Client, to, from common.Address, 
         {"type":"error","name":"InvalidNonce","inputs":[]},
         {"type":"error","name":"InvalidNativeAmount","inputs":[]}
     ]`
-    parsed, err := abi.JSON(strings.NewReader(errorABI))
-    if err != nil {
-        return err
-    }
+	parsed, err := abi.JSON(strings.NewReader(errorABI))
+	if err != nil {
+		return err
+	}
 
-    sel := revertData[:4]
-    for name, def := range parsed.Errors {
-        if bytes.Equal(sel, def.ID.Bytes()[:4]) {
-            // Decode args
-            vals, decErr := def.Inputs.Unpack(revertData[4:])
-            if decErr != nil {
-                fmt.Printf("   🔍 Revert: %s (failed to unpack args: %v)\n", name, decErr)
-            } else {
-                fmt.Printf("   🔍 Revert: %s %v\n", name, vals)
-            }
-            return nil
-        }
-    }
-    fmt.Printf("   ⚠️  Unknown revert selector: 0x%x\n", sel)
-    return nil
+	sel := revertData[:4]
+	for name, def := range parsed.Errors {
+		if bytes.Equal(sel, def.ID.Bytes()[:4]) {
+			// Decode args
+			vals, decErr := def.Inputs.Unpack(revertData[4:])
+			if decErr != nil {
+				fmt.Printf("   🔍 Revert: %s (failed to unpack args: %v)\n", name, decErr)
+			} else {
+				fmt.Printf("   🔍 Revert: %s %v\n", name, vals)
+			}
+			return nil
+		}
+	}
+	fmt.Printf("   ⚠️  Unknown revert selector: 0x%x\n", sel)
+	return nil
 }
 
 func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, destinationNetwork *NetworkConfig, originDomain uint32, senderNonce *big.Int) OrderData {
@@ -868,11 +884,11 @@ func sendOpenTransaction(client *ethclient.Client, auth *bind.TransactOpts, cont
 	}
 
 	// Create transaction
-    tx := types.NewTransaction(
+	tx := types.NewTransaction(
 		nonce,
 		contractAddr,
-		big.NewInt(0),  // No ETH value
-        uint64(2_000_000), // Gas limit - bumped for debugging
+		big.NewInt(0),     // No ETH value
+		uint64(2_000_000), // Gas limit - bumped for debugging
 		auth.GasPrice,
 		calldata,
 	)
@@ -901,58 +917,58 @@ func calculateOrderId(orderData OrderData) string {
 
 // verifyBalanceChanges verifies that opening an order actually transferred tokens
 func verifyBalanceChanges(client *ethclient.Client, tokenAddress, userAddress, hyperlaneAddress common.Address, initialBalances struct {
-	userBalance     *big.Int
+	userBalance      *big.Int
 	hyperlaneBalance *big.Int
 }, expectedTransferAmount *big.Int) error {
 	// Wait a moment for the transaction to be fully processed
 	time.Sleep(2 * time.Second)
-	
+
 	// Get final balances
 	finalUserBalance, err := getErc20Balance(client, tokenAddress, userAddress)
 	if err != nil {
 		return fmt.Errorf("failed to get final user balance: %w", err)
 	}
-	
+
 	finalHyperlaneBalance, err := getErc20Balance(client, tokenAddress, hyperlaneAddress)
 	if err != nil {
 		return fmt.Errorf("failed to get final hyperlane balance: %w", err)
 	}
-	
+
 	// Calculate actual changes
 	userBalanceChange := new(big.Int).Sub(initialBalances.userBalance, finalUserBalance)
 	hyperlaneBalanceChange := new(big.Int).Sub(finalHyperlaneBalance, initialBalances.hyperlaneBalance)
-	
+
 	// Print balance changes
-	fmt.Printf("     💰 User balance change: %s → %s (Δ: %s)\n", 
-		formatTokenAmount(initialBalances.userBalance), 
-		formatTokenAmount(finalUserBalance), 
+	fmt.Printf("     💰 User balance change: %s → %s (Δ: %s)\n",
+		formatTokenAmount(initialBalances.userBalance),
+		formatTokenAmount(finalUserBalance),
 		formatTokenAmount(userBalanceChange))
-	
-	fmt.Printf("     💰 Hyperlane balance change: %s → %s (Δ: %s)\n", 
-		formatTokenAmount(initialBalances.hyperlaneBalance), 
-		formatTokenAmount(finalHyperlaneBalance), 
+
+	fmt.Printf("     💰 Hyperlane balance change: %s → %s (Δ: %s)\n",
+		formatTokenAmount(initialBalances.hyperlaneBalance),
+		formatTokenAmount(finalHyperlaneBalance),
 		formatTokenAmount(hyperlaneBalanceChange))
-	
+
 	// Verify the changes match expectations
 	if userBalanceChange.Cmp(expectedTransferAmount) != 0 {
-		return fmt.Errorf("user balance decreased by %s, expected %s", 
-			formatTokenAmount(userBalanceChange), 
+		return fmt.Errorf("user balance decreased by %s, expected %s",
+			formatTokenAmount(userBalanceChange),
 			formatTokenAmount(expectedTransferAmount))
 	}
-	
+
 	if hyperlaneBalanceChange.Cmp(expectedTransferAmount) != 0 {
-		return fmt.Errorf("hyperlane balance increased by %s, expected %s", 
-			formatTokenAmount(hyperlaneBalanceChange), 
+		return fmt.Errorf("hyperlane balance increased by %s, expected %s",
+			formatTokenAmount(hyperlaneBalanceChange),
 			formatTokenAmount(expectedTransferAmount))
 	}
-	
+
 	// Verify total supply is preserved (user decrease = hyperlane increase)
 	if userBalanceChange.Cmp(hyperlaneBalanceChange) != 0 {
-		return fmt.Errorf("balance changes don't match: user decreased by %s, hyperlane increased by %s", 
-			formatTokenAmount(userBalanceChange), 
+		return fmt.Errorf("balance changes don't match: user decreased by %s, hyperlane increased by %s",
+			formatTokenAmount(userBalanceChange),
 			formatTokenAmount(hyperlaneBalanceChange))
 	}
-	
+
 	return nil
 }
 
@@ -961,11 +977,11 @@ func formatTokenAmount(amount *big.Int) string {
 	if amount == nil {
 		return "0"
 	}
-	
+
 	// Convert from wei (18 decimals) to tokens
 	tokenAmount := new(big.Float).Quo(
-		new(big.Float).SetInt(amount), 
+		new(big.Float).SetInt(amount),
 		new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)))
-	
+
 	return tokenAmount.Text('f', 2) + " tokens"
 }
