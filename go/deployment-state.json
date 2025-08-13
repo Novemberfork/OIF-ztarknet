@@ -5,7 +5,7 @@
       "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
       "orcaCoinAddress": "0xE75e556d685D7428C8242eaF331A5eF80FCACa1f",
       "dogCoinAddress": "0x186758879f2609536e0ea7d20C4cEBAcfE83a818",
-      "lastIndexedBlock": 138020014,
+      "lastIndexedBlock": 138020015,
       "lastUpdated": "now"
     },
     "Base Sepolia": {
@@ -13,7 +13,7 @@
       "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
       "orcaCoinAddress": "0xF62Aa5366d5B86312E5493C18170616346Dd9316",
       "dogCoinAddress": "0xC2a5aE48cA992BD6f5Ea6e6FB872Cf52F3D6ffBd",
-      "lastIndexedBlock": 25380014,
+      "lastIndexedBlock": 25380016,
       "lastUpdated": "now"
     },
     "Optimism Sepolia": {
@@ -29,7 +29,7 @@
       "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
       "orcaCoinAddress": "0xd7C5d07B43b17d29FcF4638Cab35922705C3b69a",
       "dogCoinAddress": "0xF3A4Cb6464EC13E91135f3027a0FF46CF5560176",
-      "lastIndexedBlock": 8319017,
+      "lastIndexedBlock": 8319025,
       "lastUpdated": "now"
     }
   }

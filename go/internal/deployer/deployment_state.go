@@ -14,12 +14,12 @@ type DeploymentState struct {
 
 // NetworkState holds the contract addresses for a specific network
 type NetworkState struct {
-	ChainID           uint64 `json:"chainId"`
-	HyperlaneAddress  string `json:"hyperlaneAddress"`
-	OrcaCoinAddress   string `json:"orcaCoinAddress"`
-	DogCoinAddress    string `json:"dogCoinAddress"`
-	LastIndexedBlock  uint64 `json:"lastIndexedBlock"`
-	LastUpdated       string `json:"lastUpdated"`
+	ChainID          uint64 `json:"chainId"`
+	HyperlaneAddress string `json:"hyperlaneAddress"`
+	OrcaCoinAddress  string `json:"orcaCoinAddress"`
+	DogCoinAddress   string `json:"dogCoinAddress"`
+	LastIndexedBlock uint64 `json:"lastIndexedBlock"`
+	LastUpdated      string `json:"lastUpdated"`
 }
 
 // Default deployment state with known Hyperlane addresses
@@ -63,7 +63,7 @@ var defaultDeploymentState = DeploymentState{
 // GetDeploymentState loads the current deployment state from file
 func GetDeploymentState() (*DeploymentState, error) {
 	stateFile := getStateFilePath()
-	
+
 	// If file doesn't exist, create it with defaults
 	if _, err := os.Stat(stateFile); os.IsNotExist(err) {
 		if err := SaveDeploymentState(&defaultDeploymentState); err != nil {
@@ -71,36 +71,36 @@ func GetDeploymentState() (*DeploymentState, error) {
 		}
 		return &defaultDeploymentState, nil
 	}
-	
+
 	// Read existing state
 	data, err := os.ReadFile(stateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read state file: %w", err)
 	}
-	
+
 	var state DeploymentState
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("failed to parse state file: %w", err)
 	}
-	
+
 	return &state, nil
 }
 
 // SaveDeploymentState saves the deployment state to file
 func SaveDeploymentState(state *DeploymentState) error {
 	stateFile := getStateFilePath()
-	
+
 	// Ensure directory exists
 	dir := filepath.Dir(stateFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create state directory: %w", err)
 	}
-	
+
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
-	
+
 	return os.WriteFile(stateFile, data, 0644)
 }
 
@@ -110,14 +110,14 @@ func UpdateNetworkState(networkName string, orcaCoinAddr, dogCoinAddr string) er
 	if err != nil {
 		return err
 	}
-	
+
 	if network, exists := state.Networks[networkName]; exists {
 		network.OrcaCoinAddress = orcaCoinAddr
 		network.DogCoinAddress = dogCoinAddr
 		network.LastUpdated = "now" // TODO: Add proper timestamp
 		state.Networks[networkName] = network
 	}
-	
+
 	return SaveDeploymentState(state)
 }
 
@@ -127,22 +127,25 @@ func UpdateLastIndexedBlock(networkName string, newBlockNumber uint64) error {
 	if err != nil {
 		return fmt.Errorf("failed to get deployment state: %w", err)
 	}
-	
+
 	network, exists := state.Networks[networkName]
 	if !exists {
 		return fmt.Errorf("network %s not found in deployment state", networkName)
 	}
-	
+
 	oldBlock := network.LastIndexedBlock
 	network.LastIndexedBlock = newBlockNumber
 	network.LastUpdated = "now"
 	state.Networks[networkName] = network
-	
+
 	if err := SaveDeploymentState(state); err != nil {
 		return fmt.Errorf("failed to save deployment state: %w", err)
 	}
-	
-	fmt.Printf("✅ Updated %s LastIndexedBlock: %d → %d\n", networkName, oldBlock, newBlockNumber)
+
+	if oldBlock != newBlockNumber {
+		fmt.Printf("✅ Updated %s LastIndexedBlock: %d → %d\n", networkName, oldBlock, newBlockNumber)
+	}
+
 	return nil
 }
 

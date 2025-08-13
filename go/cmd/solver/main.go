@@ -27,7 +27,6 @@ func main() {
 	// Setup logging
 	logger := setupLogger(cfg)
 	logger.Info("🙍 Intent Solver 📝")
-	logger.Info("Starting...")
 
 	// Create solver manager
 	solverManager := internal.NewSolverManager(cfg, logger)
@@ -38,18 +37,16 @@ func main() {
 
 	// Initialize solvers
 	if err := solverManager.InitializeSolvers(); err != nil {
-		logger.Fatalf("Failed to initialize solvers: %v", err)
+		logger.Fatalf("❌ Failed to initialize solvers: %v", err)
 	}
-
-	logger.Info("All solvers initialized successfully")
 
 	// Wait for shutdown signal
 	<-sigChan
-	logger.Info("Received shutdown signal, shutting down...")
+	logger.Info("🔄 Received shutdown signal, shutting down...")
 
 	// Shutdown gracefully
 	solverManager.Shutdown()
-	logger.Info("Solver shutdown complete")
+	logger.Info("✅ Solver shutdown complete")
 }
 
 // setupLogger configures the logger based on configuration

@@ -57,18 +57,17 @@ cases and requirements.
 
 ## Deployment Addresses
 
-| Blockchain | Proxy | Implementation |
-| ---------- | ----- | -------------- |
-| Mainnet    | [`0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88`](https://etherscan.io/address/0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://etherscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)  |
+| Blockchain | Proxy                                                                                                                              | Implementation                                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Mainnet    | [`0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88`](https://etherscan.io/address/0x5F69f9aeEB44e713fBFBeb136d712b22ce49eb88)            | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://etherscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)            |
 | Optimism   | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://optimistic.etherscan.io/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://optimistic.etherscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Arbitrum   | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://arbiscan.io/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://arbiscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Base       | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://basescan.org/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://basescan.org/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Gnosis     | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://gnosisscan.io/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://gnosisscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Berachain  | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://berascan.com/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://berascan.com/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Form       | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://explorer.form.network/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://explorer.form.network/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Unichain   | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://uniscan.xyz/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://uniscan.xyz/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-| Artela     | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://artscan.artela.network/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0) | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://artscan.artela.network/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb) |
-
+| Arbitrum   | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://arbiscan.io/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)             | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://arbiscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)             |
+| Base       | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://basescan.org/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)            | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://basescan.org/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)            |
+| Gnosis     | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://gnosisscan.io/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)           | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://gnosisscan.io/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)           |
+| Berachain  | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://berascan.com/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)            | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://berascan.com/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)            |
+| Form       | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://explorer.form.network/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)   | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://explorer.form.network/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)   |
+| Unichain   | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://uniscan.xyz/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)             | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://uniscan.xyz/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)             |
+| Artela     | [`0x9245A985d2055CeA7576B293Da8649bb6C5af9D0`](https://artscan.artela.network/address/0x9245A985d2055CeA7576B293Da8649bb6C5af9D0)  | [`0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb`](https://artscan.artela.network/address/0x5A854219B9e49a73074b55B7e006CB0Bc2cf91Eb)  |
 
 ## Scripts
 
@@ -97,8 +96,8 @@ variable are set:
 - `PROXY_ADMIN_OWNER`: address of the ProxyAdmin owner, `ROUTER_OWNER` would be used if this is not set. The router is
   deployed using a `TransparentUpgradeableProxy`, so a ProxyAdmin contract is deployed and set as the admin of the
   proxy.
-- `HYPERLANE7683_SALT`: a single use by chain salt for deploying the router. Make sure you use the same on all
-  chains so the routers are deployed all under the same address.
+- `HYPERLANE7683_SALT`: a single use by chain salt for deploying the router. Make sure you use the same on all chains so
+  the routers are deployed all under the same address.
 - `DOMAINS`: the domains list of the routers to enroll, separated by commas
 
 ### Open an Order
@@ -119,7 +118,8 @@ For opening an onchain order you can run `yarn run:openOrder`. Make sure the fol
 For refunding an expired order you can run `yarn run:refundOrder`. Make sure the following environment variable are set:
 
 - `NETWORK`: the name of the network you want to run the script, it should be the destination network of your order
-- `USER_PK`: the private key to use for executing the tx, the address should own some gas to pay for the Hyperlane message
+- `USER_PK`: the private key to use for executing the tx, the address should own some gas to pay for the Hyperlane
+  message
 - `ORDER_ORIGIN`: the chain id of the order's origin chain
 - `ORDER_FILL_DEADLINE`: the `fillDeadline` used when opening the order
 - `ORDER_DATA`: the `orderData` used when opening the order

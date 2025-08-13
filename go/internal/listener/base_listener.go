@@ -17,10 +17,10 @@ type ShutdownFunc func()
 type BaseListener interface {
 	// Start begins listening for events
 	Start(ctx context.Context, handler EventHandler) (ShutdownFunc, error)
-	
+
 	// Stop gracefully stops the listener
 	Stop() error
-	
+
 	// GetLastProcessedBlock returns the last processed block number
 	GetLastProcessedBlock() uint64
 }
@@ -51,9 +51,9 @@ func NewListenerConfig(
 		confirmationBlocks = 12 // default 12 blocks
 	}
 	if maxBlockRange == 0 {
-		maxBlockRange = 3000 // default 3000 blocks
+		maxBlockRange = 500 // default 500 blocks
 	}
-	
+
 	return &ListenerConfig{
 		ContractAddress:    contractAddress,
 		ChainName:          chainName,
