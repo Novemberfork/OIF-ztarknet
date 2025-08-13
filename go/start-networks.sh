@@ -25,6 +25,54 @@ echo "💡 All networks will fork mainnet with real infrastructure"
 echo "🛑 Use Ctrl+C to stop all networks"
 echo ""
 
+# Function to reset deployment state to fork block numbers
+reset_deployment_state() {
+    echo "🔄 Resetting deployment state to fork block numbers..."
+    
+    # Create the deployment state JSON with correct fork blocks
+    cat > "deployment-state.json" << EOF
+{
+  "networks": {
+    "Sepolia": {
+      "chainId": 11155111,
+      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "orcaCoinAddress": "",
+      "dogCoinAddress": "",
+      "lastIndexedBlock": 8319000,
+      "lastUpdated": "now"
+    },
+    "Optimism Sepolia": {
+      "chainId": 11155420,
+      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "orcaCoinAddress": "",
+      "dogCoinAddress": "",
+      "lastIndexedBlock": 27370000,
+      "lastUpdated": "now"
+    },
+    "Arbitrum Sepolia": {
+      "chainId": 421614,
+      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "orcaCoinAddress": "",
+      "dogCoinAddress": "",
+      "lastIndexedBlock": 138020000,
+      "lastUpdated": "now"
+    },
+    "Base Sepolia": {
+      "chainId": 84532,
+      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "orcaCoinAddress": "",
+      "dogCoinAddress": "",
+      "lastIndexedBlock": 25380000,
+      "lastUpdated": "now"
+    }
+  }
+}
+EOF
+    
+    echo "✅ Deployment state reset to fork block numbers"
+    echo "📝 Event listener will start from correct blocks"
+}
+
 # Function to start a testnet fork with color-coded logging
 start_network() {
     local port=$1
@@ -128,6 +176,9 @@ trap cleanup SIGINT SIGTERM
 echo "🔧 Starting testnet forks..."
 echo ""
 
+# Reset deployment state to fork block numbers
+reset_deployment_state
+
 # Check if ALCHEMY_API_KEY is set
 if [ -z "$ALCHEMY_API_KEY" ]; then
     echo "⚠️  ALCHEMY_API_KEY not set!"
@@ -170,11 +221,13 @@ echo ""
 echo "📦 Next steps:"
 echo "   1. Fund accounts: make fund-accounts"
 echo "   2. Deploy Hyperlane7683: make deploy-hyperlane"
+echo "   3. Start solver: make run (will start from correct blocks)"
 echo ""
 echo "🔄 Or restart everything:"
 echo "   make restart"
 echo ""
 echo "💡 Networks will continue logging here..."
+echo "💡 Event listener will automatically start from fork blocks"
 echo "🛑 Press Ctrl+C to stop all networks"
 echo ""
 
