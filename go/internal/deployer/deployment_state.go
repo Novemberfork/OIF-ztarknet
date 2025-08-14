@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
@@ -63,70 +64,47 @@ var defaultDeploymentState = DeploymentState{
 	},
 }
 
+// process-local lock to serialize state file access
+var stateMu sync.Mutex
+
 // GetDeploymentState loads the current deployment state from file
 func GetDeploymentState() (*DeploymentState, error) {
-	stateFile := getStateFilePath()
-
-	// If file doesn't exist, create it with defaults
-	if _, err := os.Stat(stateFile); os.IsNotExist(err) {
-		if err := SaveDeploymentState(&defaultDeploymentState); err != nil {
-			return nil, fmt.Errorf("failed to create default state file: %w", err)
-		}
-		return &defaultDeploymentState, nil
-	}
-
-	// Read existing state
-	data, err := os.ReadFile(stateFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read state file: %w", err)
-	}
-
-	var state DeploymentState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("failed to parse state file: %w", err)
-	}
-
-	return &state, nil
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	return readStateLocked()
 }
 
 // SaveDeploymentState saves the deployment state to file
 func SaveDeploymentState(state *DeploymentState) error {
-	stateFile := getStateFilePath()
-
-	// Ensure directory exists
-	dir := filepath.Dir(stateFile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create state directory: %w", err)
-	}
-
-	data, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal state: %w", err)
-	}
-
-	return os.WriteFile(stateFile, data, 0644)
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	return saveStateLocked(state)
 }
 
 // UpdateNetworkState updates the state for a specific network
 func UpdateNetworkState(networkName string, orcaCoinAddr, dogCoinAddr string) error {
-	state, err := GetDeploymentState()
+	stateMu.Lock()
+	defer stateMu.Unlock()
+
+	state, err := readStateLocked()
 	if err != nil {
 		return err
 	}
-
 	if network, exists := state.Networks[networkName]; exists {
 		network.OrcaCoinAddress = orcaCoinAddr
 		network.DogCoinAddress = dogCoinAddr
 		network.LastUpdated = time.Now().Format(time.RFC3339)
 		state.Networks[networkName] = network
 	}
-
-	return SaveDeploymentState(state)
+	return saveStateLocked(state)
 }
 
 // UpdateLastIndexedBlock updates the LastIndexedBlock for a specific network and saves to file
 func UpdateLastIndexedBlock(networkName string, newBlockNumber uint64) error {
-	state, err := GetDeploymentState()
+	stateMu.Lock()
+	defer stateMu.Unlock()
+
+	state, err := readStateLocked()
 	if err != nil {
 		return fmt.Errorf("failed to get deployment state: %w", err)
 	}
@@ -141,7 +119,7 @@ func UpdateLastIndexedBlock(networkName string, newBlockNumber uint64) error {
 	network.LastUpdated = time.Now().Format(time.RFC3339)
 	state.Networks[networkName] = network
 
-	if err := SaveDeploymentState(state); err != nil {
+	if err := saveStateLocked(state); err != nil {
 		return fmt.Errorf("failed to save deployment state: %w", err)
 	}
 
@@ -149,6 +127,78 @@ func UpdateLastIndexedBlock(networkName string, newBlockNumber uint64) error {
 		fmt.Printf("✅ Updated %s LastIndexedBlock: %d → %d\n", networkName, oldBlock, newBlockNumber)
 	}
 
+	return nil
+}
+
+// readStateLocked reads state with retry while holding stateMu
+func readStateLocked() (*DeploymentState, error) {
+	stateFile := getStateFilePath()
+
+	// If file doesn't exist, create it with defaults
+	if _, err := os.Stat(stateFile); os.IsNotExist(err) {
+		if err := saveStateLocked(&defaultDeploymentState); err != nil {
+			return nil, fmt.Errorf("failed to create default state file: %w", err)
+		}
+		return &defaultDeploymentState, nil
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		data, err := os.ReadFile(stateFile)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read state file: %w", err)
+			time.Sleep(25 * time.Millisecond)
+			continue
+		}
+		var state DeploymentState
+		if err := json.Unmarshal(data, &state); err != nil {
+			lastErr = fmt.Errorf("failed to parse state file: %w", err)
+			time.Sleep(25 * time.Millisecond)
+			continue
+		}
+		return &state, nil
+	}
+	return nil, lastErr
+}
+
+// saveStateLocked writes the state atomically while holding stateMu
+func saveStateLocked(state *DeploymentState) error {
+	stateFile := getStateFilePath()
+
+	// Ensure directory exists
+	dir := filepath.Dir(stateFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create state directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal state: %w", err)
+	}
+
+	// Atomic write: temp file -> fsync -> rename
+	tmp, err := os.CreateTemp(dir, "deployment-state-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp state file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer func() {
+		tmp.Close()
+		os.Remove(tmpPath)
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		return fmt.Errorf("failed to write temp state file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("failed to sync temp state file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close temp state file: %w", err)
+	}
+	if err := os.Rename(tmpPath, stateFile); err != nil {
+		return fmt.Errorf("failed to atomically replace state file: %w", err)
+	}
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/NethermindEth/oif-starknet/go/internal/deployer"
 	"github.com/NethermindEth/oif-starknet/go/internal/filler"
 	"github.com/NethermindEth/oif-starknet/go/internal/listener"
+	"github.com/NethermindEth/oif-starknet/go/internal/solvers/hyperlane7683"
 	"github.com/NethermindEth/oif-starknet/go/internal/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/sirupsen/logrus"
@@ -18,14 +19,13 @@ import (
 type SolverModule struct {
 	Name     string
 	Listener listener.BaseListener
-	Filler   filler.BaseFiller
-	Config   *listener.ListenerConfig
+    Filler   filler.BaseFiller
 }
 
 // SolverManager manages multiple solvers
 type SolverManager struct {
 	config     *config.Config
-	logger     interface{}
+	logger     *logrus.Logger
 	solvers    map[string]*SolverModule
 	shutdownWg sync.WaitGroup
 	ctx        context.Context
@@ -33,7 +33,7 @@ type SolverManager struct {
 }
 
 // NewSolverManager creates a new solver manager
-func NewSolverManager(cfg *config.Config, logger interface{}) *SolverManager {
+func NewSolverManager(cfg *config.Config, logger *logrus.Logger) *SolverManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &SolverManager{
@@ -106,7 +106,7 @@ func (sm *SolverManager) createHyperlane7683Solver() (*SolverModule, error) {
 	}
 
 	// Create a multi-network listener that listens to all networks
-	multiListener := listener.NewMultiNetworkListener(state, sm.logger.(*logrus.Logger))
+    multiListener := hyperlane7683.NewMultiNetworkListener(state)
 
 	// Get a client for the filler (we'll use the Base Sepolia client for now)
 	baseClient, err := ethclient.Dial(config.GetDefaultRPCURL())
@@ -114,23 +114,15 @@ func (sm *SolverManager) createHyperlane7683Solver() (*SolverModule, error) {
 		return nil, fmt.Errorf("failed to create base client: %w", err)
 	}
 	
-	hyperlaneFiller := filler.NewHyperlane7683Filler(baseClient)
+    hyperlaneFiller := hyperlane7683.NewHyperlane7683Filler(baseClient)
 
 	// Add default rules
 	hyperlaneFiller.AddDefaultRules()
 
-	return &SolverModule{
+    return &SolverModule{
 		Name:     "hyperlane7683",
 		Listener: multiListener,
 		Filler:   hyperlaneFiller,
-		Config: &listener.ListenerConfig{
-			ContractAddress:    config.Networks["Base Sepolia"].HyperlaneAddress.Hex(),
-			ChainName:          "Multi-Network",
-			InitialBlock:       nil,
-			PollInterval:       1000,
-			ConfirmationBlocks: 2,
-			MaxBlockRange:      500,
-		},
 	}, nil
 }
 
@@ -158,18 +150,9 @@ func (sm *SolverManager) startSolver(solver *SolverModule) error {
 		// Process the intent through the filler
 		if err := solver.Filler.ProcessIntent(sm.ctx, args, originChainName, blockNumber); err != nil {
 					fmt.Printf("❌ Failed to process intent: solver=%s, orderID=%s, error=%v\n", 
-			solver.Name, args.OrderID, err)
+		solver.Name, args.OrderID, err)
 			return err
 		}
-
-		// TODO: Don't update LastIndexedBlock here - we only update after fully processing all events in a block
-		// This ensures we don't skip blocks with unprocessed events
-		// LastIndexedBlock will be updated by the listener when MarkBlockFullyProcessed is called
-		// 
-		// The flow should be:
-		// 1. Event detected → ProcessIntent called → Event processed/filled
-		// 2. After ALL events in a block are processed → MarkBlockFullyProcessed called
-		// 3. Only then is LastIndexedBlock updated
 
 		fmt.Printf("✅ Intent processed successfully: solver=%s, orderID=%s\n", 
 			solver.Name, args.OrderID)

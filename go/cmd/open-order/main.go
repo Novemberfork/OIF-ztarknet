@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
+	contracts "github.com/NethermindEth/oif-starknet/go/internal/contracts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -378,19 +379,17 @@ func executeOrder(order OrderConfig) {
 	fmt.Printf("      OrderDataType: %x\n", crossChainOrder.OrderDataType)
 	fmt.Printf("      OrderData length: %d bytes\n", len(crossChainOrder.OrderData))
 
-	// Build the open() function call with the CORRECT selector
+	// Use generated bindings for open()
 	fmt.Printf("   📝 Order data prepared\n")
-	openSelector := []byte{0xe9, 0x17, 0xa9, 0x62} // CORRECT open() selector from valid transaction
-
-	// The open() function expects: open(uint32 fillDeadline, bytes32 orderDataType, bytes calldata orderData)
-	// NOT the OnchainCrossChainOrder struct
-	openCalldata := encodeOpenFunctionCallDirect(openSelector, crossChainOrder.FillDeadline, crossChainOrder.OrderDataType, crossChainOrder.OrderData)
-
-	fmt.Printf("   🔑 Function selector: 0x%x (CORRECT open function)\n", openSelector)
-	fmt.Printf("   📦 Calldata length: %d bytes\n", len(openCalldata))
-
-	// Send the open transaction
-	tx, err := sendOpenTransaction(client, auth, originNetwork.hyperlaneAddress, openCalldata)
+	contract, err := contracts.NewHyperlane7683(originNetwork.hyperlaneAddress, client)
+	if err != nil {
+		log.Fatalf("Failed to bind Hyperlane7683: %v", err)
+	}
+	tx, err := contract.Open(auth, contracts.OnchainCrossChainOrder{
+		FillDeadline:  crossChainOrder.FillDeadline,
+		OrderDataType: crossChainOrder.OrderDataType,
+		OrderData:     crossChainOrder.OrderData,
+	})
 	if err != nil {
 		log.Fatalf("Failed to send open transaction: %v", err)
 	}
@@ -430,11 +429,7 @@ func executeOrder(order OrderConfig) {
 			fmt.Printf("   📝 Transaction data: 0x%x\n", txDetails.Data())
 		}
 
-		// Simulate to get revert data and decode any custom errors
-		fmt.Printf("   🔍 Simulating call to decode revert...\n")
-		if err := simulateAndDecodeRevert(client, originNetwork.hyperlaneAddress, auth.From, openCalldata); err != nil {
-			fmt.Printf("   ❌ Failed to simulate/decode revert: %v\n", err)
-		}
+		// Optional: use bindings to simulate and decode custom errors if needed
 	}
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
