@@ -7,12 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NethermindEth/oif-starknet/go/internal/deployer"
 	"github.com/NethermindEth/oif-starknet/go/internal/types"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-
 )
 
 // Open event topic: Open(bytes32,ResolvedCrossChainOrder)
@@ -163,6 +164,13 @@ func (l *EVMListener) processCurrentBlockRange(ctx context.Context, handler Even
 	// 4. This ensures we never skip a block with unprocessed events
 	l.lastProcessedBlock = toBlock
 
+	// Persist LastIndexedBlock so that on restart we don't reprocess already-filled events
+	if err := deployer.UpdateLastIndexedBlock(l.config.ChainName, toBlock); err != nil {
+		fmt.Printf("⚠️  Failed to persist LastIndexedBlock for %s: %v\n", l.config.ChainName, err)
+	} else {
+		fmt.Printf("💾 Persisted LastIndexedBlock=%d for %s\n", toBlock, l.config.ChainName)
+	}
+
 	return nil
 }
 
@@ -222,30 +230,211 @@ func (l *EVMListener) processOpenEvent(log ethtypes.Log, handler EventHandler) e
 	}
 	orderID := log.Topics[1] // orderId is the first indexed parameter
 
-	// Parse the resolvedOrder from the data field
-	// This is complex as it contains nested structs, so we'll extract basic info for now
+	// Parse the actual ResolvedCrossChainOrder from the event data
+	resolvedOrder, err := l.parseResolvedCrossChainOrder(log.Data)
+	if err != nil {
+		return fmt.Errorf("failed to parse ResolvedCrossChainOrder: %w", err)
+	}
+
+	// Create ParsedArgs with the real parsed data
 	parsedArgs := types.ParsedArgs{
 		OrderID:       orderID.Hex(),
-		SenderAddress: common.BytesToAddress(log.Topics[1][:20]).Hex(), // Use orderId as sender for now
+		SenderAddress: resolvedOrder.User.Hex(), // Now directly common.Address
 		Recipients: []types.Recipient{
 			{
 				DestinationChainName: l.config.ChainName,                           // We'll need to map this properly
-				RecipientAddress:     "0x0000000000000000000000000000000000000000", // Placeholder
+				RecipientAddress:     "0x0000000000000000000000000000000000000000", // Placeholder for now
 			},
 		},
-		ResolvedOrder: types.ResolvedOrder{
-			User:             common.BytesToAddress(log.Topics[1][:20]).Hex(),
-			MinReceived:      []types.TokenAmount{}, // TODO: Parse from data
-			MaxSpent:         []types.TokenAmount{}, // TODO: Parse from data
-			FillInstructions: log.Data,              // Raw data for now
-		},
+		ResolvedOrder: *resolvedOrder,
 	}
 
 	fmt.Printf("📜 Open order: OrderID=%s, Chain=%s\n",
 		orderID.Hex(), l.config.ChainName)
+	fmt.Printf("   📊 Order details: User=%s, OriginChainID=%s, FillDeadline=%d\n",
+		resolvedOrder.User.Hex(), // Now directly common.Address
+		resolvedOrder.OriginChainID.String(),
+		resolvedOrder.FillDeadline)
+	fmt.Printf("   📦 Arrays: MaxSpent=%d, MinReceived=%d, FillInstructions=%d\n",
+		len(resolvedOrder.MaxSpent), len(resolvedOrder.MinReceived), len(resolvedOrder.FillInstructions))
+
+	// Add comprehensive logging for the complete decoded order
+	fmt.Printf("   🔍 Complete Decoded Order:\n")
+	fmt.Printf("      📋 User: %s\n", resolvedOrder.User.Hex())
+	fmt.Printf("      📋 OriginChainID: %s\n", resolvedOrder.OriginChainID.String())
+	fmt.Printf("      📋 OpenDeadline: %d\n", resolvedOrder.OpenDeadline)
+	fmt.Printf("      📋 FillDeadline: %d\n", resolvedOrder.FillDeadline)
+	fmt.Printf("      📋 OrderID: %x\n", resolvedOrder.OrderID)
+	
+	// Log MaxSpent array details
+	fmt.Printf("      💰 MaxSpent (%d items):\n", len(resolvedOrder.MaxSpent))
+	for i, output := range resolvedOrder.MaxSpent {
+		fmt.Printf("         [%d] Token: %s\n", i, output.Token.Hex())
+		fmt.Printf("         [%d] Amount: %s\n", i, output.Amount.String())
+		fmt.Printf("         [%d] Recipient: %s\n", i, output.Recipient.Hex())
+		fmt.Printf("         [%d] ChainID: %s\n", i, output.ChainID.String())
+	}
+	
+	// Log MinReceived array details
+	fmt.Printf("      💰 MinReceived (%d items):\n", len(resolvedOrder.MinReceived))
+	for i, output := range resolvedOrder.MinReceived {
+		fmt.Printf("         [%d] Token: %s\n", i, output.Token.Hex())
+		fmt.Printf("         [%d] Amount: %s\n", i, output.Amount.String())
+		fmt.Printf("         [%d] Recipient: %s\n", i, output.Recipient.Hex())
+		fmt.Printf("         [%d] ChainID: %s\n", i, output.ChainID.String())
+	}
+	
+	// Log FillInstructions array details
+	fmt.Printf("      📋 FillInstructions (%d items):\n", len(resolvedOrder.FillInstructions))
+	for i, instruction := range resolvedOrder.FillInstructions {
+		fmt.Printf("         [%d] DestinationChainID: %s\n", i, instruction.DestinationChainID.String())
+		fmt.Printf("         [%d] DestinationSettler: %s\n", i, instruction.DestinationSettler.Hex())
+		fmt.Printf("         [%d] OriginData: %d bytes\n", i, len(instruction.OriginData))
+		if len(instruction.OriginData) > 0 {
+			fmt.Printf("         [%d] OriginData (first 64 bytes): %x...\n", i, instruction.OriginData[:min(64, len(instruction.OriginData))])
+		}
+	}
 
 	// Call the handler
 	return handler(parsedArgs, l.config.ChainName, log.BlockNumber)
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// parseResolvedCrossChainOrder parses the ResolvedCrossChainOrder struct from event data
+// Using proper ABI decoding for complex nested structs with abi.NewType
+func (l *EVMListener) parseResolvedCrossChainOrder(data []byte) (*types.ResolvedCrossChainOrder, error) {
+    // Define component types for tuple decoding to leverage go-ethereum's ABI fully
+    outputComponents := []abi.ArgumentMarshaling{
+        {Name: "token", Type: "address"},     // Changed from bytes32 to address
+        {Name: "amount", Type: "uint256"},
+        {Name: "recipient", Type: "address"}, // Changed from bytes32 to address
+        {Name: "chainId", Type: "uint256"},
+    }
+
+    fillInstructionComponents := []abi.ArgumentMarshaling{
+        {Name: "destinationChainId", Type: "uint256"},
+        {Name: "destinationSettler", Type: "address"}, // Changed from bytes32 to address
+        {Name: "originData", Type: "bytes"},
+    }
+
+    resolvedOrderType, err := abi.NewType("tuple", "", []abi.ArgumentMarshaling{
+        {Name: "user", Type: "address"},
+        {Name: "originChainId", Type: "uint256"},
+        {Name: "openDeadline", Type: "uint32"},
+        {Name: "fillDeadline", Type: "uint32"},
+        {Name: "orderId", Type: "bytes32"},
+        {Name: "maxSpent", Type: "tuple[]", Components: outputComponents},
+        {Name: "minReceived", Type: "tuple[]", Components: outputComponents},
+        {Name: "fillInstructions", Type: "tuple[]", Components: fillInstructionComponents},
+    })
+    if err != nil {
+        return nil, fmt.Errorf("failed to define ResolvedCrossChainOrder tuple type: %w", err)
+    }
+
+    // Temporary Go structs to decode directly from ABI
+    type goOutput struct {
+        Token     common.Address // Changed from [32]byte to common.Address
+        Amount    *big.Int
+        Recipient common.Address // Changed from [32]byte to common.Address
+        ChainId   *big.Int
+    }
+    type goFillInstruction struct {
+        DestinationChainId *big.Int
+        DestinationSettler common.Address // Changed from [32]byte to common.Address
+        OriginData         []byte
+    }
+    type goResolved struct {
+        User             common.Address
+        OriginChainId    *big.Int
+        OpenDeadline     uint32
+        FillDeadline     uint32
+        OrderId          [32]byte
+        MaxSpent         []goOutput
+        MinReceived      []goOutput
+        FillInstructions []goFillInstruction
+    }
+
+    args := abi.Arguments{{Type: resolvedOrderType}}
+
+    out, err := args.Unpack(data)
+    if err != nil {
+        return nil, fmt.Errorf("failed to ABI-decode ResolvedCrossChainOrder: %w", err)
+    }
+    if len(out) != 1 {
+        return nil, fmt.Errorf("unexpected decoded outputs: %d", len(out))
+    }
+
+    // Since the ABI decoding is working, let's try to use type assertion directly
+    // The decoded data should be a struct of type goResolved
+    decoded, ok := out[0].(goResolved)
+    if !ok {
+        // If direct type assertion fails, use abi.ConvertType as a cleaner alternative
+        fmt.Printf("   ⚠️  Direct type assertion failed, trying abi.ConvertType...\n")
+        
+        // Use abi.ConvertType to convert the decoded data to our struct type
+        converted := abi.ConvertType(out[0], new(goResolved))
+        if converted == nil {
+            return nil, fmt.Errorf("failed to convert decoded data using abi.ConvertType")
+        }
+        
+        decoded = *converted.(*goResolved)
+        fmt.Printf("   ✅ Successfully converted using abi.ConvertType\n")
+    }
+
+    // Debug: Log the extracted arrays
+    fmt.Printf("   🔍 Extracted MaxSpent: %d elements\n", len(decoded.MaxSpent))
+    fmt.Printf("   🔍 Extracted MinReceived: %d elements\n", len(decoded.MinReceived))
+    fmt.Printf("   🔍 Extracted FillInstructions: %d elements\n", len(decoded.FillInstructions))
+
+    // Map decoded struct into our public types
+    ro := &types.ResolvedCrossChainOrder{
+        User:             decoded.User,           // Now directly common.Address
+        OriginChainID:    decoded.OriginChainId,
+        OpenDeadline:     decoded.OpenDeadline,
+        FillDeadline:     decoded.FillDeadline,
+        OrderID:          decoded.OrderId,
+        MaxSpent:         make([]types.Output, 0, len(decoded.MaxSpent)),
+        MinReceived:      make([]types.Output, 0, len(decoded.MinReceived)),
+        FillInstructions: make([]types.FillInstruction, 0, len(decoded.MinReceived)),
+    }
+
+    // Convert MaxSpent outputs
+    for _, o := range decoded.MaxSpent {
+        ro.MaxSpent = append(ro.MaxSpent, types.Output{
+            Token:     o.Token,     // Now directly common.Address
+            Amount:    o.Amount,
+            Recipient: o.Recipient, // Now directly common.Address
+            ChainID:   o.ChainId,
+        })
+    }
+
+    // Convert MinReceived outputs
+    for _, o := range decoded.MinReceived {
+        ro.MinReceived = append(ro.MinReceived, types.Output{
+            Token:     o.Token,     // Now directly common.Address
+            Amount:    o.Amount,
+            Recipient: o.Recipient, // Now directly common.Address
+            ChainID:   o.ChainId,
+        })
+    }
+
+    // Convert FillInstructions
+    for _, fi := range decoded.FillInstructions {
+        ro.FillInstructions = append(ro.FillInstructions, types.FillInstruction{
+            DestinationChainID: fi.DestinationChainId,
+            DestinationSettler: fi.DestinationSettler, // Now directly common.Address
+            OriginData:         fi.OriginData,
+        })
+    }
+
+    return ro, nil
 }
 
 // catchUpHistoricalBlocks processes all historical blocks to catch up on missed events

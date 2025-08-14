@@ -2,6 +2,8 @@ package types
 
 import (
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // ParsedArgs represents the parsed arguments from an Open event
@@ -9,7 +11,7 @@ type ParsedArgs struct {
 	OrderID        string   `json:"orderId"`
 	SenderAddress  string   `json:"senderAddress"`
 	Recipients     []Recipient `json:"recipients"`
-	ResolvedOrder  ResolvedOrder `json:"resolvedOrder"`
+	ResolvedOrder  ResolvedCrossChainOrder `json:"resolvedOrder"`
 }
 
 // Recipient represents a destination recipient
@@ -18,26 +20,48 @@ type Recipient struct {
 	RecipientAddress    string `json:"recipientAddress"`
 }
 
-// ResolvedOrder contains the order details
-type ResolvedOrder struct {
-	User       string           `json:"user"`
-	MinReceived []TokenAmount   `json:"minReceived"`
-	MaxSpent   []TokenAmount   `json:"maxSpent"`
-	FillInstructions []byte     `json:"fillInstructions"`
+// Output represents tokens that must be received for a valid order fulfillment
+type Output struct {
+	Token     common.Address `json:"token"`     // ERC20 token address (address for cross-chain compatibility)
+	Amount    *big.Int       `json:"amount"`    // Amount of tokens
+	Recipient common.Address `json:"recipient"` // Address to receive tokens
+	ChainID   *big.Int       `json:"chainId"`   // Destination chain ID
 }
 
-// TokenAmount represents a token amount on a specific chain
-type TokenAmount struct {
-	Amount  *big.Int `json:"amount"`
-	ChainID *big.Int `json:"chainId"`
-	Token   [32]byte `json:"token"`
+// FillInstruction represents instructions to parameterize each leg of the fill
+type FillInstruction struct {
+	DestinationChainID *big.Int      `json:"destinationChainId"` // Chain to fill on
+	DestinationSettler common.Address `json:"destinationSettler"` // Contract address to fill on
+	OriginData         []byte        `json:"originData"`         // Data needed by destinationSettler
+}
+
+// ResolvedCrossChainOrder contains the order details
+type ResolvedCrossChainOrder struct {
+	User             common.Address      `json:"user"`             // User initiating the transfer
+	OriginChainID    *big.Int           `json:"originChainId"`    // Origin chain ID
+	OpenDeadline     uint32             `json:"openDeadline"`     // Timestamp by which order must be opened
+	FillDeadline     uint32             `json:"fillDeadline"`     // Timestamp by which order must be filled
+	OrderID          [32]byte           `json:"orderId"`          // Unique order identifier
+	MaxSpent         []Output           `json:"maxSpent"`         // Max outputs filler will send
+	MinReceived      []Output           `json:"minReceived"`      // Min outputs filler must receive
+	FillInstructions []FillInstruction  `json:"fillInstructions"` // Instructions for each fill leg
 }
 
 // IntentData contains the data needed to fill an intent
 type IntentData struct {
-	FillInstructions []byte       `json:"fillInstructions"`
-	MaxSpent        []TokenAmount `json:"maxSpent"`
+	FillInstructions []FillInstruction `json:"fillInstructions"`
+	MaxSpent         []Output          `json:"maxSpent"`
 }
+
+// OrderStatus represents the status of an order
+type OrderStatus uint8
+
+const (
+	OrderStatusUnknown OrderStatus = iota
+	OrderStatusFilled
+	OrderStatusCancelled
+	OrderStatusExpired
+)
 
 // BaseMetadata contains common metadata for all solvers
 type BaseMetadata struct {

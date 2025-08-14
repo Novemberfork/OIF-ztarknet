@@ -22,11 +22,11 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Test user addresses (Alice, Bob, Charlie)
+// Test user addresses (Alice, Bob, Solver)
 var testUsers = []string{
 	"0x70997970C51812dc3A010C7d01b50e0d17dc79C8", // Alice (Account 1)
 	"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", // Bob (Account 2)
-	"0x90F79bf6EB2c4f870365E785982E1f101E93b906", // Charlie (Account 3)
+	"0x90F79bf6EB2c4f870365E785982E1f101E93b906", // Solver (Account 3)
 }
 
 // Network configuration - built from centralized config
@@ -39,7 +39,7 @@ var networks = func() []struct {
 		name string
 		url  string
 	}, 0, len(networkNames))
-	
+
 	for _, networkName := range networkNames {
 		networkConfig := config.Networks[networkName]
 		networks = append(networks, struct {
@@ -58,17 +58,17 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	deployerKeyHex := os.Getenv("DEPLOYER_PRIVATE_KEY")
+	deployerKeyHex := os.Getenv("SOLVER_PRIVATE_KEY")
 	if deployerKeyHex == "" {
-		log.Fatal("DEPLOYER_PRIVATE_KEY environment variable is required")
+		log.Fatal("SOLVER_PRIVATE_KEY environment variable is required")
 	}
 
 	aliceKeyHex := os.Getenv("ALICE_PRIVATE_KEY")
 	bobKeyHex := os.Getenv("BOB_PRIVATE_KEY")
-	charlieKeyHex := os.Getenv("CHARLIE_PRIVATE_KEY")
+	solverKeyHex := os.Getenv("SOLVER_PRIVATE_KEY")
 
-	if aliceKeyHex == "" || bobKeyHex == "" || charlieKeyHex == "" {
-		log.Fatal("ALICE_PRIVATE_KEY, BOB_PRIVATE_KEY, and CHARLIE_PRIVATE_KEY environment variables are required")
+	if aliceKeyHex == "" || bobKeyHex == "" || solverKeyHex == "" {
+		log.Fatal("ALICE_PRIVATE_KEY, BOB_PRIVATE_KEY, and SOLVER_PRIVATE_KEY environment variables are required")
 	}
 
 	// Parse deployer private key
@@ -88,9 +88,9 @@ func main() {
 		log.Fatalf("Failed to parse Bob private key: %v", err)
 	}
 
-	charlieKey, err := ethutil.ParsePrivateKey(charlieKeyHex)
+	solverKey, err := ethutil.ParsePrivateKey(solverKeyHex)
 	if err != nil {
-		log.Fatalf("Failed to parse Charlie private key: %v", err)
+		log.Fatalf("Failed to parse Solver private key: %v", err)
 	}
 
 	// Deploy tokens to all networks
@@ -128,20 +128,20 @@ func main() {
 		}
 
 		// Fund test users
-		if err := fundUsers(client, deployerKey, aliceKey, bobKey, charlieKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
+		if err := fundUsers(client, deployerKey, aliceKey, bobKey, solverKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Failed to fund users: %v\n", err)
 			continue
 		}
 
 		// Set allowances for Hyperlane7683
-		if err := setAllowances(client, aliceKey, bobKey, charlieKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
+		if err := setAllowances(client, aliceKey, bobKey, solverKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Failed to set allowances: %v\n", err)
 			continue
 		}
 
 		// Verify balances and allowances after everything is set
 		fmt.Printf("   🔍 Verifying balances and allowances...\n")
-		if err := verifyBalancesAndAllowances(client, aliceKey, bobKey, charlieKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
+		if err := verifyBalancesAndAllowances(client, aliceKey, bobKey, solverKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Verification failed: %v\n", err)
 			continue
 		}
@@ -252,7 +252,7 @@ func deployERC20(client *ethclient.Client, privateKey *ecdsa.PrivateKey, symbol,
 	return address, nil
 }
 
-func fundUsers(client *ethclient.Client, deployerKey, aliceKey, bobKey, charlieKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
+func fundUsers(client *ethclient.Client, deployerKey, aliceKey, bobKey, solverKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
 	fmt.Printf("   💰 Funding test users...\n")
 
 	// Get the ERC20 contract configuration
@@ -289,7 +289,7 @@ func fundUsers(client *ethclient.Client, deployerKey, aliceKey, bobKey, charlieK
 	}{
 		{"Alice", aliceKey},
 		{"Bob", bobKey},
-		{"Charlie", charlieKey},
+		{"Solver", solverKey},
 	}
 
 	for _, user := range users {
@@ -373,7 +373,7 @@ func transferTokens(client *ethclient.Client, auth *bind.TransactOpts, tokenAddr
 	return nil
 }
 
-func setAllowances(client *ethclient.Client, aliceKey, bobKey, charlieKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
+func setAllowances(client *ethclient.Client, aliceKey, bobKey, solverKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
 	fmt.Printf("   🔐 Setting allowances for Hyperlane7683...\n")
 
 	// Get the ERC20 contract configuration
@@ -404,7 +404,7 @@ func setAllowances(client *ethclient.Client, aliceKey, bobKey, charlieKey *ecdsa
 	}{
 		{"Alice", aliceKey},
 		{"Bob", bobKey},
-		{"Charlie", charlieKey},
+		{"Solver", solverKey},
 	}
 
 	// Set unlimited allowance for each user
@@ -499,7 +499,7 @@ func approveUnlimited(client *ethclient.Client, auth *bind.TransactOpts, tokenAd
 }
 
 // verifyBalancesAndAllowances verifies that users have the expected balances and allowances
-func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, bobKey, charlieKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
+func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, bobKey, solverKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
 
 	// Expected balance after funding
 	expectedBalance := new(big.Int).Mul(big.NewInt(100000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)) // 100,000 tokens
@@ -517,7 +517,7 @@ func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, bobKey, cha
 	}{
 		{"Alice", aliceKey},
 		{"Bob", bobKey},
-		{"Charlie", charlieKey},
+		{"Solver", solverKey},
 	}
 
 	// Verify each user's balances
@@ -570,5 +570,3 @@ func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, bobKey, cha
 
 	return nil
 }
-
-

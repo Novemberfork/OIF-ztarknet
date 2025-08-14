@@ -10,6 +10,7 @@ import (
 	"github.com/NethermindEth/oif-starknet/go/internal/filler"
 	"github.com/NethermindEth/oif-starknet/go/internal/listener"
 	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/sirupsen/logrus"
 )
 
@@ -98,38 +99,6 @@ func (sm *SolverManager) createSolverModule(name string) (*SolverModule, error) 
 
 // createHyperlane7683Solver creates the Hyperlane7683 solver
 func (sm *SolverManager) createHyperlane7683Solver() (*SolverModule, error) {
-	// Create metadata for Hyperlane7683
-	metadata := types.Hyperlane7683Metadata{
-		BaseMetadata: types.BaseMetadata{
-			ProtocolName: "Hyperlane7683",
-		},
-		IntentSources: []types.IntentSource{
-			{
-				Address:            config.Networks["Base Sepolia"].HyperlaneAddress.Hex(),
-				ChainName:          "Base Sepolia",
-				InitialBlock:       nil,  // Start from current block
-				PollInterval:       1000, // 1 second
-				ConfirmationBlocks: 2,
-			},
-		},
-		CustomRules: types.CustomRules{
-			Rules: []types.RuleConfig{
-				{
-					Name: "filterByTokenAndAmount",
-				},
-				{
-					Name: "intentNotFilled",
-				},
-			},
-		},
-	}
-
-	// Create allow/block lists (empty for now - allow everything)
-	allowBlockLists := types.AllowBlockLists{
-		AllowList: []types.AllowBlockListItem{},
-		BlockList: []types.AllowBlockListItem{},
-	}
-
 	// Get deployment state to create listeners for all networks
 	state, err := deployer.GetDeploymentState()
 	if err != nil {
@@ -139,7 +108,13 @@ func (sm *SolverManager) createHyperlane7683Solver() (*SolverModule, error) {
 	// Create a multi-network listener that listens to all networks
 	multiListener := listener.NewMultiNetworkListener(state, sm.logger.(*logrus.Logger))
 
-	hyperlaneFiller := filler.NewHyperlane7683Filler(allowBlockLists, metadata)
+	// Get a client for the filler (we'll use the Base Sepolia client for now)
+	baseClient, err := ethclient.Dial(config.GetDefaultRPCURL())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create base client: %w", err)
+	}
+	
+	hyperlaneFiller := filler.NewHyperlane7683Filler(baseClient)
 
 	// Add default rules
 	hyperlaneFiller.AddDefaultRules()

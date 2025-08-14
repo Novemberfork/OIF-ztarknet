@@ -23,7 +23,7 @@ var Networks = map[string]NetworkConfig{
 		RPCURL:           "http://localhost:8545",
 		ChainID:          11155111,
 		HyperlaneAddress: common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
-		HyperlaneDomain:  11156380, // 0xaa37dc - matches actual contract (from fill event)
+		HyperlaneDomain:  11155111, // 0xaa37dc - matches actual contract (from fill event)
 		ForkStartBlock:   8319000,
 	},
 	"Optimism Sepolia": {
@@ -103,6 +103,26 @@ func GetForkStartBlock(networkName string) (uint64, error) {
 		return 0, err
 	}
 	return config.ForkStartBlock, nil
+}
+
+// GetRPCURLByChainID returns the RPC URL for a given chain ID
+func GetRPCURLByChainID(chainID uint64) (string, error) {
+	for _, network := range Networks {
+		if network.ChainID == chainID {
+			return network.RPCURL, nil
+		}
+	}
+	return "", fmt.Errorf("network not found for chain ID: %d", chainID)
+}
+
+// GetHyperlaneAddressByChainID returns the Hyperlane address for a given chain ID
+func GetHyperlaneAddressByChainID(chainID uint64) (common.Address, error) {
+	for _, network := range Networks {
+		if network.ChainID == chainID {
+			return network.HyperlaneAddress, nil
+		}
+	}
+	return common.Address{}, fmt.Errorf("network not found for chain ID: %d", chainID)
 }
 
 // GetNetworkNames returns all available network names

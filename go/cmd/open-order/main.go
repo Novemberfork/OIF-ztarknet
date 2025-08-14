@@ -49,7 +49,7 @@ func loadNetworks() error {
 	// Build networks from centralized config
 	networkNames := config.GetNetworkNames()
 	networks = make([]NetworkConfig, 0, len(networkNames))
-	
+
 	for _, networkName := range networkNames {
 		networkConfig := config.Networks[networkName]
 		networks = append(networks, NetworkConfig{
@@ -98,7 +98,7 @@ var testUsers = []struct {
 }{
 	{"Alice", "ALICE_PRIVATE_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"},
 	{"Bob", "BOB_PRIVATE_KEY", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"},
-	{"Charlie", "CHARLIE_PRIVATE_KEY", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"},
+	{"Solver", "SOLVER_PRIVATE_KEY", "0x90F79bf6EB2c4f870365E785982E1f101E93b906"},
 }
 
 // Order configuration
@@ -440,8 +440,6 @@ func executeOrder(order OrderConfig) {
 	fmt.Printf("\n🎉 Order execution completed!\n")
 }
 
-
-
 // simulateAndDecodeRevert runs an eth_call with the same calldata and decodes common custom errors
 func simulateAndDecodeRevert(client *ethclient.Client, to, from common.Address, data []byte) error {
 	msg := ethereum.CallMsg{To: &to, From: from, Data: data, Gas: 2_000_000}
@@ -521,23 +519,22 @@ func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, destination
 		}
 	}
 
-	// For now, use the same address as recipient (user receives their own tokens back)
-	recipientAddr := userAddr
-
 	// Input token from origin network, output token from destination network
 	inputTokenAddr := originNetwork.orcaCoinAddress
-	outputTokenAddr := destinationNetwork.dogCoinAddress 
+	outputTokenAddr := destinationNetwork.dogCoinAddress
 
 	// Convert destination settler to bytes32
 	destSettler := destinationNetwork.hyperlaneAddress
 
 	// Convert addresses to bytes32 (left-pad with zeros)
-	var userBytes, recipientBytes, inputTokenBytes, outputTokenBytes, destSettlerBytes [32]byte
+	var userBytes, inputTokenBytes, outputTokenBytes, destSettlerBytes [32]byte
 	copy(userBytes[12:], userAddr.Bytes()) // Address is 20 bytes, pad to 32
-	copy(recipientBytes[12:], recipientAddr.Bytes())
 	copy(inputTokenBytes[12:], inputTokenAddr.Bytes())
 	copy(outputTokenBytes[12:], outputTokenAddr.Bytes())
 	copy(destSettlerBytes[12:], destSettler.Bytes())
+
+	// Get the destination chain ID (where the filler will execute the trade)
+	destinationChainID := getHyperlaneDomain(destinationNetwork.name)
 
 	return OrderData{
 		Sender:             userBytes,
@@ -548,7 +545,7 @@ func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, destination
 		AmountOut:          order.OutputAmount,
 		SenderNonce:        senderNonce,
 		OriginDomain:       originDomain,
-		DestinationDomain:  getHyperlaneDomain(destinationNetwork.name),
+		DestinationDomain:  destinationChainID,
 		DestinationSettler: destSettlerBytes,
 		FillDeadline:       order.FillDeadline,
 		Data:               []byte{}, // Empty for basic orders
@@ -639,7 +636,7 @@ func getOrderDataTypeHash() [32]byte {
 
 	// Debug: Print the hash we're generating
 	fmt.Printf("   🔍 Generated orderDataType hash: %x\n", hash)
-	fmt.Printf("   🔍 Expected hash from contract: 08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e\n")
+	fmt.Printf("   �� Expected hash from contract: 08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e\n")
 
 	return hash
 }
@@ -840,5 +837,3 @@ func verifyBalanceChanges(client *ethclient.Client, tokenAddress, userAddress, h
 
 	return nil
 }
-
-
