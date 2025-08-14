@@ -278,7 +278,7 @@ func (l *EVMListener) catchUpHistoricalBlocks(ctx context.Context, handler Event
 
 	// Persist the updated lastProcessedBlock to deployment state
 	if err := deployer.UpdateLastIndexedBlock(l.config.ChainName, toBlock); err != nil {
-		l.logger.Warnf("⚠️  Failed to persist lastProcessedBlock after backfill (%s): %v", err, l.config.ChainName)
+		l.logger.Warnf("⚠️  Failed to persist lastProcessedBlock after backfill (%s): %v", l.config.ChainName, err)
 	} else {
 		l.logger.Infof("💾 Backfill complete (%s): persisted lastProcessedBlock", l.config.ChainName)
 	}

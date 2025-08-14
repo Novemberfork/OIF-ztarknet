@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // DeploymentState holds the addresses of deployed contracts across all networks
@@ -114,7 +115,7 @@ func UpdateNetworkState(networkName string, orcaCoinAddr, dogCoinAddr string) er
 	if network, exists := state.Networks[networkName]; exists {
 		network.OrcaCoinAddress = orcaCoinAddr
 		network.DogCoinAddress = dogCoinAddr
-		network.LastUpdated = "now" // TODO: Add proper timestamp
+		network.LastUpdated = time.Now().Format(time.RFC3339)
 		state.Networks[networkName] = network
 	}
 
