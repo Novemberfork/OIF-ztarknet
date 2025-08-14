@@ -31,7 +31,7 @@ var defaultDeploymentState = DeploymentState{
 			HyperlaneAddress: "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
 			OrcaCoinAddress:  "",
 			DogCoinAddress:   "",
-			LastIndexedBlock: 8319000, // After the working open() transaction
+			LastIndexedBlock: 8319000, 
 			LastUpdated:      "",
 		},
 		"Optimism Sepolia": {
@@ -39,7 +39,7 @@ var defaultDeploymentState = DeploymentState{
 			HyperlaneAddress: "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
 			OrcaCoinAddress:  "",
 			DogCoinAddress:   "",
-			LastIndexedBlock: 27370000, // After the working open() transaction
+			LastIndexedBlock: 27370000,
 			LastUpdated:      "",
 		},
 		"Arbitrum Sepolia": {
@@ -47,7 +47,7 @@ var defaultDeploymentState = DeploymentState{
 			HyperlaneAddress: "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
 			OrcaCoinAddress:  "",
 			DogCoinAddress:   "",
-			LastIndexedBlock: 138020000, // After any working transactions
+			LastIndexedBlock: 138020000, 
 			LastUpdated:      "",
 		},
 		"Base Sepolia": {
@@ -55,7 +55,7 @@ var defaultDeploymentState = DeploymentState{
 			HyperlaneAddress: "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
 			OrcaCoinAddress:  "",
 			DogCoinAddress:   "",
-			LastIndexedBlock: 25380000, // After the working fill() transaction
+			LastIndexedBlock: 25380000, 
 			LastUpdated:      "",
 		},
 	},
@@ -136,7 +136,7 @@ func UpdateLastIndexedBlock(networkName string, newBlockNumber uint64) error {
 
 	oldBlock := network.LastIndexedBlock
 	network.LastIndexedBlock = newBlockNumber
-	network.LastUpdated = "now"
+	network.LastUpdated = time.Now().Format(time.RFC3339)
 	state.Networks[networkName] = network
 
 	if err := SaveDeploymentState(state); err != nil {
