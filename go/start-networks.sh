@@ -121,19 +121,19 @@ start_network() {
 	local fork_block
 			case $testnet_name in
 			"sepolia")
-				fork_block=8319000  # After the working open() transaction
+				fork_block=8319000  # After the last transaction
 				;;
 			"optimism-sepolia")
-				fork_block=27370000  # After the working open() transaction
+				fork_block=27370000  # After the last transaction
 				;;
 			"arbitrum-sepolia")
-				fork_block=138020000  # After any working transactions
+				fork_block=138020000  # After the last transactions
 				;;
 			"base-sepolia")
-				fork_block=25380000  # After the working fill() transaction
+				fork_block=25380000  # After the last transaction
 				;;
 			*)
-				fork_block=8319000
+				fork_block=8319001
 				;;
 		esac
 	echo -e "${color}${id}${RESET} Forking ${testnet_name} from block ${fork_block} (when contract was last used)"

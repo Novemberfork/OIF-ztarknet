@@ -509,12 +509,9 @@ func simulateAndDecodeRevert(client *ethclient.Client, to, from common.Address, 
 		hexData = hexData[:sp]
 	}
 	hexData = strings.TrimSpace(hexData)
-	if strings.HasSuffix(hexData, ",") {
-		hexData = hexData[:len(hexData)-1]
-	}
-	if strings.HasPrefix(hexData, "0x") {
-		hexData = hexData[2:]
-	}
+	hexData = strings.TrimSuffix(hexData, ",")
+	hexData = strings.TrimSuffix(hexData, "0x")
+
 	revertData, decErr := hex.DecodeString(hexData)
 	if decErr != nil || len(revertData) < 4 {
 		fmt.Printf("   ⚠️  Could not parse revert data from error: %v\n", decErr)
@@ -568,10 +565,9 @@ func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, destination
 	// For now, use the same address as recipient (user receives their own tokens back)
 	recipientAddr := userAddr
 
-	// Use the actual deployed token addresses
 	// Input token from origin network, output token from destination network
 	inputTokenAddr := originNetwork.orcaCoinAddress
-	outputTokenAddr := destinationNetwork.dogCoinAddress // Correct: Use destination network's DogCoin
+	outputTokenAddr := destinationNetwork.dogCoinAddress 
 
 	// Convert destination settler to bytes32
 	destSettler := destinationNetwork.hyperlaneAddress
@@ -718,92 +714,6 @@ func encodeOrderData(orderData OrderData) []byte {
 
 	fmt.Printf("   ✅ OrderData ABI encoding successful\n")
 	return encoded
-}
-
-func encodeOrderDataManual(orderData OrderData) []byte {
-	// Manual encoding following the exact ABI format for tuples
-	// Based on the TypeScript typechain interface
-
-	encoded := make([]byte, 0)
-
-	// For a tuple with dynamic bytes field, we need:
-	// 1. Offset to the bytes data field (32 bytes)
-	// 2. All static fields in order (each 32 bytes)
-	// 3. The dynamic bytes field (length + data)
-
-	// Calculate offset to the bytes data field
-	// From valid transaction: offset = 0x60 (96 bytes)
-	// This means: 32 (offset) + 64 (static fields) = 96 bytes
-	offset := big.NewInt(96)
-	offsetBytes := make([]byte, 32)
-	offset.FillBytes(offsetBytes)
-	encoded = append(encoded, offsetBytes...)
-
-	// Add all static fields (each padded to 32 bytes)
-	encoded = append(encoded, orderData.Sender[:]...)
-	encoded = append(encoded, orderData.Recipient[:]...)
-	encoded = append(encoded, orderData.InputToken[:]...)
-	encoded = append(encoded, orderData.OutputToken[:]...)
-
-	// uint256 fields (32 bytes each)
-	amountInBytes := make([]byte, 32)
-	orderData.AmountIn.FillBytes(amountInBytes)
-	encoded = append(encoded, amountInBytes...)
-
-	amountOutBytes := make([]byte, 32)
-	orderData.AmountOut.FillBytes(amountOutBytes)
-	encoded = append(encoded, amountOutBytes...)
-
-	senderNonceBytes := make([]byte, 32)
-	orderData.SenderNonce.FillBytes(senderNonceBytes)
-	encoded = append(encoded, senderNonceBytes...)
-
-	// uint32 fields (padded to 32 bytes)
-	originDomainBytes := make([]byte, 32)
-	big.NewInt(int64(orderData.OriginDomain)).FillBytes(originDomainBytes)
-	encoded = append(encoded, originDomainBytes...)
-
-	destDomainBytes := make([]byte, 32)
-	big.NewInt(int64(orderData.DestinationDomain)).FillBytes(destDomainBytes)
-	encoded = append(encoded, destDomainBytes...)
-
-	encoded = append(encoded, orderData.DestinationSettler[:]...)
-
-	fillDeadlineBytes := make([]byte, 32)
-	big.NewInt(int64(orderData.FillDeadline)).FillBytes(fillDeadlineBytes)
-	encoded = append(encoded, fillDeadlineBytes...)
-
-	// Now add the bytes data (length + data)
-	dataLenBytes := make([]byte, 32)
-	big.NewInt(int64(len(orderData.Data))).FillBytes(dataLenBytes)
-	encoded = append(encoded, dataLenBytes...)
-	encoded = append(encoded, orderData.Data...)
-
-	return encoded
-}
-
-func encodeOpenFunctionCall(selector []byte, order OnchainCrossChainOrder) []byte {
-	// Encode the function call: open((uint32,bytes32,bytes))
-	// The function signature is: open((uint32,bytes32,bytes))
-	// We need to encode the tuple parameter properly
-
-	calldata := make([]byte, 0)
-	calldata = append(calldata, selector...)
-
-	// For the tuple parameter, we need:
-	// 1. Offset to the tuple data (32 bytes)
-	// 2. The tuple data itself
-
-	// Offset is 32 bytes (the size of the offset field)
-	offset := big.NewInt(32)
-	offsetBytes := make([]byte, 32)
-	offset.FillBytes(offsetBytes)
-	calldata = append(calldata, offsetBytes...)
-
-	// Now add the tuple data
-	calldata = append(calldata, order.OrderData...)
-
-	return calldata
 }
 
 func encodeOpenFunctionCallDirect(selector []byte, fillDeadline uint32, orderDataType [32]byte, orderData []byte) []byte {
