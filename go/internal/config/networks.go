@@ -14,49 +14,68 @@ type NetworkConfig struct {
 	HyperlaneAddress common.Address
 	HyperlaneDomain  uint32
 	ForkStartBlock   uint64
+	// Listener-specific configuration
+	PollInterval       int    // milliseconds, 0 = use default
+	ConfirmationBlocks uint64 // 0 = use default
+	MaxBlockRange      uint64 // 0 = use default
 }
 
 // Networks contains all network configurations
 var Networks = map[string]NetworkConfig{
 	"Sepolia": {
-		Name:             "Sepolia",
-		RPCURL:           "http://localhost:8545",
-		ChainID:          11155111,
-		HyperlaneAddress: common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
-		HyperlaneDomain:  11155111, // 0xaa37dc - matches actual contract (from fill event)
-		ForkStartBlock:   8319000,
+		Name:               "Sepolia",
+		RPCURL:             "http://localhost:8545",
+		ChainID:            11155111,
+		HyperlaneAddress:   common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
+		HyperlaneDomain:    11155111,
+		ForkStartBlock:     8319000,
+		PollInterval:       1000,
+		ConfirmationBlocks: 2,
+		MaxBlockRange:      500,
 	},
 	"Optimism Sepolia": {
-		Name:             "Optimism Sepolia",
-		RPCURL:           "http://localhost:8546",
-		ChainID:          11155420,
-		HyperlaneAddress: common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
-		HyperlaneDomain:  11155420, // 0xaa36a7 - matches actual contract (from fill event)
-		ForkStartBlock:   27370000,
+		Name:               "Optimism Sepolia",
+		RPCURL:             "http://localhost:8546",
+		ChainID:            11155420,
+		HyperlaneAddress:   common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
+		HyperlaneDomain:    11155420,
+		ForkStartBlock:     27370000,
+		PollInterval:       1000,
+		ConfirmationBlocks: 2,
+		MaxBlockRange:      500,
 	},
 	"Arbitrum Sepolia": {
-		Name:             "Arbitrum Sepolia",
-		RPCURL:           "http://localhost:8547",
-		ChainID:          421614,
-		HyperlaneAddress: common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
-		HyperlaneDomain:  421614,
-		ForkStartBlock:   138020000,
+		Name:               "Arbitrum Sepolia",
+		RPCURL:             "http://localhost:8547",
+		ChainID:            421614,
+		HyperlaneAddress:   common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
+		HyperlaneDomain:    421614,
+		ForkStartBlock:     138020000,
+		PollInterval:       1000,
+		ConfirmationBlocks: 2,
+		MaxBlockRange:      500,
 	},
 	"Base Sepolia": {
-		Name:             "Base Sepolia",
-		RPCURL:           "http://localhost:8548",
-		ChainID:          84532,
-		HyperlaneAddress: common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
-		HyperlaneDomain:  84532, // 0x14a34 - matches actual contract (from router enrollment)
-		ForkStartBlock:   25380000,
+		Name:               "Base Sepolia",
+		RPCURL:             "http://localhost:8548",
+		ChainID:            84532,
+		HyperlaneAddress:   common.HexToAddress("0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
+		HyperlaneDomain:    84532,
+		ForkStartBlock:     25380000,
+		PollInterval:       1000,
+		ConfirmationBlocks: 2,
+		MaxBlockRange:      500,
 	},
 	"Starknet Sepolia": {
-		Name:             "Starknet Sepolia",
-		RPCURL:           "http://localhost:5050",
-		ChainID:       123456789,
-		HyperlaneAddress: common.Address{}, // TODO: Deploy Hyperlane7683 on Starknet
-		HyperlaneDomain:  123456789,
-		ForkStartBlock:   1530000,
+		Name:               "Starknet Sepolia",
+		RPCURL:             "http://localhost:5050",
+		ChainID:            23448591,
+		HyperlaneAddress:   common.Address{}, // TODO: Deploy Hyperlane7683 on Starknet
+		HyperlaneDomain:    23448591,
+		ForkStartBlock:     1530000,
+		PollInterval:       2000,
+		ConfirmationBlocks: 2,
+		MaxBlockRange:      100,
 	},
 }
 
@@ -111,6 +130,15 @@ func GetForkStartBlock(networkName string) (uint64, error) {
 		return 0, err
 	}
 	return config.ForkStartBlock, nil
+}
+
+// GetListenerConfig returns the listener configuration for a given network name
+func GetListenerConfig(networkName string) (int, uint64, uint64, error) {
+	config, err := GetNetworkConfig(networkName)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return config.PollInterval, config.ConfirmationBlocks, config.MaxBlockRange, nil
 }
 
 // GetRPCURLByChainID returns the RPC URL for a given chain ID

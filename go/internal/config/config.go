@@ -36,46 +36,46 @@ func LoadConfig() (*Config, error) {
 		// Don't fail if .env doesn't exist, just log a warning
 		fmt.Printf("Warning: .env file not found: %v\n", err)
 	}
-	
+
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("./config")
-	
+
 	// Set defaults
 	viper.SetDefault("solvers", defaultSolvers)
 	viper.SetDefault("logLevel", "info")
 	viper.SetDefault("logFormat", "text")
-	
+
 	// Environment variables
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	
+
 	// Load config file if it exists
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 	}
-	
+
 	// Override with environment variables
 	if privateKey := os.Getenv("PRIVATE_KEY"); privateKey != "" {
 		viper.Set("privateKey", privateKey)
 	}
-	
+
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
 		viper.Set("logLevel", logLevel)
 	}
-	
+
 	if logFormat := os.Getenv("LOG_FORMAT"); logFormat != "" {
 		viper.Set("logFormat", logFormat)
 	}
-	
+
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	
+
 	return &config, nil
 }
 
@@ -86,20 +86,4 @@ func (c *Config) IsSolverEnabled(solverName string) bool {
 		return false
 	}
 	return solver.Enabled
-}
-
-// GetStarknetConfig returns Starknet-specific configuration
-func (c *Config) GetStarknetConfig() (string, string, error) {
-	rpcURL := os.Getenv("STARKNET_LOCAL_RPC_URL")
-	privateKey := os.Getenv("STARKNET_LOCAL_PRIVATE_KEY")
-	
-	if rpcURL == "" {
-		return "", "", fmt.Errorf("STARKNET_LOCAL_RPC_URL not set")
-	}
-	
-	if privateKey == "" {
-		return "", "", fmt.Errorf("STARKNET_LOCAL_PRIVATE_KEY not set")
-	}
-	
-	return rpcURL, privateKey, nil
 }
