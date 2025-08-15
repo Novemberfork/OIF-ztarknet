@@ -11,20 +11,20 @@
 
 - [x] **Makefile** - Simplified commands for common tasks including:
 
-- Starting/stopping local forks
-- Initializing forks (deploying contracts, funding accounts, set allowances, etc.)
-- Opening orders
-- Running the solver
+  - Starting/stopping local forks
+
+  - Initializing forks (deploying contracts, funding accounts, set allowances, etc.)
+
+  - Opening orders
+
+  - Running the solver
 
 ### **🏁 Milestones**
 
-- [x] **Fetch (EVM) Open events**: The solver fetches historic and new Open events from each (EVM) network
-- [x] **Decode (EVM) Open events**: The solver decodes Open events to extract order details
-- [x] **Fill orders (EVM)**: The solver fills orders by sending transactions to the origin chain
+- [x] **EVM Solver** - The solver backfills and listens for new Open events on EVM networks, decodes them, and fills orders by sending transactions to the destination chain.
+- [ ] **Starknet Solver** - The solver backfills and listens for new Open events on EVM networks, decodes them, and fills orders by sending transactions to the destination chain.
 
 ## 🚧 **IN PROGRESS - NEXT PRIORITY**
-
-### **🌉 Starknet Integration (Future/Parallel after Event Listening)**
 
 - [x] **Fork sepolia locally**
 - [x] **Deploy Hyperlane7883**
