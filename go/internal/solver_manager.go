@@ -19,7 +19,7 @@ import (
 type SolverModule struct {
 	Name     string
 	Listener listener.BaseListener
-    Filler   filler.BaseFiller
+	Filler   filler.BaseFiller
 }
 
 // SolverManager manages multiple solvers
@@ -48,6 +48,11 @@ func NewSolverManager(cfg *config.Config, logger *logrus.Logger) *SolverManager 
 // InitializeSolvers initializes all enabled solvers
 func (sm *SolverManager) InitializeSolvers() error {
 	fmt.Printf("⚙️  Initializing solvers...\n")
+
+	// Display current deployment state for debugging
+	if err := deployer.DisplayDeploymentState(); err != nil {
+		fmt.Printf("⚠️  Failed to display deployment state: %v\n", err)
+	}
 
 	for solverName, solverConfig := range sm.config.Solvers {
 		if !solverConfig.Enabled {
@@ -106,20 +111,20 @@ func (sm *SolverManager) createHyperlane7683Solver() (*SolverModule, error) {
 	}
 
 	// Create a multi-network listener that listens to all networks
-    multiListener := hyperlane7683.NewMultiNetworkListener(state)
+	multiListener := hyperlane7683.NewMultiNetworkListener(state)
 
 	// Get a client for the filler (we'll use the Base Sepolia client for now)
 	baseClient, err := ethclient.Dial(config.GetDefaultRPCURL())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create base client: %w", err)
 	}
-	
-    hyperlaneFiller := hyperlane7683.NewHyperlane7683Filler(baseClient)
+
+	hyperlaneFiller := hyperlane7683.NewHyperlane7683Filler(baseClient)
 
 	// Add default rules
 	hyperlaneFiller.AddDefaultRules()
 
-    return &SolverModule{
+	return &SolverModule{
 		Name:     "hyperlane7683",
 		Listener: multiListener,
 		Filler:   hyperlaneFiller,
@@ -144,17 +149,17 @@ func (sm *SolverManager) startSolver(solver *SolverModule) error {
 
 	// Create event handler
 	handler := func(args types.ParsedArgs, originChainName string, blockNumber uint64) error {
-		fmt.Printf("🔵 Processing intent: solver=%s, orderID=%s, chain=%s, block=%d\n", 
+		fmt.Printf("🔵 Processing intent: solver=%s, orderID=%s, chain=%s, block=%d\n",
 			solver.Name, args.OrderID, originChainName, blockNumber)
 
 		// Process the intent through the filler
 		if err := solver.Filler.ProcessIntent(sm.ctx, args, originChainName, blockNumber); err != nil {
-					fmt.Printf("❌ Failed to process intent: solver=%s, orderID=%s, error=%v\n", 
-		solver.Name, args.OrderID, err)
+			fmt.Printf("❌ Failed to process intent: solver=%s, orderID=%s, error=%v\n",
+				solver.Name, args.OrderID, err)
 			return err
 		}
 
-		fmt.Printf("✅ Intent processed successfully: solver=%s, orderID=%s\n", 
+		fmt.Printf("✅ Intent processed successfully: solver=%s, orderID=%s\n",
 			solver.Name, args.OrderID)
 
 		return nil
@@ -204,16 +209,16 @@ func (sm *SolverManager) GetSolvers() map[string]*SolverModule {
 // MarkBlockFullyProcessed marks a block as fully processed across all solvers
 // This should be called after all events in a block have been processed/filled
 func (sm *SolverManager) MarkBlockFullyProcessed(chainName string, blockNumber uint64) error {
-	fmt.Printf("🔵 Marking block as fully processed: chain=%s, block=%d\n", 
+	fmt.Printf("🔵 Marking block as fully processed: chain=%s, block=%d\n",
 		chainName, blockNumber)
-	
+
 	// Update the deployment state with the last indexed block
 	if err := deployer.UpdateLastIndexedBlock(chainName, blockNumber); err != nil {
 		return fmt.Errorf("failed to update last indexed block for %s: %w", chainName, err)
 	}
-	
-	fmt.Printf("✅ Block marked as fully processed and LastIndexedBlock updated: chain=%s, block=%d\n", 
+
+	fmt.Printf("✅ Block marked as fully processed and LastIndexedBlock updated: chain=%s, block=%d\n",
 		chainName, blockNumber)
-	
+
 	return nil
 }

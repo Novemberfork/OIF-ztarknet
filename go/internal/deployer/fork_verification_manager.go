@@ -78,7 +78,7 @@ func (fvm *ForkVerificationManager) verifyNetwork(config ForkVerificationConfig)
 // GetContractAddresses returns the contract addresses for each network
 func (fvm *ForkVerificationManager) GetContractAddresses() map[string]common.Address {
 	addresses := make(map[string]common.Address)
-	
+
 	// Load deployment state to get actual contract addresses
 	state, err := GetDeploymentState()
 	if err != nil {
@@ -89,15 +89,15 @@ func (fvm *ForkVerificationManager) GetContractAddresses() map[string]common.Add
 		}
 		return addresses
 	}
-	
+
 	// Map chain names to deployment state network names
 	chainNameToNetwork := map[string]string{
 		"ethereum": "Sepolia",
-		"optimism": "Optimism Sepolia", 
+		"optimism": "Optimism Sepolia",
 		"arbitrum": "Arbitrum Sepolia",
 		"base":     "Base Sepolia",
 	}
-	
+
 	for _, config := range fvm.configs {
 		networkName, exists := chainNameToNetwork[config.ChainName]
 		if !exists {
@@ -105,17 +105,17 @@ func (fvm *ForkVerificationManager) GetContractAddresses() map[string]common.Add
 			addresses[config.ChainName] = common.Address{}
 			continue
 		}
-		
+
 		networkState, exists := state.Networks[networkName]
 		if !exists {
 			log.Printf("⚠️  Warning: No deployment state found for network: %s", networkName)
 			addresses[config.ChainName] = common.Address{}
 			continue
 		}
-		
+
 		// Use the Hyperlane contract address
 		addresses[config.ChainName] = common.HexToAddress(networkState.HyperlaneAddress)
 	}
-	
+
 	return addresses
 }

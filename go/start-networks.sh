@@ -29,63 +29,82 @@ echo ""
 
 # Function to reset deployment state to fork block numbers
 reset_deployment_state() {
-	echo "🔄 Resetting deployment state to fork block numbers..."
+	echo "🔄 Resetting deployment state to solver start block numbers..."
 
 	# Ensure state directory exists (local go/state/network_state)
 	STATE_DIR="state/network_state"
 	mkdir -p "$STATE_DIR"
 	STATE_FILE="$STATE_DIR/deployment-state.json"
 
-	# Create the deployment state JSON with correct fork blocks
+	# Get values from environment variables with defaults
+	SEPOLIA_SOLVER_BLOCK=${SEPOLIA_SOLVER_START_BLOCK:-8319000}
+	OPTIMISM_SOLVER_BLOCK=${OPTIMISM_SOLVER_START_BLOCK:-27370000}
+	ARBITRUM_SOLVER_BLOCK=${ARBITRUM_SOLVER_START_BLOCK:-138020000}
+	BASE_SOLVER_BLOCK=${BASE_SOLVER_START_BLOCK:-25380000}
+	STARKNET_SOLVER_BLOCK=${STARKNET_SOLVER_START_BLOCK:-1530000}
+	
+	# Get Hyperlane address from environment
+	EVM_HYPERLANE_ADDR=${EVM_HYPERLANE_ADDRESS:-"0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"}
+	
+	# Get Permit2 address from environment
+	EVM_PERMIT2_ADDR=${EVM_PERMIT2_ADDRESS:-"0x000000000022D473030F116dDEE9F6B43aC78BA3"}
+
+	# Create the deployment state JSON with solver start blocks
 	cat >"$STATE_FILE" <<EOF
 {
   "networks": {
     "Sepolia": {
-      "chainId": 11155111,
-      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "chainId": ${SEPOLIA_CHAIN_ID:-11155111},
+      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
       "orcaCoinAddress": "",
       "dogCoinAddress": "",
-      "lastIndexedBlock": 8319000,
+      "lastIndexedBlock": ${SEPOLIA_SOLVER_BLOCK},
       "lastUpdated": "now"
     },
     "Optimism Sepolia": {
-      "chainId": 11155420,
-      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "chainId": ${OPTIMISM_CHAIN_ID:-11155420},
+      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
       "orcaCoinAddress": "",
       "dogCoinAddress": "",
-      "lastIndexedBlock": 27370000,
+      "lastIndexedBlock": ${OPTIMISM_SOLVER_BLOCK},
       "lastUpdated": "now"
     },
     "Arbitrum Sepolia": {
-      "chainId": 421614,
-      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "chainId": ${ARBITRUM_CHAIN_ID:-421614},
+      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
       "orcaCoinAddress": "",
       "dogCoinAddress": "",
-      "lastIndexedBlock": 138020000,
+      "lastIndexedBlock": ${ARBITRUM_SOLVER_BLOCK},
       "lastUpdated": "now"
     },
     "Base Sepolia": {
-      "chainId": 84532,
-      "hyperlaneAddress": "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3",
+      "chainId": ${BASE_CHAIN_ID:-84532},
+      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
       "orcaCoinAddress": "",
       "dogCoinAddress": "",
-      "lastIndexedBlock": 25380000,
+      "lastIndexedBlock": ${BASE_SOLVER_BLOCK},
       "lastUpdated": "now"
     },
     "Starknet Sepolia": {
-      "chainId": 23448591,
+      "chainId": ${STARKNET_CHAIN_ID:-23448591},
       "hyperlaneAddress": "",
       "orcaCoinAddress": "",
       "dogCoinAddress": "",
-      "lastIndexedBlock": 1530000,
+      "lastIndexedBlock": ${STARKNET_SOLVER_BLOCK},
       "lastUpdated": "now"
     }
   }
 }
 EOF
 
-	echo "✅ Deployment state reset to fork block numbers"
-	echo "📝 Event listener will start from correct blocks"
+	echo "✅ Deployment state reset to solver start block numbers"
+	echo "🔧 Using environment variables:"
+	echo "   • EVM_HYPERLANE_ADDRESS: ${EVM_HYPERLANE_ADDR}"
+	echo "   • SEPOLIA_SOLVER_START_BLOCK: ${SEPOLIA_SOLVER_BLOCK}"
+	echo "   • OPTIMISM_SOLVER_START_BLOCK: ${OPTIMISM_SOLVER_BLOCK}"
+	echo "   • ARBITRUM_SOLVER_START_BLOCK: ${ARBITRUM_SOLVER_BLOCK}"
+	echo "   • BASE_SOLVER_START_BLOCK: ${BASE_SOLVER_BLOCK}"
+	echo "   • STARKNET_SOLVER_START_BLOCK: ${STARKNET_SOLVER_BLOCK}"
 }
 
 # Function to start a testnet fork with color-coded logging
@@ -136,22 +155,22 @@ start_network() {
 	local fork_block
 	case $testnet_name in
 	"sepolia")
-		fork_block=8319000 # After the last transaction
+		fork_block=${SEPOLIA_FORK_START_BLOCK:-8319000} # SolverStartBlock - 1
 		;;
 	"optimism-sepolia")
-		fork_block=27370000 # After the last transaction
+		fork_block=${OPTIMISM_FORK_START_BLOCK:-27370000} # SolverStartBlock - 1
 		;;
 	"arbitrum-sepolia")
-		fork_block=138020000 # After the last transactions
+		fork_block=${ARBITRUM_FORK_START_BLOCK:-138020000} # SolverStartBlock - 1
 		;;
 	"base-sepolia")
-		fork_block=25380000 # After the last transaction
+		fork_block=${BASE_FORK_START_BLOCK:-25380000} # SolverStartBlock - 1
 		;;
 	*)
-		fork_block=8319001
+		fork_block=${SEPOLIA_FORK_START_BLOCK:-8319000}
 		;;
 	esac
-	echo -e "${color}${id}${RESET} Forking ${testnet_name} from block ${fork_block} (when contract was last used)"
+	echo -e "${color}${id}${RESET} Forking ${testnet_name} from block ${fork_block} (SolverStartBlock - 1)"
 
 	# Start anvil with testnet fork and pipe output through color filter
 	anvil --port $port --chain-id $chain_id --fork-url "$rpc_url" --fork-block-number ${fork_block} 2>&1 | while IFS= read -r line; do
@@ -190,8 +209,9 @@ start_starknet() {
 		echo -e "${color}${id}${RESET} Using public RPC for Starknet Sepolia"
 	fi
 
-	# Start Katana with state forking
-	katana --chain-id 23448591 --fork.provider "$rpc_url" --fork.block 1530000 2>&1 | while IFS= read -r line; do
+	# Start Katana with state forking (SolverStartBlock - 1)
+	local fork_block=${STARKNET_FORK_START_BLOCK:-1530000}
+	katana --chain-id ${STARKNET_CHAIN_ID:-23448591} --fork.provider "$rpc_url" --fork.block ${fork_block} 2>&1 | while IFS= read -r line; do
 		echo -e "${color}${id}${RESET} $line"
 	done &
 
@@ -274,21 +294,6 @@ echo -e "${OPT_COLOR}${OPT_ID}${RESET} Optimism Sepolia Fork    - http://localho
 echo -e "${ARB_COLOR}${ARB_ID}${RESET} Arbitrum Sepolia Fork    - http://localhost:8547 (Chain ID: 421614)"
 echo -e "${BASE_COLOR}${BASE_ID}${RESET} Base Sepolia Fork        - http://localhost:8548 (Chain ID: 84532)"
 echo -e "${STARKNET_COLOR}${STARKNET_ID}${RESET} Starknet Sepolia Fork   - http://localhost:5050 (Chain ID: 23448591)"
-echo ""
-echo "🚀 What you get for FREE on all forks:"
-echo "   • Permit2 at 0x000000000022D473030F116dDEE9F6B43aC78BA3 (EVM)"
-echo "   • USDC, WETH, and other real tokens (EVM)"
-echo "   • Hyperlane Mailbox and infrastructure (EVM)"
-echo "   • Real gas dynamics and market conditions (EVM)"
-echo "   • Starknet state and contracts (Starknet)"
-echo ""
-echo "📦 Next steps:"
-echo "   1. Fund accounts: make fund-accounts"
-echo "   2. Deploy Hyperlane7683: make deploy-hyperlane"
-echo "   3. Start solver: make run (will start from correct blocks)"
-echo ""
-echo "🔄 Or restart everything:"
-echo "   make restart"
 echo ""
 echo "💡 Networks will continue logging here..."
 echo "💡 Event listener will automatically start from fork blocks"

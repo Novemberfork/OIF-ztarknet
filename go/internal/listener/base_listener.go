@@ -47,9 +47,8 @@ func NewListenerConfig(
 	if pollInterval == 0 {
 		pollInterval = 3000 // default 3 seconds
 	}
-	if confirmationBlocks == 0 {
-		confirmationBlocks = 12 // default 12 blocks
-	}
+	// IMPORTANT: Respect explicit 0 confirmations (disable confirmations)
+	// Do not override confirmationBlocks when it's 0.
 	if maxBlockRange == 0 {
 		maxBlockRange = 500 // default 500 blocks
 	}
