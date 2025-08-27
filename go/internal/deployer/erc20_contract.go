@@ -1,3 +1,23 @@
+// Package deployer manages contract deployment state and network configuration.
+//
+// ERC20Contract provides the bytecode and ABI for deploying standard ERC20 tokens
+// during network setup. This is used by EVM setup scripts to deploy test tokens.
+//
+// Key Features:
+// - Verified working ERC20 bytecode with constructor parameters
+// - Standard ERC20 interface (transfer, approve, balanceOf, etc.)
+// - Configurable name, symbol, decimals, and initial supply
+// - Used for deploying OrcaCoin and DogCoin test tokens
+//
+// Usage:
+//
+//	contract := deployer.GetERC20Contract()
+//	// Deploy with: name, symbol, decimals, initialSupply
+//	// Example: "OrcaCoin", "ORCA", 18, 100000000000000000000000
+//
+// This is actively used by:
+// - EVM setup scripts (cmd/setup-forks/evm/setup-contracts/main.go)
+// - For deploying test tokens on all EVM networks
 package deployer
 
 // ERC20Contract holds the bytecode and ABI for ERC20 token deployment
