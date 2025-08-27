@@ -63,7 +63,7 @@ func NewStarknetListener(config *listener.ListenerConfig, rpcURL string) (listen
 
 	if networkState, exists := state.Networks[config.ChainName]; exists {
 		lastProcessedBlock = networkState.LastIndexedBlock
-		fmt.Printf("%s📚 Using persisted LastIndexedBlock: %d\n", logutil.Prefix(config.ChainName), lastProcessedBlock)
+		fmt.Printf("%s📚 Using LastIndexedBlock: %d\n", logutil.Prefix(config.ChainName), lastProcessedBlock)
 	} else {
 		return nil, fmt.Errorf("network %s not found in deployment state", config.ChainName)
 	}
@@ -103,7 +103,7 @@ func (l *starknetListener) MarkBlockFullyProcessed(blockNumber uint64) error {
 
 func (l *starknetListener) realEventLoop(ctx context.Context, handler listener.EventHandler) {
 	p := logutil.Prefix(l.config.ChainName)
-	fmt.Printf("%s⚙️  starting listener...\n", p)
+	//fmt.Printf("%s⚙️  starting listener...\n", p)
 	if err := l.catchUpHistoricalBlocks(ctx, handler); err != nil {
 		fmt.Printf("%s❌ backfill failed: %v\n", p, err)
 	}
@@ -113,10 +113,11 @@ func (l *starknetListener) realEventLoop(ctx context.Context, handler listener.E
 }
 
 func (l *starknetListener) catchUpHistoricalBlocks(ctx context.Context, handler listener.EventHandler) error {
-	fmt.Printf("🔄 Catching up on (%s) historical blocks...\n", l.config.ChainName)
+	p := logutil.Prefix(l.config.ChainName)
+	fmt.Printf("%s🔄 Catching up on historical blocks...\n", p)
 	currentBlock, err := l.provider.BlockNumber(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get current block number: %v", err)
+		return fmt.Errorf("%sfailed to get current block number%v", p, err)
 	}
 	// Apply confirmations during backfill as well
 	safeBlock := currentBlock
@@ -128,7 +129,7 @@ func (l *starknetListener) catchUpHistoricalBlocks(ctx context.Context, handler 
 	fromBlock := l.lastProcessedBlock + 1
 	toBlock := safeBlock
 	if fromBlock >= toBlock {
-		fmt.Printf("✅ Already up to date, no historical blocks to process\n")
+		fmt.Printf("%s✅ Already up to date, no historical blocks to process\n", p)
 		return nil
 	}
 
@@ -140,16 +141,16 @@ func (l *starknetListener) catchUpHistoricalBlocks(ctx context.Context, handler 
 		}
 		newLast, err := l.processBlockRange(ctx, start, end, handler)
 		if err != nil {
-			return fmt.Errorf("failed to process historical blocks %d-%d: %v", start, end, err)
+			return fmt.Errorf("%sfailed to process historical blocks %d-%d: %v", p, start, end, err)
 		}
 		l.lastProcessedBlock = newLast
 		if err := deployer.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
-			fmt.Printf("⚠️  Failed to persist LastIndexedBlock for %s: %v\n", l.config.ChainName, err)
+			fmt.Printf("%s⚠️  Failed to persist LastIndexedBlock: %v\n", p, err)
 		} else {
-			fmt.Printf("💾 Persisted LastIndexedBlock=%d for %s\n", newLast, l.config.ChainName)
+			fmt.Printf("%s💾 Persisted LastIndexedBlock=%d\n", p, newLast)
 		}
 	}
-	fmt.Printf("✅ Historical block processing completed for %s\n", l.config.ChainName)
+	fmt.Printf("%s✅ Historical block processing completed\n", p)
 	return nil
 }
 
@@ -184,14 +185,14 @@ func (l *starknetListener) processCurrentBlockRange(ctx context.Context, handler
 	}
 	fromBlock := l.lastProcessedBlock + 1
 	toBlock := safeBlock
-	
+
 	// Check if we have any new blocks to process
 	if fromBlock > toBlock {
 		// No new blocks to process, we're up to date
 		// Only log this occasionally to avoid spam
-		if time.Now().Unix()%30 == 0 { // Log every 30 seconds max
-			fmt.Printf("🧭 %s Starknet range: from=%d to=%d (current=%d, conf=%d) - ✅ Already up to date\n", l.config.ChainName, fromBlock, toBlock, currentBlock, l.config.ConfirmationBlocks)
-		}
+		// if time.Now().Unix()%30 == 0 { // Log every 30 seconds max
+		// 	fmt.Printf("🧭 %s Starknet range: from=%d to=%d (current=%d, conf=%d) - ✅ Already up to date\n", l.config.ChainName, fromBlock, toBlock, currentBlock, l.config.ConfirmationBlocks)
+		// }
 		return nil
 	}
 	newLast, err := l.processBlockRange(ctx, fromBlock, toBlock, handler)
@@ -290,7 +291,7 @@ func (l *starknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 						blockFailed = true
 						continue
 					}
-					
+
 					// Track settlement status (for now, assume all events are processed)
 					// In a more sophisticated implementation, we'd use the actual settlement status
 					_ = settled
@@ -421,15 +422,15 @@ func decodeResolvedOrderFromFelts(data []*felt.Felt) (types.ResolvedCrossChainOr
 		firstWord := make([]byte, 32)
 		firstWord[31] = 0x20
 		evmOriginData = append(evmOriginData, firstWord...)
-		evmOriginData = append(evmOriginData, orderDataFields[1]...) // sender
-		evmOriginData = append(evmOriginData, orderDataFields[2]...) // recipient
-		evmOriginData = append(evmOriginData, orderDataFields[3]...) // input_token
-		evmOriginData = append(evmOriginData, orderDataFields[4]...) // output_token
-		evmOriginData = append(evmOriginData, orderDataFields[5]...) // amount_in
-		evmOriginData = append(evmOriginData, orderDataFields[6]...) // amount_out
-		evmOriginData = append(evmOriginData, orderDataFields[7]...) // sender_nonce
-		evmOriginData = append(evmOriginData, orderDataFields[8]...) // origin_domain
-		evmOriginData = append(evmOriginData, orderDataFields[9]...) // destination_domain
+		evmOriginData = append(evmOriginData, orderDataFields[1]...)  // sender
+		evmOriginData = append(evmOriginData, orderDataFields[2]...)  // recipient
+		evmOriginData = append(evmOriginData, orderDataFields[3]...)  // input_token
+		evmOriginData = append(evmOriginData, orderDataFields[4]...)  // output_token
+		evmOriginData = append(evmOriginData, orderDataFields[5]...)  // amount_in
+		evmOriginData = append(evmOriginData, orderDataFields[6]...)  // amount_out
+		evmOriginData = append(evmOriginData, orderDataFields[7]...)  // sender_nonce
+		evmOriginData = append(evmOriginData, orderDataFields[8]...)  // origin_domain
+		evmOriginData = append(evmOriginData, orderDataFields[9]...)  // destination_domain
 		evmOriginData = append(evmOriginData, orderDataFields[10]...) // destination_settler
 		evmOriginData = append(evmOriginData, orderDataFields[11]...) // fill_deadline
 		dataOffset := make([]byte, 32)

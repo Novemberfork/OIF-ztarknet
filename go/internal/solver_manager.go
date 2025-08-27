@@ -28,9 +28,9 @@ type SolverRegistry map[string]SolverConfig
 // SolverManager manages multiple protocol solvers
 // Following the TypeScript SolverManager pattern
 type SolverManager struct {
-	client           *ethclient.Client
-	activeShutdowns  []func()
-	solverRegistry   SolverRegistry
+	client          *ethclient.Client
+	activeShutdowns []func()
+	solverRegistry  SolverRegistry
 }
 
 // NewSolverManager creates a new solver manager
@@ -44,31 +44,31 @@ func NewSolverManager(client *ethclient.Client) *SolverManager {
 	}
 
 	return &SolverManager{
-		client:         client,
+		client:          client,
 		activeShutdowns: make([]func(), 0),
-		solverRegistry: registry,
+		solverRegistry:  registry,
 	}
 }
 
 // InitializeSolvers starts all enabled solvers
 func (sm *SolverManager) InitializeSolvers(ctx context.Context) error {
 	fmt.Printf("🚀 Initializing solvers...\n")
-	
+
 	for solverName, config := range sm.solverRegistry {
 		if !config.Enabled {
 			fmt.Printf("   ⏭️  Solver %s is disabled, skipping...\n", solverName)
 			continue
 		}
 
-		fmt.Printf("   🔧 Initializing solver: %s\n", solverName)
-		
+		fmt.Printf("🔧 Initializing solver: %s\n", solverName)
+
 		if err := sm.initializeSolver(ctx, solverName, config); err != nil {
 			return fmt.Errorf("failed to initialize solver %s: %w", solverName, err)
 		}
-		
-		fmt.Printf("   ✅ Solver %s initialized successfully\n", solverName)
+
+		fmt.Printf("✅ Solver %s initialized successfully\n", solverName)
 	}
-	
+
 	fmt.Printf("✅ All solvers initialized\n")
 	return nil
 }
@@ -110,7 +110,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to get Starknet Hyperlane address: %w", err)
 			}
-			
+
 			// Create Starknet listener config
 			listenerConfig := listener.NewListenerConfig(
 				hyperlaneAddr,
@@ -120,7 +120,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 				uint64(networkConfig.ConfirmationBlocks),          // confirmation blocks from config
 				networkConfig.MaxBlockRange,                       // max block range from config
 			)
-			
+
 			starknetListener, err := hyperlane7683.NewStarknetListener(listenerConfig, networkConfig.RPCURL)
 			if err != nil {
 				return fmt.Errorf("failed to create Starknet listener: %w", err)
@@ -135,11 +135,11 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 				networkConfig.HyperlaneAddress.Hex(),
 				source,
 				big.NewInt(int64(networkConfig.SolverStartBlock)), // start from configured block
-				networkConfig.PollInterval,                        // poll interval from config  
+				networkConfig.PollInterval,                        // poll interval from config
 				uint64(networkConfig.ConfirmationBlocks),          // confirmation blocks from config
 				networkConfig.MaxBlockRange,                       // max block range from config
 			)
-			
+
 			evmListener, err := hyperlane7683.NewEVMListener(listenerConfig, networkConfig.RPCURL)
 			if err != nil {
 				return fmt.Errorf("failed to create EVM listener: %w", err)
@@ -151,7 +151,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 		}
 
 		sm.activeShutdowns = append(sm.activeShutdowns, shutdown)
-		fmt.Printf("     📡 Started listener for %s\n", source)
+		//fmt.Printf("     📡 Started listener for %s\n", source)
 	}
 
 	return nil
@@ -185,12 +185,12 @@ func (sm *SolverManager) DisableSolver(name string) error {
 // Shutdown stops all active solvers
 func (sm *SolverManager) Shutdown() {
 	fmt.Printf("🛑 Shutting down solvers...\n")
-	
+
 	for i, shutdown := range sm.activeShutdowns {
 		fmt.Printf("   📡 Stopping listener %d\n", i+1)
 		shutdown()
 	}
-	
+
 	sm.activeShutdowns = make([]func(), 0)
 	fmt.Printf("✅ All solvers shut down\n")
 }
@@ -206,15 +206,17 @@ func (sm *SolverManager) GetSolverStatus() map[string]bool {
 
 // getStarknetHyperlaneAddress gets the correct Starknet Hyperlane address based on FORKING mode
 func getStarknetHyperlaneAddress(networkConfig config.NetworkConfig) (string, error) {
-	// Check FORKING environment variable (default: true for local forks)
 	forkingStr := strings.ToLower(os.Getenv("FORKING"))
-	if forkingStr == "" { forkingStr = "true" }
+	// Check FORKING environment variable (default: true for local forks)
+	if forkingStr == "" {
+		forkingStr = "true"
+	}
 	isForking, _ := strconv.ParseBool(forkingStr)
 
 	if isForking {
 		// Local forks: Use deployment state (fresh deployments)
 		if deploymentAddr := getStarknetHyperlaneFromDeploymentState(); deploymentAddr != "" {
-			fmt.Printf("   🔄 FORKING=true: Using Starknet Hyperlane address from deployment state: %s\n", deploymentAddr)
+			fmt.Printf("🔄 FORKING=true: Using Starknet Hyperlane address from deployment state: %s\n", deploymentAddr)
 			return deploymentAddr, nil
 		} else {
 			return "", fmt.Errorf("FORKING=true but no Starknet Hyperlane address found in deployment state")
@@ -236,7 +238,9 @@ func getStarknetHyperlaneFromDeploymentState() string {
 	paths := []string{"state/network_state/deployment-state.json", "../state/network_state/deployment-state.json", "../../state/network_state/deployment-state.json"}
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
-		if err != nil { continue }
+		if err != nil {
+			continue
+		}
 		var deploymentState struct {
 			Networks map[string]struct {
 				ChainID          uint64 `json:"chainId"`
@@ -245,9 +249,16 @@ func getStarknetHyperlaneFromDeploymentState() string {
 				DogCoinAddress   string `json:"dogCoinAddress"`
 			} `json:"networks"`
 		}
-		if err := json.Unmarshal(data, &deploymentState); err != nil { continue }
-		if stark, ok := deploymentState.Networks["Starknet"]; ok && stark.HyperlaneAddress != "" { return stark.HyperlaneAddress }
-		if starkLegacy, ok := deploymentState.Networks["Starknet"]; ok && starkLegacy.HyperlaneAddress != "" { return starkLegacy.HyperlaneAddress }
+		if err := json.Unmarshal(data, &deploymentState); err != nil {
+			continue
+		}
+		if stark, ok := deploymentState.Networks["Starknet"]; ok && stark.HyperlaneAddress != "" {
+			return stark.HyperlaneAddress
+		}
+		if starkLegacy, ok := deploymentState.Networks["Starknet"]; ok && starkLegacy.HyperlaneAddress != "" {
+			return starkLegacy.HyperlaneAddress
+		}
 	}
 	return ""
 }
+

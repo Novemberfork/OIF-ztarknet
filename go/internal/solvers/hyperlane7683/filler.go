@@ -14,6 +14,7 @@ import (
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
 	"github.com/NethermindEth/oif-starknet/go/internal/filler"
+	"github.com/NethermindEth/oif-starknet/go/internal/logutil"
 	"github.com/NethermindEth/oif-starknet/go/internal/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -25,12 +26,12 @@ var ErrIntentAlreadyFilled = fmt.Errorf("intent already filled")
 
 type Hyperlane7683Filler struct {
 	*filler.BaseFillerImpl
-	client        *ethclient.Client
-	clients       map[uint64]*ethclient.Client
-	signers       map[uint64]*bind.TransactOpts
-	hyperlaneEVM  *HyperlaneEVM
+	client            *ethclient.Client
+	clients           map[uint64]*ethclient.Client
+	signers           map[uint64]*bind.TransactOpts
+	hyperlaneEVM      *HyperlaneEVM
 	hyperlaneStarknet *HyperlaneStarknet
-	metadata      types.Hyperlane7683Metadata
+	metadata          types.Hyperlane7683Metadata
 }
 
 func NewHyperlane7683Filler(client *ethclient.Client) *Hyperlane7683Filler {
@@ -57,41 +58,41 @@ func NewHyperlane7683Filler(client *ethclient.Client) *Hyperlane7683Filler {
 }
 
 func (f *Hyperlane7683Filler) ProcessIntent(ctx context.Context, args types.ParsedArgs, originChainName string, blockNumber uint64) (bool, error) {
-	fmt.Printf("🔵 Processing Intent: %s-%s on chain %s (block %d)\n", f.metadata.ProtocolName, args.OrderID, originChainName, blockNumber)
+	p := logutil.Prefix(originChainName)
+	fmt.Printf("%s🔵 Processing Intent: %s-%s\n", p, f.metadata.ProtocolName, args.OrderID)
 	intent, err := f.PrepareIntent(ctx, args)
 	if err != nil {
 		return false, err
 	}
 	if !intent.Success {
 		// Rules rejected the order - check if it's because the order was already filled
-		fmt.Printf("   ⏭️  Intent rejected by rules: %s\n", intent.Error)
-		
+		fmt.Printf("%s⏭️  Intent rejected by rules: %s\n", p, intent.Error)
+
 		// If the order was already filled, treat it as "successfully processed"
 		// so the listener advances past this block instead of getting stuck
 		if intent.Error == ErrIntentAlreadyFilled.Error() {
-			fmt.Printf("   ✅ Order already processed by another filler, advancing block\n")
-			return true, nil  // Successfully processed (even though we didn't fill it)
+			fmt.Printf("%s✅ Order already processed by another filler, advancing block\n", p)
+			return true, nil // Successfully processed (even though we didn't fill it)
 		}
-		
+
 		// For other rule rejections (insufficient balance, etc.), don't advance
 		return false, nil
 	}
 	if err := f.Fill(ctx, args, intent.Data, originChainName, blockNumber); err != nil {
-		return false, fmt.Errorf("fill execution failed: %w", err)
+		return false, fmt.Errorf("%sfill execution failed: %w", p, err)
 	}
 	if err := f.SettleOrder(ctx, args, intent.Data, originChainName); err != nil {
-		return false, fmt.Errorf("order settlement failed: %w", err)
+		return false, fmt.Errorf("%sorder settlement failed: %w", p, err)
 	}
 	return true, nil
 }
 
 func (f *Hyperlane7683Filler) Fill(ctx context.Context, args types.ParsedArgs, data types.IntentData, originChainName string, blockNumber uint64) error {
-	fmt.Printf("🔵 Filling Intent: %s-%s on chain %s (block %d)\n", f.metadata.ProtocolName, args.OrderID, originChainName, blockNumber)
-	fmt.Printf("   Fill Instructions: %d instructions\n", len(data.FillInstructions))
-	fmt.Printf("   Max Spent: %d outputs\n", len(data.MaxSpent))
+	p := logutil.Prefix(originChainName)
+	fmt.Printf("%s🔵 Filling Intent: %s-%s (block %d)\n", p, f.metadata.ProtocolName, args.OrderID, blockNumber)
 
 	for i, instruction := range data.FillInstructions {
-		fmt.Printf("   📦 Instruction %d: Chain %s, Settler %s\n", i+1, instruction.DestinationChainID.String(), instruction.DestinationSettler)
+		fmt.Printf("%s📦 Instruction %d: Chain %s, Settler %s\n", p, i+1, instruction.DestinationChainID.String(), instruction.DestinationSettler)
 
 		// Simple chain router - clean and extensible
 		switch {
@@ -101,16 +102,16 @@ func (f *Hyperlane7683Filler) Fill(ctx context.Context, args types.ParsedArgs, d
 			if err != nil {
 				return fmt.Errorf("Starknet network not found for chain ID %s: %w", instruction.DestinationChainID.String(), err)
 			}
-			
+
 			// Reuse existing instance or create new one
 			if f.hyperlaneStarknet == nil || f.hyperlaneStarknet.rpcURL != chainConfig.RPCURL {
 				f.hyperlaneStarknet = NewHyperlaneStarknet(chainConfig.RPCURL)
 			}
-			
+
 			if err := f.hyperlaneStarknet.Fill(ctx, args, originChainName); err != nil {
 				return fmt.Errorf("Starknet fill failed for chain %s: %w", instruction.DestinationChainID.String(), err)
 			}
-			
+
 		case f.isEVMChain(instruction.DestinationChainID):
 			// Get EVM client and signer for this chain
 			client, err := f.getClientForChain(instruction.DestinationChainID)
@@ -121,55 +122,53 @@ func (f *Hyperlane7683Filler) Fill(ctx context.Context, args types.ParsedArgs, d
 			if err != nil {
 				return fmt.Errorf("failed to get signer for chain %s: %w", instruction.DestinationChainID.String(), err)
 			}
-			
+
 			// Reuse existing instance or create new one
 			if f.hyperlaneEVM == nil || f.hyperlaneEVM.client != client {
 				f.hyperlaneEVM = NewHyperlaneEVM(client, signer)
 			}
-			
+
 			if err := f.hyperlaneEVM.Fill(ctx, args, originChainName); err != nil {
 				return fmt.Errorf("EVM fill failed for chain %s: %w", instruction.DestinationChainID.String(), err)
 			}
-			
+
 		default:
 			return fmt.Errorf("unsupported destination chain: %s", instruction.DestinationChainID.String())
 		}
 	}
-	
-	fmt.Printf("   🎉 All fill instructions processed\n")
+
+	fmt.Printf("%s🎉 All fill instructions processed\n", p)
 	return nil
 }
 
-
-
 func (f *Hyperlane7683Filler) SettleOrder(ctx context.Context, args types.ParsedArgs, data types.IntentData, originChainName string) error {
 	fmt.Printf("🔵 Settling Order: %s on destination chain\n", args.OrderID)
-	
+
 	// Settlement happens on the destination chain - same as fill
 	if len(data.FillInstructions) == 0 {
 		return fmt.Errorf("no fill instructions found for settlement")
 	}
-	
+
 	instruction := data.FillInstructions[0]
-	
+
 	// Simple chain router for settlement
 	switch {
-		case f.isStarknetChain(instruction.DestinationChainID):
+	case f.isStarknetChain(instruction.DestinationChainID):
 		// Get Starknet RPC URL from config by finding the network with matching chain ID
 		chainConfig, err := f.getNetworkConfigByChainID(instruction.DestinationChainID)
 		if err != nil {
 			return fmt.Errorf("Starknet network not found for chain ID %s: %w", instruction.DestinationChainID.String(), err)
 		}
-		
+
 		// Reuse existing instance or create new one
 		if f.hyperlaneStarknet == nil || f.hyperlaneStarknet.rpcURL != chainConfig.RPCURL {
 			f.hyperlaneStarknet = NewHyperlaneStarknet(chainConfig.RPCURL)
 		}
-		
+
 		if err := f.hyperlaneStarknet.Settle(ctx, args); err != nil {
 			return fmt.Errorf("Starknet settlement failed for chain %s: %w", instruction.DestinationChainID.String(), err)
 		}
-		
+
 	case f.isEVMChain(instruction.DestinationChainID):
 		// Get EVM client and signer for this chain
 		client, err := f.getClientForChain(instruction.DestinationChainID)
@@ -180,39 +179,38 @@ func (f *Hyperlane7683Filler) SettleOrder(ctx context.Context, args types.Parsed
 		if err != nil {
 			return fmt.Errorf("failed to get signer for chain %s: %w", instruction.DestinationChainID.String(), err)
 		}
-		
+
 		// Reuse existing instance or create new one
 		if f.hyperlaneEVM == nil || f.hyperlaneEVM.client != client {
 			f.hyperlaneEVM = NewHyperlaneEVM(client, signer)
 		}
-		
+
 		if err := f.hyperlaneEVM.Settle(ctx, args); err != nil {
 			return fmt.Errorf("EVM settlement failed for chain %s: %w", instruction.DestinationChainID.String(), err)
 		}
-		
+
 	default:
 		return fmt.Errorf("unsupported destination chain: %s", instruction.DestinationChainID.String())
 	}
-	
+
 	fmt.Printf("✅ Settlement successful for order %s\n", args.OrderID)
 	return nil
 }
 
 func (f *Hyperlane7683Filler) AddDefaultRules() {
-	f.AddRule(f.enoughBalanceOnDestination)  // Pre-validate filler has enough tokens
-	f.AddRule(f.filterByTokenAndAmount)      // Validate profitability and limits  
-	f.AddRule(f.intentNotFilled)             // Check order hasn't been filled yet
+	f.AddRule(f.enoughBalanceOnDestination) // Pre-validate filler has enough tokens
+	f.AddRule(f.filterByTokenAndAmount)     // Validate profitability and limits
+	f.AddRule(f.intentNotFilled)            // Check order hasn't been filled yet
 }
-
 
 func (f *Hyperlane7683Filler) intentNotFilled(args types.ParsedArgs, _ *filler.FillerContext) error {
 	if len(args.ResolvedOrder.FillInstructions) == 0 {
 		return fmt.Errorf("no fill instructions found")
 	}
-	
+
 	first := args.ResolvedOrder.FillInstructions[0]
 	fmt.Printf("   🔍 intentNotFilled rule: checking destination chain %s\n", first.DestinationChainID.String())
-	
+
 	// Simple chain router for order status checking
 	switch {
 	case f.isStarknetChain(first.DestinationChainID):
@@ -220,11 +218,11 @@ func (f *Hyperlane7683Filler) intentNotFilled(args types.ParsedArgs, _ *filler.F
 		// to keep this rule simple
 		fmt.Printf("   ✅ intentNotFilled: Starknet destination, skipping status check\n")
 		return nil
-		
+
 	case f.isEVMChain(first.DestinationChainID):
 		// Use the EVM order status checking
 		fmt.Printf("   🔍 intentNotFilled: checking EVM destination chain %s\n", first.DestinationChainID.String())
-		
+
 		client, err := f.getClientForChain(first.DestinationChainID)
 		if err != nil {
 			return fmt.Errorf("intentNotFilled: failed to get client for chain %s: %w", first.DestinationChainID.String(), err)
@@ -233,29 +231,27 @@ func (f *Hyperlane7683Filler) intentNotFilled(args types.ParsedArgs, _ *filler.F
 		if err != nil {
 			return fmt.Errorf("intentNotFilled: failed to get signer for chain %s: %w", first.DestinationChainID.String(), err)
 		}
-		
+
 		evmHandler := NewHyperlaneEVM(client, signer)
 		status, err := evmHandler.GetOrderStatus(context.Background(), args)
 		if err != nil {
 			fmt.Printf("   ❌ intentNotFilled: failed to get order status: %v\n", err)
 			return fmt.Errorf("intentNotFilled: failed to get order status: %w", err)
 		}
-		
+
 		fmt.Printf("   🔍 intentNotFilled: order status = %s\n", status)
 		if status != "UNKNOWN" {
 			fmt.Printf("   ⏩ Skipping EVM fill: order status=%s (already processed)\n", status)
 			return ErrIntentAlreadyFilled
 		}
-		
+
 		fmt.Printf("   ✅ intentNotFilled: order not yet filled, proceeding\n")
 		return nil
-		
+
 	default:
 		return fmt.Errorf("intentNotFilled: unsupported chain %s", first.DestinationChainID.String())
 	}
 }
-
-
 
 func (f *Hyperlane7683Filler) getClientForChain(chainID *big.Int) (*ethclient.Client, error) {
 	chainIDUint := chainID.Uint64()

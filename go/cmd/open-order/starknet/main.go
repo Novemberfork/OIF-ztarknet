@@ -59,7 +59,7 @@ func loadNetworks() error {
 
 	if isForking {
 		// Local forks: Use deployment state
-		fmt.Printf("   🔄 FORKING=true: Loading addresses from deployment state (fork mode)\n")
+		fmt.Printf("🔄 FORKING=true: Loading addresses from deployment state (fork mode)\n")
 		state, err := githubDeployer.GetDeploymentState()
 		if err == nil {
 			if sn, ok := state.Networks[starknetNetworkName]; ok {
