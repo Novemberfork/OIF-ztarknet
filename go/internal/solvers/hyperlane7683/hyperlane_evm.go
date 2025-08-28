@@ -40,12 +40,12 @@ func NewHyperlaneEVM(client *ethclient.Client, signer *bind.TransactOpts) *Hyper
 }
 
 // Fill executes a fill operation on an EVM chain
-func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs, originChainName string) error {
+func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs) (OrderAction, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if len(args.ResolvedOrder.FillInstructions) == 0 {
-		return fmt.Errorf("no fill instructions found")
+		return OrderActionError, fmt.Errorf("no fill instructions found")
 	}
 
 	instruction := args.ResolvedOrder.FillInstructions[0]
@@ -69,19 +69,19 @@ func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs, originCh
 	converter := types.NewAddressConverter()
 	destinationSettlerAddr, err := converter.ToEVMAddress(instruction.DestinationSettler)
 	if err != nil {
-		return fmt.Errorf("failed to convert destination settler to EVM address: %w", err)
+		return OrderActionError, fmt.Errorf("failed to convert destination settler to EVM address: %w", err)
 	}
 
 	// Pre-check: skip if order status != 0 (already processed)
 	if processed, err := h.isOrderAlreadyProcessed(ctx, orderIdArr, destinationSettlerAddr); err == nil && processed {
 		fmt.Printf("   ⏭️  Skipping EVM fill: order already processed\n")
-		return nil
+		return OrderActionSettle, nil // Need to settle this order
 	}
 
 	// Get the contract instance using the EVM address
 	contract, err := contracts.NewHyperlane7683(destinationSettlerAddr, h.client)
 	if err != nil {
-		return fmt.Errorf("failed to bind contract at %s: %w", instruction.DestinationSettler, err)
+		return OrderActionError, fmt.Errorf("failed to bind contract at %s: %w", instruction.DestinationSettler, err)
 	}
 
 	// Handle max spent approvals if needed
@@ -91,11 +91,11 @@ func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs, originCh
 			// Convert token address string to EVM address for approval
 			tokenAddr, err := converter.ToEVMAddress(maxSpent.Token)
 			if err != nil {
-				return fmt.Errorf("failed to convert token address for approval: %w", err)
+				return OrderActionError, fmt.Errorf("failed to convert token address for approval: %w", err)
 			}
 
 			if err := h.ensureERC20Approval(ctx, tokenAddr, destinationSettlerAddr, maxSpent.Amount); err != nil {
-				return fmt.Errorf("approval failed for token %s: %w", maxSpent.Token, err)
+				return OrderActionError, fmt.Errorf("approval failed for token %s: %w", maxSpent.Token, err)
 			}
 		}
 	}
@@ -115,7 +115,7 @@ func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs, originCh
 	// Execute the fill transaction
 	tx, err := contract.Fill(h.signer, orderIdArr, instruction.OriginData, fillerDataBytes)
 	if err != nil {
-		return fmt.Errorf("fill transaction failed: %w", err)
+		return OrderActionError, fmt.Errorf("fill transaction failed: %w", err)
 	}
 
 	fmt.Printf("   🚀 Fill transaction sent: %s\n", tx.Hash().Hex())
@@ -123,14 +123,14 @@ func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs, originCh
 	// Wait for confirmation
 	receipt, err := bind.WaitMined(ctx, h.client, tx)
 	if err != nil {
-		return fmt.Errorf("failed to wait for fill confirmation: %w", err)
+		return OrderActionError, fmt.Errorf("failed to wait for fill confirmation: %w", err)
 	}
 
 	if receipt.Status == 1 {
 		fmt.Printf("   ✅ EVM Fill successful! Gas used: %d\n", receipt.GasUsed)
-		return nil
+		return OrderActionSettle, nil // Need to settle this order
 	} else {
-		return fmt.Errorf("fill transaction failed with status: %d", receipt.Status)
+		return OrderActionError, fmt.Errorf("fill transaction failed with status: %d", receipt.Status)
 	}
 }
 

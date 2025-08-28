@@ -1,7 +1,7 @@
 package hyperlane7683
 
 // Module: Starknet chain handler for Hyperlane7683
-// - Coordinates StarknetFiller to perform fill/settle on Starknet
+// - Coordinates StarknetSolver to perform fill/settle on Starknet
 // - Resolves correct Hyperlane contract address and origin domain
 
 import (
@@ -28,17 +28,59 @@ import (
 type HyperlaneStarknet struct {
 	rpcURL string
 	mu     sync.Mutex // Serialize operations to prevent nonce conflicts
+	///
+	provider *rpc.Provider
+	account  *account.Account
+	//hyperlaneAddr *felt.Felt
+	solverAddr *felt.Felt
 }
 
 // NewHyperlaneStarknet creates a new Starknet handler for Hyperlane operations
 func NewHyperlaneStarknet(rpcURL string) *HyperlaneStarknet {
+	provider, err := rpc.NewProvider(rpcURL)
+	if err != nil {
+		fmt.Printf("failed to create Starknet provider: %v", err)
+		return nil
+	}
+
+	pub := os.Getenv("STARKNET_SOLVER_PUBLIC_KEY")
+	addrHex := os.Getenv("STARKNET_SOLVER_ADDRESS")
+	priv := os.Getenv("STARKNET_SOLVER_PRIVATE_KEY")
+	if pub == "" || addrHex == "" || priv == "" {
+		fmt.Printf("missing STARKNET_SOLVER_* env vars for Starknet signer")
+		return nil
+	}
+
+	addrF, err := utils.HexToFelt(addrHex)
+	if err != nil {
+		fmt.Printf("invalid STARKNET_SOLVER_ADDRESS: %v", err)
+		return nil
+	}
+
+	ks := account.NewMemKeystore()
+	privBI, ok := new(big.Int).SetString(priv, 0)
+	if !ok {
+		fmt.Printf("failed to parse STARKNET_SOLVER_PRIVATE_KEY")
+		return nil
+	}
+
+	ks.Put(pub, privBI)
+	acct, err := account.NewAccount(provider, addrF, pub, ks, account.CairoV2)
+	if err != nil {
+		fmt.Printf("failed to create Starknet account: %v", err)
+		return nil
+	}
+
 	return &HyperlaneStarknet{
-		rpcURL: rpcURL,
+		rpcURL:     rpcURL,
+		account:    acct,
+		provider:   provider,
+		solverAddr: addrF,
 	}
 }
 
 // Fill executes a fill operation on Starknet
-func (h *HyperlaneStarknet) Fill(ctx context.Context, args types.ParsedArgs, originChainName string) error {
+func (h *HyperlaneStarknet) Fill(ctx context.Context, args types.ParsedArgs) (OrderAction, error) {
 	fmt.Printf("   🔒 Acquiring Starknet mutex for order %s\n", args.OrderID)
 	h.mu.Lock()
 	defer func() {
@@ -50,7 +92,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args types.ParsedArgs, ori
 
 	// Extract origin data from the first fill instruction
 	if len(args.ResolvedOrder.FillInstructions) == 0 {
-		return fmt.Errorf("no fill instructions found")
+		return OrderActionError, fmt.Errorf("no fill instructions found")
 	}
 
 	instruction := args.ResolvedOrder.FillInstructions[0]
@@ -58,26 +100,28 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args types.ParsedArgs, ori
 
 	//fmt.Printf("🔵 Starknet Fill: %s\n", orderID)
 
-	// Get the proper Hyperlane address
-	hyperlaneAddressHex, err := h.getHyperlaneAddress(args)
+	// Get the starknet Hyperlane address
+	hyperlaneAddressRaw, err := h.getHyperlaneAddress(args)
 	if err != nil {
-		return fmt.Errorf("failed to get Hyperlane address: %w", err)
+		return OrderActionError, fmt.Errorf("failed to get Hyperlane address: %w", err)
 	}
-
-	// Create StarknetFiller instance
-	sf, err := NewStarknetFiller(h.rpcURL, hyperlaneAddressHex)
+	hyperlaneAddress, err := utils.HexToFelt(hyperlaneAddressRaw)
 	if err != nil {
-		return fmt.Errorf("failed to create StarknetFiller: %w", err)
+		return OrderActionError, fmt.Errorf("failed to convert hex Hyperlane address to felt: %w", err)
 	}
 
 	// Set up ERC20 approvals before filling (inside mutex to prevent concurrent approvals)
-	if err := h.setupApprovals(ctx, sf, args); err != nil {
-		return fmt.Errorf("failed to setup approvals: %w", err)
+	if err := h.setupApprovals(ctx, args, hyperlaneAddress); err != nil {
+		return OrderActionError, fmt.Errorf("failed to setup approvals: %w", err)
 	}
 
 	// Execute the fill
 	fmt.Printf("   🚀 Proceeding with Starknet fill after approvals\n")
-	return sf.Fill(ctx, orderID, originData)
+	action, err := h.fill(ctx, orderID, originData, hyperlaneAddress)
+	if err != nil {
+		return OrderActionError, err
+	}
+	return action, nil
 }
 
 // Settle executes settlement on Starknet
@@ -94,15 +138,13 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args types.ParsedArgs) e
 	fmt.Printf("🔵 Starknet Settle: %s\n", orderID)
 
 	// Get the proper Hyperlane address
-	hyperlaneAddressHex, err := h.getHyperlaneAddress(args)
+	hyperlaneAddressRaw, err := h.getHyperlaneAddress(args)
 	if err != nil {
 		return fmt.Errorf("failed to get Hyperlane address: %w", err)
 	}
-
-	// Create StarknetFiller instance
-	sf, err := NewStarknetFiller(h.rpcURL, hyperlaneAddressHex)
+	hyperlaneAddress, err := utils.HexToFelt(hyperlaneAddressRaw)
 	if err != nil {
-		return fmt.Errorf("failed to create StarknetFiller for settle: %w", err)
+		return fmt.Errorf("failed to convert hex Hyperlane address to felt: %w", err)
 	}
 
 	// Quote gas payment from Hyperlane contract
@@ -112,21 +154,21 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args types.ParsedArgs) e
 	}
 	fmt.Printf("   💰 Quoting gas payment for origin domain: %d\n", originDomain)
 
-	gasPayment, err := sf.QuoteGasPayment(ctx, originDomain)
+	gasPayment, err := h.QuoteGasPayment(ctx, originDomain, hyperlaneAddress)
 	if err != nil {
 		return fmt.Errorf("failed to quote gas payment: %w", err)
 	}
 
 	fmt.Printf("   💰 Gas payment quoted: %s wei\n", gasPayment.String())
 	// Approve ETH for the quoted gas amount
-	if err := sf.EnsureETHApproval(ctx, gasPayment); err != nil {
+	if err := h.ensureETHApproval(ctx, gasPayment, hyperlaneAddress); err != nil {
 		return fmt.Errorf("ETH approval failed for settlement gas: %w", err)
 	}
 
 	fmt.Printf("   ✅ ETH approved for settlement gas payment: %s wei\n", gasPayment.String())
 
 	// Execute settlement
-	if err := sf.Settle(ctx, orderID, gasPayment); err != nil {
+	if err := h.settle(ctx, orderID, gasPayment, hyperlaneAddress); err != nil {
 		return fmt.Errorf("starknet settle send failed: %w", err)
 	}
 
@@ -139,24 +181,24 @@ func (h *HyperlaneStarknet) GetOrderStatus(ctx context.Context, args types.Parse
 	orderID := args.OrderID
 
 	// Get the proper Hyperlane address
-	hyperlaneAddressHex, err := h.getHyperlaneAddress(args)
+	hyperlaneAddressRaw, err := h.getHyperlaneAddress(args)
 	if err != nil {
 		return "UNKNOWN", fmt.Errorf("failed to get Hyperlane address: %w", err)
 	}
 
-	// Use StarknetFiller's status helper
-	sf, err := NewStarknetFiller(h.rpcURL, hyperlaneAddressHex)
+	hyperlaneAddress, err := utils.HexToFelt(hyperlaneAddressRaw)
 	if err != nil {
-		return "UNKNOWN", fmt.Errorf("failed to create StarknetFiller: %w", err)
+		return "UNKNOWN", fmt.Errorf("failed to convert hex Hyperlane address to felt: %w", err)
 	}
 
-	processed, status, err := sf.isOrderProcessed(ctx, orderID)
+	processed, status, err := h.isOrderProcessed(ctx, orderID, hyperlaneAddress)
 	if err != nil {
 		return "UNKNOWN", fmt.Errorf("failed to check order status: %w", err)
 	}
 	if !processed {
 		return "UNKNOWN", nil
 	}
+
 	return h.interpretStarknetStatus(status), nil
 }
 
@@ -204,7 +246,7 @@ func (h *HyperlaneStarknet) getOriginDomain(args types.ParsedArgs) (uint32, erro
 	return 0, fmt.Errorf("no domain found for chain ID %d in config (check your .env file)", chainID)
 }
 
-func (h *HyperlaneStarknet) setupApprovals(ctx context.Context, sf *StarknetFiller, args types.ParsedArgs) error {
+func (h *HyperlaneStarknet) setupApprovals(ctx context.Context, args types.ParsedArgs, hyperlaneAddress *felt.Felt) error {
 	if len(args.ResolvedOrder.MaxSpent) == 0 {
 		return nil
 	}
@@ -228,7 +270,7 @@ func (h *HyperlaneStarknet) setupApprovals(ctx context.Context, sf *StarknetFill
 		fmt.Printf("     • Token address: %s\n", tokenAddressHex)
 		fmt.Printf("     • Amount to approve: %s\n", maxSpent.Amount.String())
 
-		if err := sf.EnsureTokenApproval(ctx, tokenAddressHex, maxSpent.Amount); err != nil {
+		if err := h.ensureTokenApproval(ctx, tokenAddressHex, maxSpent.Amount, hyperlaneAddress); err != nil {
 			return fmt.Errorf("starknet approval failed for token %s: %w", tokenAddressHex, err)
 		}
 
@@ -282,52 +324,8 @@ func (h *HyperlaneStarknet) isStarknetChain(chainID *big.Int) bool {
 	return false
 }
 
-// StarknetFiller handles Starknet-specific filling logic
-type StarknetFiller struct {
-	provider      *rpc.Provider
-	account       *account.Account
-	hyperlaneAddr *felt.Felt
-	solverAddr    *felt.Felt
-}
-
-// NewStarknetFiller creates a new StarknetFiller instance
-func NewStarknetFiller(rpcURL string, hyperlaneAddressHex string) (*StarknetFiller, error) {
-	provider, err := rpc.NewProvider(rpcURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Starknet provider: %w", err)
-	}
-
-	addrFelt, err := utils.HexToFelt(hyperlaneAddressHex)
-	if err != nil {
-		return nil, fmt.Errorf("invalid Starknet Hyperlane address: %w", err)
-	}
-
-	pub := os.Getenv("STARKNET_SOLVER_PUBLIC_KEY")
-	addrHex := os.Getenv("STARKNET_SOLVER_ADDRESS")
-	priv := os.Getenv("STARKNET_SOLVER_PRIVATE_KEY")
-	if pub == "" || addrHex == "" || priv == "" {
-		return nil, fmt.Errorf("missing STARKNET_SOLVER_* env vars for Starknet signer")
-	}
-	addrF, err := utils.HexToFelt(addrHex)
-	if err != nil {
-		return nil, fmt.Errorf("invalid STARKNET_SOLVER_ADDRESS: %w", err)
-	}
-	ks := account.NewMemKeystore()
-	privBI, ok := new(big.Int).SetString(priv, 0)
-	if !ok {
-		return nil, fmt.Errorf("failed to parse STARKNET_SOLVER_PRIVATE_KEY")
-	}
-	ks.Put(pub, privBI)
-	acct, err := account.NewAccount(provider, addrF, pub, ks, account.CairoV2)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Starknet account: %w", err)
-	}
-
-	return &StarknetFiller{provider: provider, account: acct, hyperlaneAddr: addrFelt, solverAddr: addrF}, nil
-}
-
 // GetTokenBalance retrieves the token balance for an address on Starknet
-func (sf *StarknetFiller) GetTokenBalance(ctx context.Context, tokenAddressHex string, holderAddressHex string) (*big.Int, error) {
+func (f *HyperlaneStarknet) GetTokenBalance(ctx context.Context, tokenAddressHex string, holderAddressHex string) (*big.Int, error) {
 	// Convert addresses to felt format
 	tokenAddr, err := utils.HexToFelt(tokenAddressHex)
 	if err != nil {
@@ -340,7 +338,6 @@ func (sf *StarknetFiller) GetTokenBalance(ctx context.Context, tokenAddressHex s
 	}
 
 	// Call balanceOf function on the ERC20 contract
-	// balanceOf(address) -> uint256
 	balanceOfSelector, err := utils.HexToFelt("0x2e17de78") // balanceOf selector
 	if err != nil {
 		return nil, fmt.Errorf("failed to create balanceOf selector: %w", err)
@@ -352,7 +349,7 @@ func (sf *StarknetFiller) GetTokenBalance(ctx context.Context, tokenAddressHex s
 		Calldata:           []*felt.Felt{holderAddr},
 	}
 
-	result, err := sf.provider.Call(ctx, call, rpc.BlockID{Tag: "latest"})
+	result, err := f.provider.Call(ctx, call, rpc.BlockID{Tag: "latest"})
 	if err != nil {
 		return nil, fmt.Errorf("failed to call balanceOf: %w", err)
 	}
@@ -361,20 +358,34 @@ func (sf *StarknetFiller) GetTokenBalance(ctx context.Context, tokenAddressHex s
 		return nil, fmt.Errorf("balanceOf returned no results")
 	}
 
-	// Convert felt result to big.Int
-	balance := utils.FeltToBigInt(result[0])
+	if len(result) < 2 {
+		return nil, fmt.Errorf("balanceOf returned insufficient data: expected 2 felts, got %d", len(result))
+	}
+
+	// Convert low and high felts to big.Int (u256)
+	lowBigInt := utils.FeltToBigInt(result[0])
+	highBigInt := utils.FeltToBigInt(result[1])
+	// Combine low and high into a single u256 value
+	// high << 128 + low
+	shiftedHigh := new(big.Int).Lsh(highBigInt, 128)
+	balance := new(big.Int).Add(shiftedHigh, lowBigInt)
+
 	return balance, nil
 }
 
 // Fill executes the fill operation on Starknet
-func (sf *StarknetFiller) Fill(ctx context.Context, orderIDHex string, originData []byte) error {
+func (f *HyperlaneStarknet) fill(ctx context.Context, orderIDHex string, originData []byte, hyperlaneAddress *felt.Felt) (OrderAction, error) {
 	// Skip if already processed (status != 0)
-	if processed, status, err := sf.isOrderProcessed(ctx, orderIDHex); err == nil && processed {
+	if processed, status, err := f.isOrderProcessed(ctx, orderIDHex, hyperlaneAddress); err == nil && processed {
 		fmt.Printf("   ⏩ Skipping Starknet fill: order status=%s (non-zero)\n", status)
-		return nil
+		// Check if it's already settled
+		if status == "0x2" || status == "2" {
+			return OrderActionComplete, nil // Already filled + settled
+		}
+		return OrderActionSettle, nil // Already filled, need to settle
 	}
 
-	// Build calldata for fill(order_id: u256, origin_data: Bytes, filler_data: Bytes)
+	// Build calldata for fill(order_id: u256, origin_data: Bytes, solver_data: Bytes)
 	// order_id u256 -> two felts (low, high)
 	orderBytes := utils.HexToBN(orderIDHex).Bytes()
 	// pad to 32 bytes
@@ -402,43 +413,43 @@ func (sf *StarknetFiller) Fill(ctx context.Context, orderIDHex string, originDat
 	// origin_data Bytes: [size, words_len, words...], words are u128 (16-byte) chunks
 	words := bytesToU128Felts(originData)
 
-	calldata := make([]*felt.Felt, 0, 2+2+len(words)+2) // order_id(2) + size + len + data + empty filler_data
+	calldata := make([]*felt.Felt, 0, 2+2+len(words)+2) // order_id(2) + size + len + data + empty solver_data
 	calldata = append(calldata, lowF, highF)
 	calldata = append(calldata, utils.Uint64ToFelt(uint64(len(originData))))
 	calldata = append(calldata, utils.Uint64ToFelt(uint64(len(words))))
 	calldata = append(calldata, words...)
-	// filler_data: empty Bytes (size=0, len=0)
+	// solver_data: empty Bytes (size=0, len=0)
 	calldata = append(calldata, utils.Uint64ToFelt(0), utils.Uint64ToFelt(0))
 
 	// Calldata ready for Starknet contract
-	invoke := rpc.InvokeFunctionCall{ContractAddress: sf.hyperlaneAddr, FunctionName: "fill", CallData: calldata}
-	tx, err := sf.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
+	invoke := rpc.InvokeFunctionCall{ContractAddress: hyperlaneAddress, FunctionName: "fill", CallData: calldata}
+	tx, err := f.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
-		return fmt.Errorf("starknet fill send failed: %w", err)
+		return OrderActionError, fmt.Errorf("starknet fill send failed: %w", err)
 	}
 	fmt.Printf("   🔄 Starknet fill tx sent: %s\n", tx.Hash.String())
-	_, waitErr := sf.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
+	_, waitErr := f.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
 	if waitErr != nil {
-		return fmt.Errorf("starknet fill wait failed: %w", waitErr)
+		return OrderActionError, fmt.Errorf("starknet fill wait failed: %w", waitErr)
 	}
 	fmt.Printf("   ✅ Starknet fill transaction confirmed\n")
 
-	return nil
+	return OrderActionSettle, nil
 }
 
 // QuoteGasPayment calls the Starknet contract's quote_gas_payment function
-func (sf *StarknetFiller) QuoteGasPayment(ctx context.Context, originDomain uint32) (*big.Int, error) {
+func (f *HyperlaneStarknet) QuoteGasPayment(ctx context.Context, originDomain uint32, hyperlaneAddress *felt.Felt) (*big.Int, error) {
 	// Convert origin domain to felt
 	domainFelt := utils.BigIntToFelt(big.NewInt(int64(originDomain)))
 
 	// Call quote_gas_payment(origin_domain: u32) -> u256
 	call := rpc.FunctionCall{
-		ContractAddress:    sf.hyperlaneAddr,
+		ContractAddress:    hyperlaneAddress,
 		EntryPointSelector: utils.GetSelectorFromNameFelt("quote_gas_payment"),
 		Calldata:           []*felt.Felt{domainFelt},
 	}
 
-	resp, err := sf.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
+	resp, err := f.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
 	if err != nil {
 		return nil, fmt.Errorf("starknet quote_gas_payment call failed: %w", err)
 	}
@@ -459,7 +470,7 @@ func (sf *StarknetFiller) QuoteGasPayment(ctx context.Context, originDomain uint
 }
 
 // EnsureETHApproval ensures the solver has approved the ETH address for settlement
-func (sf *StarknetFiller) EnsureETHApproval(ctx context.Context, amount *big.Int) error {
+func (h *HyperlaneStarknet) ensureETHApproval(ctx context.Context, amount *big.Int, hyperlaneAddress *felt.Felt) error {
 	// Hard-coded ETH address on Starknet
 	ethAddress := "0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"
 	ethFelt, err := utils.HexToFelt(ethAddress)
@@ -471,10 +482,10 @@ func (sf *StarknetFiller) EnsureETHApproval(ctx context.Context, amount *big.Int
 	call := rpc.FunctionCall{
 		ContractAddress:    ethFelt,
 		EntryPointSelector: utils.GetSelectorFromNameFelt("allowance"),
-		Calldata:           []*felt.Felt{sf.solverAddr, sf.hyperlaneAddr},
+		Calldata:           []*felt.Felt{h.solverAddr, hyperlaneAddress},
 	}
 
-	resp, err := sf.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
+	resp, err := h.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
 	if err != nil {
 		return fmt.Errorf("starknet ETH allowance call failed: %w", err)
 	}
@@ -503,7 +514,7 @@ func (sf *StarknetFiller) EnsureETHApproval(ctx context.Context, amount *big.Int
 	highFelt := utils.BigIntToFelt(high128)
 
 	// Build approve calldata: approve(spender: felt, amount: u256)
-	approveCalldata := []*felt.Felt{sf.hyperlaneAddr, lowFelt, highFelt}
+	approveCalldata := []*felt.Felt{hyperlaneAddress, lowFelt, highFelt}
 
 	invoke := rpc.InvokeFunctionCall{
 		ContractAddress: ethFelt,
@@ -511,13 +522,13 @@ func (sf *StarknetFiller) EnsureETHApproval(ctx context.Context, amount *big.Int
 		CallData:        approveCalldata,
 	}
 
-	tx, err := sf.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
+	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
 		return fmt.Errorf("starknet ETH approve send failed: %w", err)
 	}
 
 	fmt.Printf("   🔄 Starknet ETH approve tx sent: %s\n", tx.Hash.String())
-	_, waitErr := sf.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
+	_, waitErr := h.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
 	if waitErr != nil {
 		return fmt.Errorf("starknet ETH approve wait failed: %w", waitErr)
 	}
@@ -526,8 +537,8 @@ func (sf *StarknetFiller) EnsureETHApproval(ctx context.Context, amount *big.Int
 	return nil
 }
 
-// EnsureTokenApproval ensures the solver has approved an arbitrary ERC20 token for the Hyperlane contract
-func (sf *StarknetFiller) EnsureTokenApproval(ctx context.Context, tokenHex string, amount *big.Int) error {
+// ensureTokenApproval ensures the solver has approved an arbitrary ERC20 token for the Hyperlane contract
+func (h *HyperlaneStarknet) ensureTokenApproval(ctx context.Context, tokenHex string, amount *big.Int, hyperlaneAddress *felt.Felt) error {
 	tokenFelt, err := utils.HexToFelt(tokenHex)
 	if err != nil {
 		return fmt.Errorf("invalid Starknet token address: %w", err)
@@ -537,10 +548,10 @@ func (sf *StarknetFiller) EnsureTokenApproval(ctx context.Context, tokenHex stri
 	call := rpc.FunctionCall{
 		ContractAddress:    tokenFelt,
 		EntryPointSelector: utils.GetSelectorFromNameFelt("allowance"),
-		Calldata:           []*felt.Felt{sf.solverAddr, sf.hyperlaneAddr},
+		Calldata:           []*felt.Felt{h.solverAddr, hyperlaneAddress},
 	}
 
-	resp, err := sf.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
+	resp, err := h.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
 	if err != nil {
 		return fmt.Errorf("starknet allowance call failed: %w", err)
 	}
@@ -564,15 +575,15 @@ func (sf *StarknetFiller) EnsureTokenApproval(ctx context.Context, tokenHex stri
 	invoke := rpc.InvokeFunctionCall{
 		ContractAddress: tokenFelt,
 		FunctionName:    "approve",
-		CallData:        []*felt.Felt{sf.hyperlaneAddr, lowF, highF},
+		CallData:        []*felt.Felt{hyperlaneAddress, lowF, highF},
 	}
 
-	tx, err := sf.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
+	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
 		return fmt.Errorf("starknet token approve send failed: %w", err)
 	}
 
-	_, waitErr := sf.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
+	_, waitErr := h.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
 	if waitErr != nil {
 		return fmt.Errorf("starknet token approve wait failed: %w", waitErr)
 	}
@@ -580,7 +591,7 @@ func (sf *StarknetFiller) EnsureTokenApproval(ctx context.Context, tokenHex stri
 }
 
 // Settle calls the Starknet contract's settle function
-func (sf *StarknetFiller) Settle(ctx context.Context, orderIDHex string, gasPayment *big.Int) error {
+func (h *HyperlaneStarknet) settle(ctx context.Context, orderIDHex string, gasPayment *big.Int, hyperlaneAddress *felt.Felt) error {
 	// Convert order ID to two felts (low, high) for u256
 	idBytes := utils.HexToBN(orderIDHex).Bytes()
 	if len(idBytes) < 32 {
@@ -608,7 +619,7 @@ func (sf *StarknetFiller) Settle(ctx context.Context, orderIDHex string, gasPaym
 	calldata := []*felt.Felt{
 		utils.Uint64ToFelt(1), // Array size = 1
 		low, high,             // order_id u256
-		gasLow, gasHigh,       // value u256
+		gasLow, gasHigh, // value u256
 	}
 
 	// Starknet settle transaction
@@ -621,18 +632,18 @@ func (sf *StarknetFiller) Settle(ctx context.Context, orderIDHex string, gasPaym
 	fmt.Printf("     • total calldata felts: %d\n", len(calldata))
 
 	invoke := rpc.InvokeFunctionCall{
-		ContractAddress: sf.hyperlaneAddr,
+		ContractAddress: hyperlaneAddress,
 		FunctionName:    "settle",
 		CallData:        calldata,
 	}
 
-	tx, err := sf.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
+	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
 		return fmt.Errorf("starknet settle send failed: %w", err)
 	}
 
 	fmt.Printf("   🔄 Starknet settle tx sent: %s\n", tx.Hash.String())
-	_, waitErr := sf.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
+	_, waitErr := h.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
 	if waitErr != nil {
 		return fmt.Errorf("starknet settle wait failed: %w", waitErr)
 	}
@@ -659,7 +670,7 @@ func bytesToU128Felts(b []byte) []*felt.Felt {
 }
 
 // isOrderProcessed checks if an order has already been processed
-func (sf *StarknetFiller) isOrderProcessed(ctx context.Context, orderIDHex string) (bool, string, error) {
+func (h *HyperlaneStarknet) isOrderProcessed(ctx context.Context, orderIDHex string, hyperlaneAddress *felt.Felt) (bool, string, error) {
 	idBytes := utils.HexToBN(orderIDHex).Bytes()
 	if len(idBytes) < 32 {
 		idBytes = append(make([]byte, 32-len(idBytes)), idBytes...)
@@ -673,8 +684,8 @@ func (sf *StarknetFiller) isOrderProcessed(ctx context.Context, orderIDHex strin
 	}
 	low := utils.BigIntToFelt(new(big.Int).SetBytes(rev(idBytes[0:16])))
 	high := utils.BigIntToFelt(new(big.Int).SetBytes(rev(idBytes[16:32])))
-	call := rpc.FunctionCall{ContractAddress: sf.hyperlaneAddr, EntryPointSelector: utils.GetSelectorFromNameFelt("order_status"), Calldata: []*felt.Felt{low, high}}
-	resp, err := sf.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
+	call := rpc.FunctionCall{ContractAddress: hyperlaneAddress, EntryPointSelector: utils.GetSelectorFromNameFelt("order_status"), Calldata: []*felt.Felt{low, high}}
+	resp, err := h.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
 	if err != nil || len(resp) == 0 {
 		return false, "", err
 	}

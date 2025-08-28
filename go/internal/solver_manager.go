@@ -9,10 +9,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/NethermindEth/oif-starknet/go/internal/base"
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	"github.com/NethermindEth/oif-starknet/go/internal/listener"
 	contracts "github.com/NethermindEth/oif-starknet/go/internal/solvers/hyperlane7683"
 	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/starknet.go/account"
+	"github.com/NethermindEth/starknet.go/rpc"
+	"github.com/NethermindEth/starknet.go/utils"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -28,13 +33,14 @@ type SolverRegistry map[string]SolverConfig
 // SolverManager manages multiple protocol solvers
 // Following the TypeScript SolverManager pattern
 type SolverManager struct {
-	client          *ethclient.Client
+	evmClients      map[uint64]*ethclient.Client
+	starknetClient  *rpc.Provider
 	activeShutdowns []func()
 	solverRegistry  SolverRegistry
 }
 
 // NewSolverManager creates a new solver manager
-func NewSolverManager(client *ethclient.Client) *SolverManager {
+func NewSolverManager(evmClient *ethclient.Client) *SolverManager {
 	// Default solver registry - could be loaded from config file
 	registry := SolverRegistry{
 		"hyperlane7683": {
@@ -44,7 +50,8 @@ func NewSolverManager(client *ethclient.Client) *SolverManager {
 	}
 
 	return &SolverManager{
-		client:          client,
+		evmClients:      make(map[uint64]*ethclient.Client),
+		starknetClient:  nil, // Will be initialized later
 		activeShutdowns: make([]func(), 0),
 		solverRegistry:  registry,
 	}
@@ -53,6 +60,16 @@ func NewSolverManager(client *ethclient.Client) *SolverManager {
 // InitializeSolvers starts all enabled solvers
 func (sm *SolverManager) InitializeSolvers(ctx context.Context) error {
 	fmt.Printf("🚀 Initializing solvers...\n")
+
+	// Initialize EVM clients for all EVM networks
+	if err := sm.initializeEVMClients(); err != nil {
+		return fmt.Errorf("failed to initialize EVM clients: %w", err)
+	}
+
+	// Initialize Starknet client
+	if err := sm.initializeStarknetClients(); err != nil {
+		return fmt.Errorf("failed to initialize Starknet client: %w", err)
+	}
 
 	for solverName, config := range sm.solverRegistry {
 		if !config.Enabled {
@@ -83,15 +100,151 @@ func (sm *SolverManager) initializeSolver(ctx context.Context, name string, conf
 	}
 }
 
+// initializeEVMClients initializes EVM RPC connections for all EVM networks
+func (sm *SolverManager) initializeEVMClients() error {
+	fmt.Printf("🔗 Initializing EVM clients...\n")
+
+	for networkName, networkConfig := range config.Networks {
+		// Check if this is NOT a Starknet network (i.e., it's an EVM network)
+		if !strings.Contains(strings.ToLower(networkName), "starknet") {
+			fmt.Printf("   🔗 Initializing EVM client for %s (Chain ID: %d)\n", networkName, networkConfig.ChainID)
+
+			client, err := ethclient.Dial(networkConfig.RPCURL)
+			if err != nil {
+				return fmt.Errorf("failed to create EVM client for %s: %w", networkName, err)
+			}
+
+			sm.evmClients[networkConfig.ChainID] = client
+			fmt.Printf("   ✅ EVM client initialized for %s\n", networkName)
+		}
+	}
+
+	fmt.Printf("✅ All EVM clients initialized\n")
+	return nil
+}
+
+// initializeStarknetClients initializes Starknet RPC connection for the first Starknet network found
+func (sm *SolverManager) initializeStarknetClients() error {
+	fmt.Printf("🔗 Initializing Starknet client...\n")
+
+	for networkName, networkConfig := range config.Networks {
+		// Check if this is a Starknet network
+		if strings.Contains(strings.ToLower(networkName), "starknet") {
+			fmt.Printf("   🔗 Initializing Starknet client for %s (Chain ID: %d)\n", networkName, networkConfig.ChainID)
+
+			provider, err := rpc.NewProvider(networkConfig.RPCURL)
+			if err != nil {
+				return fmt.Errorf("failed to create Starknet provider for %s: %w", networkName, err)
+			}
+
+			sm.starknetClient = provider
+			fmt.Printf("   ✅ Starknet client initialized for %s\n", networkName)
+			return nil // Only need one Starknet client
+		}
+	}
+
+	fmt.Printf("⚠️  No Starknet networks found in config\n")
+	return nil
+}
+
+// GetStarknetClient returns the Starknet client
+func (sm *SolverManager) GetStarknetClient() (*rpc.Provider, error) {
+	if sm.starknetClient == nil {
+		return nil, fmt.Errorf("starknet client not initialized")
+	}
+	return sm.starknetClient, nil
+}
+
+// GetEVMClient returns an EVM client for the given chain ID
+func (sm *SolverManager) GetEVMClient(chainID uint64) (*ethclient.Client, error) {
+	if client, exists := sm.evmClients[chainID]; exists {
+		return client, nil
+	}
+	return nil, fmt.Errorf("EVM client not found for chain ID %d", chainID)
+}
+
+// GetEVMSigner returns an EVM signer for the given chain ID
+func (sm *SolverManager) GetEVMSigner(chainID uint64) (*bind.TransactOpts, error) {
+	// For now, create a new signer for each chain
+	// In the future, this could be cached per chain
+	solverPrivateKey := os.Getenv("SOLVER_PRIVATE_KEY")
+	if solverPrivateKey == "" {
+		return nil, fmt.Errorf("SOLVER_PRIVATE_KEY environment variable not set")
+	}
+
+	pk, err := crypto.HexToECDSA(strings.TrimPrefix(solverPrivateKey, "0x"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse solver private key: %w", err)
+	}
+
+	from := crypto.PubkeyToAddress(pk.PublicKey)
+	signer, err := bind.NewKeyedTransactorWithChainID(pk, big.NewInt(int64(chainID)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create signer with chain ID %d: %w", chainID, err)
+	}
+	signer.From = from
+	return signer, nil
+}
+
+// GetStarknetSigner returns the Starknet signer
+func (sm *SolverManager) GetStarknetSigner() (*account.Account, error) {
+	// For now, create a new signer each time
+	// In the future, this could be cached
+	if sm.starknetClient == nil {
+		return nil, fmt.Errorf("starknet client not initialized")
+	}
+
+	pub := os.Getenv("STARKNET_SOLVER_PUBLIC_KEY")
+	addrHex := os.Getenv("STARKNET_SOLVER_ADDRESS")
+	priv := os.Getenv("STARKNET_SOLVER_PRIVATE_KEY")
+	if pub == "" || addrHex == "" || priv == "" {
+		return nil, fmt.Errorf("missing STARKNET_SOLVER_* env vars for Starknet signer")
+	}
+
+	addrF, err := utils.HexToFelt(addrHex)
+	if err != nil {
+		return nil, fmt.Errorf("invalid STARKNET_SOLVER_ADDRESS: %w", err)
+	}
+
+	ks := account.NewMemKeystore()
+	privBI, ok := new(big.Int).SetString(priv, 0)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse STARKNET_SOLVER_PRIVATE_KEY")
+	}
+	ks.Put(pub, privBI)
+
+	acct, err := account.NewAccount(sm.starknetClient, addrF, pub, ks, account.CairoV2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Starknet account: %w", err)
+	}
+
+	return acct, nil
+}
+
 // initializeHyperlane7683 starts the Hyperlane 7683 solver
 func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
-	// Create filler
-	hyperlane7683Filler := contracts.NewHyperlane7683Filler(sm.client)
-	hyperlane7683Filler.AddDefaultRules()
+	// Create isolver with the first available EVM client
+	var defaultEVMClient *ethclient.Client
+	for _, client := range sm.evmClients {
+		defaultEVMClient = client
+		break
+	}
+	if defaultEVMClient == nil {
+		return fmt.Errorf("no EVM clients available")
+	}
+
+	// Create solver with client and signer getter functions
+	hyperlane7683Solver := contracts.NewHyperlane7683Solver(
+		sm.GetEVMClient,      // EVM client getter
+		sm.GetStarknetClient, // Starknet client getter
+		sm.GetEVMSigner,      // EVM signer getter
+		sm.GetStarknetSigner, // Starknet signer getter
+	)
+	hyperlane7683Solver.AddDefaultRules()
 
 	// Event handler that processes intents
 	eventHandler := func(args types.ParsedArgs, originChainName string, blockNumber uint64) (bool, error) {
-		return hyperlane7683Filler.ProcessIntent(ctx, args, originChainName, blockNumber)
+		return hyperlane7683Solver.ProcessIntent(ctx, args)
 	}
 
 	// Start listeners for each intent source
@@ -102,7 +255,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			continue
 		}
 
-		var shutdown listener.ShutdownFunc
+		var shutdown base.ShutdownFunc
 
 		// Create appropriate listener based on chain type
 		if source == "Starknet" {
@@ -112,7 +265,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			}
 
 			// Create Starknet listener config
-			listenerConfig := listener.NewListenerConfig(
+			listenerConfig := base.NewListenerConfig(
 				hyperlaneAddr,
 				source,
 				big.NewInt(int64(networkConfig.SolverStartBlock)), // start from configured block
@@ -131,7 +284,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			}
 		} else {
 			// Create EVM listener config
-			listenerConfig := listener.NewListenerConfig(
+			listenerConfig := base.NewListenerConfig(
 				networkConfig.HyperlaneAddress.Hex(),
 				source,
 				big.NewInt(int64(networkConfig.SolverStartBlock)), // start from configured block
