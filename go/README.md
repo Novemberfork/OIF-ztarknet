@@ -157,9 +157,7 @@ The solver uses environment variables to manage:
 
 ## Running on Local Forks
 
-Besides an Alchemy API key, the `example.env` file has all of the values needed to run the solver locally on forks of Sepolia networks, just make sure you copy them over to a `.env` file. Make sure you have katana and anvil installed before continuing.
-
-For an efficient setup, it is recommended that you open 3 terminals and move each to the `go/` directory.
+Besides an Alchemy API key, the `example.env` file has all of the values needed to run the solver locally on forks of Sepolia networks, just make sure you copy them over to a `.env` file. Make sure you have katana and anvil installed before continuing. For an efficient setup, it is recommended that you open 3 terminals and move each to the `go/` directory.
 
 In the first terminal, run the following command to make sure the state file is clean and the binaries are built:
 
@@ -195,6 +193,22 @@ make open-random-evm-sn-order # Opens a random order from an EVM chain to Starkn
 make open-random-sn-order     # Opens a random order from Starknet to an EVM chain
 
 ```
+
+After an order is opened, you will see a single txn on the origin chain (this is the order being opened, allowances are set to infinity for Alice, so there is no need to set it again here). Right after this, you will see the solver detect the event and start processing it. Most of the time, this will lead to 3 transactions on the destination chain (approving the hyperlane contract to spend the solver's tokens, filling the order, then settling it). In some cases, you may see only 2 transactions (fill, settle) if the destination chain account already has enough allowance to cover the order amount (i.e solver was interrupted after approving but before filling).
+
+> ⚡Note: The full life-cycle of an order is as follows: 1) Opened on origin; Alice locks input tokens into the origin chain's hyperlane contract. 2) Fill on destination; solver sends output tokens to Alice's destination chain wallet, routed through the destination chain's hyperlane contract. 3) Settle on destination; prevents orders from being filled twice, triggers dispatch. 4) Then finally, the last step is to wait for the Hyperlane protocol to dispatch the settlement to the origin; releasing the lock input tokens to the solver on the origin chain. This last step is not handled by the solver.
+
+> ⚡Note: The current (live) Sepolia contracts allow for the solver to fully process EVM->EVM and EVM->Starknet orders; however, in order for Starknet->EVM orders to be fully processed, the Hyperlane team needs to register the Starknet domain on the EVM Hyperlane7683 contracts. Until this is done, the solver will fill the order and then skip the settlement txn. This is not an issue on local forks as the setup-forks command registers the Starknet domain on each EVM Hyperlane7683 contract by spoofing the caller. This functionality is dictated by the `.env` var `FORKING`. If set to `true`, the solver will assume it can call `settle` on the destination EVM chain for Starknet->EVM orders. If set to `false`, it will skip the settlement step for these orders.
+
+### Extra
+
+The solver is capable of back-filling events. You can try ending the solver process (terminal 2) and open some orders. Once you run the solver again, it will pick up the orders that were opened while it was offline and then continue polling live.
+
+If you stop the network forks process (terminal 1), each chain's state is lost. You will need to run the networks again, then run `make setup-forks` to redeploy the contracts, fund the accounts, and re-setup the forked contract states.
+
+The `SOLVER_START_BLOCK` for each network (in your `.env`) is the value of the last processed block when the `state/solver_state.json` file is created. This file, along with the latest block number determine the block range for event listener. If this file does not exist or is empty, it is initialized using the values in the `.env`.
+
+- Passing in a 0 for the start block tells the solver to not backfill any events and only listen for new ones. Any other number will be used as the starting block for backfilling. This works as expected when there is no state file created yet. Once this file is created it will be used to progress the block window. If you wish to jump back to the current block and skip backfilling again, run `make clean || make rebuild`. This will remove the state file so that it can be re-initialized from the `.env` values next time the solver is started.
 
 ## Extending
 
