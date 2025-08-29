@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	"github.com/NethermindEth/oif-starknet/go/internal/deployer"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -31,14 +31,13 @@ func main() {
 		log.Fatal("EVM_HYPERLANE_OWNER env var (owner/admin to impersonate) is required")
 	}
 
-	// Load centralized state (for Starknet router address)
-	state, err := deployer.GetDeploymentState()
-	if err != nil {
-		log.Fatalf("failed to read deployment state: %v", err)
-	}
-	snNet := state.Networks["Starknet"]
-	if snNet.HyperlaneAddress == "" {
-		log.Fatalf("Starknet Hyperlane address not found in deployment state")
+	// Initialize networks from config after .env is loaded
+	config.InitializeNetworks()
+	
+	// Get Starknet Hyperlane address from config (.env)
+	starknetHyperlaneAddr := os.Getenv("STARKNET_HYPERLANE_ADDRESS")
+	if starknetHyperlaneAddr == "" {
+		log.Fatalf("STARKNET_HYPERLANE_ADDRESS not found in .env file")
 	}
 
 	// Precompute destinations and routers per network
@@ -67,9 +66,9 @@ func main() {
 
 			if otherName == "Starknet" {
 				// Starknet router as raw 32-byte felt
-				rb := hexToBytes32(snNet.HyperlaneAddress)
+				rb := hexToBytes32(starknetHyperlaneAddr)
 				routerBytes = append(routerBytes, rb)
-				fmt.Printf("   🌉 Starknet domain %d -> router %s (0x%s)\n", dom, snNet.HyperlaneAddress, hex.EncodeToString(rb[:]))
+				fmt.Printf("   🌉 Starknet domain %d -> router %s (0x%s)\n", dom, starknetHyperlaneAddr, hex.EncodeToString(rb[:]))
 			} else {
 				// EVM router is 20-byte address left-padded to 32
 				evmAddr := config.Networks[otherName].HyperlaneAddress

@@ -27,14 +27,14 @@ echo "💡 All networks will fork mainnet with real infrastructure"
 echo "🛑 Use Ctrl+C to stop all networks"
 echo ""
 
-# Function to reset deployment state to fork block numbers
-reset_deployment_state() {
-	echo "🔄 Resetting deployment state to solver start block numbers..."
+# Function to reset solver state to fork block numbers
+reset_solver_state() {
+	echo "🔄 Resetting solver state to solver start block numbers..."
 
-	# Ensure state directory exists (local go/state/network_state)
-	STATE_DIR="state/network_state"
+	# Ensure solver state directory exists (local go/state/solver_state)
+	STATE_DIR="state/solver_state"
 	mkdir -p "$STATE_DIR"
-	STATE_FILE="$STATE_DIR/deployment-state.json"
+	STATE_FILE="$STATE_DIR/solver-state.json"
 
 	# Get values from environment variables with defaults
 	ETHEREUM_SOLVER_BLOCK=${ETHEREUM_SOLVER_START_BLOCK:-8319000}
@@ -43,68 +43,43 @@ reset_deployment_state() {
 	BASE_SOLVER_BLOCK=${BASE_SOLVER_START_BLOCK:-25380000}
 	STARKNET_SOLVER_BLOCK=${STARKNET_SOLVER_START_BLOCK:-1530000}
 
-	# Get Hyperlane address from environment
-	EVM_HYPERLANE_ADDR=${EVM_HYPERLANE_ADDRESS:-"0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"}
-
-	# Get Permit2 address from environment
-	EVM_PERMIT2_ADDR=${EVM_PERMIT2_ADDRESS:-"0x000000000022D473030F116dDEE9F6B43aC78BA3"}
-
-	# Create the deployment state JSON with solver start blocks
+	# Create the solver state JSON with only last indexed blocks
+	# Note: All addresses and chain IDs now come from .env file via config package
 	cat >"$STATE_FILE" <<EOF
 {
   "networks": {
     "Ethereum": {
-      "chainId": ${ETHEREUM_CHAIN_ID:-11155111},
-      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
-      "orcaCoinAddress": "",
-      "dogCoinAddress": "",
       "lastIndexedBlock": ${ETHEREUM_SOLVER_BLOCK},
-      "lastUpdated": "now"
+      "lastUpdated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     },
     "Optimism": {
-      "chainId": ${OPTIMISM_CHAIN_ID:-11155420},
-      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
-      "orcaCoinAddress": "",
-      "dogCoinAddress": "",
       "lastIndexedBlock": ${OPTIMISM_SOLVER_BLOCK},
-      "lastUpdated": "now"
+      "lastUpdated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     },
     "Arbitrum": {
-      "chainId": ${ARBITRUM_CHAIN_ID:-421614},
-      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
-      "orcaCoinAddress": "",
-      "dogCoinAddress": "",
       "lastIndexedBlock": ${ARBITRUM_SOLVER_BLOCK},
-      "lastUpdated": "now"
+      "lastUpdated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     },
     "Base": {
-      "chainId": ${BASE_CHAIN_ID:-84532},
-      "hyperlaneAddress": "${EVM_HYPERLANE_ADDR}",
-      "orcaCoinAddress": "",
-      "dogCoinAddress": "",
       "lastIndexedBlock": ${BASE_SOLVER_BLOCK},
-      "lastUpdated": "now"
+      "lastUpdated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     },
     "Starknet": {
-      "chainId": ${STARKNET_CHAIN_ID:-23448591},
-      "hyperlaneAddress": "",
-      "orcaCoinAddress": "",
-      "dogCoinAddress": "",
       "lastIndexedBlock": ${STARKNET_SOLVER_BLOCK},
-      "lastUpdated": "now"
+      "lastUpdated": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     }
   }
 }
 EOF
 
-	echo "✅ Deployment state reset to solver start block numbers"
-	echo "🔧 Using environment variables:"
-	echo "   • EVM_HYPERLANE_ADDRESS: ${EVM_HYPERLANE_ADDR}"
+	echo "✅ Solver state reset to solver start block numbers"
+	echo "🔧 Using environment variables for solver start blocks:"
 	echo "   • ETHEREUM_SOLVER_START_BLOCK: ${ETHEREUM_SOLVER_BLOCK}"
 	echo "   • OPTIMISM_SOLVER_START_BLOCK: ${OPTIMISM_SOLVER_BLOCK}"
 	echo "   • ARBITRUM_SOLVER_START_BLOCK: ${ARBITRUM_SOLVER_BLOCK}"
 	echo "   • BASE_SOLVER_START_BLOCK: ${BASE_SOLVER_BLOCK}"
 	echo "   • STARKNET_SOLVER_START_BLOCK: ${STARKNET_SOLVER_BLOCK}"
+	echo "💡 All contract addresses and config come from .env file"
 }
 
 # Function to start a testnet fork with color-coded logging
@@ -264,8 +239,8 @@ trap cleanup SIGINT SIGTERM
 echo "🔧 Starting network forks..."
 echo ""
 
-# Reset deployment state to fork block numbers
-reset_deployment_state
+# Reset solver state to fork block numbers
+reset_solver_state
 
 # Check if ALCHEMY_API_KEY is set
 if [ -z "$ALCHEMY_API_KEY" ]; then
@@ -296,7 +271,7 @@ echo -e "${BASE_COLOR}${BASE_ID}${RESET} Base Fork              - http://localho
 echo -e "${STARKNET_COLOR}${STARKNET_ID}${RESET} Starknet Fork  - http://localhost:5050 (Chain ID: 23448591)"
 echo ""
 echo "💡 Networks will continue logging here..."
-echo "💡 Event listener will automatically start from fork blocks"
+echo "💡 Solver will automatically start from solver state blocks"
 echo "🛑 Press Ctrl+C to stop all networks"
 echo ""
 

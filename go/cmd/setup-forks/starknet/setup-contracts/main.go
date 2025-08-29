@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/NethermindEth/juno/core/felt"
@@ -15,7 +17,6 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	central "github.com/NethermindEth/oif-starknet/go/internal/deployer"
 )
 
 // getEnvWithDefault gets an environment variable with a default fallback
@@ -46,26 +47,32 @@ const (
 	UserFundingAmount = "100000000000000000000000"
 
 	// Default deployment file path
-	DeploymentFilePath = "state/network_state/starknet-mock-erc20-deployment.json"
+	DeploymentFilePath = "state/deployment/starknet-mock-erc20-deployment.json"
 )
 
-// loadCentralAddresses loads Hyperlane, OrcaCoin, DogCoin from centralized deployment state
-func loadCentralAddresses(networkName string) (hyperlane string, orca string, dog string, err error) {
-	state, e := central.GetDeploymentState()
-	if e != nil {
-		return "", "", "", fmt.Errorf("failed to read centralized deployment-state.json: %w", e)
+// loadCentralAddresses loads Hyperlane, DogCoin from .env variables
+func loadCentralAddresses(networkName string) (hyperlane string, dog string, err error) {
+	// Get addresses from environment variables
+	hyperlane = os.Getenv("STARKNET_HYPERLANE_ADDRESS")
+	dog = os.Getenv("STARKNET_DOG_COIN_ADDRESS")
+	
+	if hyperlane == "" {
+		return "", "", fmt.Errorf("STARKNET_HYPERLANE_ADDRESS not found in .env")
 	}
-	net, ok := state.Networks[networkName]
-	if !ok {
-		return "", "", "", fmt.Errorf("network %s not found in centralized state", networkName)
+	if dog == "" {
+		return "", "", fmt.Errorf("STARKNET_DOG_COIN_ADDRESS not found in .env")
 	}
-	return net.HyperlaneAddress, net.OrcaCoinAddress, net.DogCoinAddress, nil
+	
+	return hyperlane, dog, nil
 }
 
 func main() {
 	if err := godotenv.Load(); err != nil {
 		fmt.Println("⚠️  No .env file found, using environment variables")
 	}
+
+	// Initialize networks from centralized config after .env is loaded
+	config.InitializeNetworks()
 
 	fmt.Println("🚀 Setting up Starknet contracts: funding users and setting allowances...")
 
@@ -137,21 +144,19 @@ func main() {
 	}
 
 	// Load addresses from centralized deployment-state
-	hyperlaneAddr, orcaAddr, dogAddr, err := loadCentralAddresses(networkName)
+	hyperlaneAddr, dogAddr, err := loadCentralAddresses(networkName)
 	if err != nil {
 		panic(fmt.Sprintf("❌ Failed to load centralized addresses: %s", err))
 	}
 
 	// Prepare TokenInfo based on centralized state
-	orcaCoin := TokenInfo{Name: "OrcaCoin", Symbol: "ORCA", Address: orcaAddr}
 	dogCoin := TokenInfo{Name: "DogCoin", Symbol: "DOG", Address: dogAddr}
 
-	fmt.Printf("📋 OrcaCoin: %s\n", orcaCoin.Address)
 	fmt.Printf("📋 DogCoin: %s\n", dogCoin.Address)
 
 	// Fund test users
 	fmt.Println("\n💰 Funding test users...")
-	if err := fundUsers(accnt, orcaCoin, dogCoin, aliceAddress, solverAddress); err != nil {
+	if err := fundUsers(accnt, dogCoin, aliceAddress, solverAddress); err != nil {
 		panic(fmt.Sprintf("❌ Failed to fund users: %s", err))
 	}
 
@@ -159,28 +164,38 @@ func main() {
 	fmt.Println("\n🔐 Setting allowances for Hyperlane7683...")
 	fmt.Printf("   📋 Found Hyperlane7683 at: %s\n", hyperlaneAddr)
 	fmt.Println("   🔐 Setting allowances for Hyperlane7683...")
-	if err := setAllowances(accnt, orcaCoin, dogCoin, hyperlaneAddr, aliceAddress); err != nil {
+	if err := setAllowances(accnt, dogCoin, hyperlaneAddr, aliceAddress); err != nil {
 		panic(fmt.Sprintf("❌ Failed to set allowances: %s", err))
 	}
 
 	// Verify balances and allowances after everything is set
 	fmt.Printf("\n🔍 Verifying balances and allowances...\n")
-	if err := verifyBalancesAndAllowances(accnt, orcaCoin, dogCoin, hyperlaneAddr, aliceAddress, solverAddress); err != nil {
+	if err := verifyBalancesAndAllowances(accnt, dogCoin, hyperlaneAddr, aliceAddress, solverAddress); err != nil {
 		fmt.Printf("❌ Verification failed: %v\n", err)
 	} else {
 		fmt.Printf("✅ All verifications passed!\n")
 	}
 
+	// Update .env file with DogCoin address
+	if dogAddr != "" {
+		if err := updateEnvFile("STARKNET", dogAddr); err != nil {
+			fmt.Printf("⚠️  Warning: Failed to update .env file: %v\n", err)
+		} else {
+			fmt.Printf("📝 Updated .env with Starknet DogCoin address\n")
+		}
+	}
+
 	fmt.Printf("\n🎯 Starknet contract setup completed successfully!\n")
-	fmt.Printf("   • Users funded with tokens\n")
+	fmt.Printf("   • Users funded with DogCoin tokens\n")
 	fmt.Printf("   • Allowances set for Hyperlane7683\n")
+	fmt.Printf("   • Environment variables updated\n")
 	fmt.Printf("   • Ready for cross-chain operations!\n")
 }
 
 // loadTokenDeploymentInfo loads token deployment information from file
 func loadTokenDeploymentInfo(networkName string) ([]TokenInfo, error) {
 	// Try to read from deployment file
-	deploymentFile := fmt.Sprintf("mock_erc20_deployment_starknet.json")
+	deploymentFile := "mock_erc20_deployment_starknet.json"
 
 	// Check if deployment file exists
 	if _, err := os.Stat(deploymentFile); os.IsNotExist(err) {
@@ -205,8 +220,8 @@ func loadTokenDeploymentInfo(networkName string) ([]TokenInfo, error) {
 	return deployment.Tokens, nil
 }
 
-// fundUsers funds test users with tokens using the mint function
-func fundUsers(accnt *account.Account, orcaCoin, dogCoin TokenInfo, aliceAddr, solverAddr string) error {
+// fundUsers funds test users with DogCoin tokens using the mint function
+func fundUsers(accnt *account.Account, dogCoin TokenInfo, aliceAddr, solverAddr string) error {
 	users := []struct {
 		name    string
 		address string
@@ -215,27 +230,17 @@ func fundUsers(accnt *account.Account, orcaCoin, dogCoin TokenInfo, aliceAddr, s
 		{"Solver", solverAddr},
 	}
 
-	// Fund each user with both tokens
+	// Fund each user with DogCoin tokens
 	for _, user := range users {
 		fmt.Printf("   💸 Funding %s...\n", user.name)
 
 		// Check balance before minting
-		orcaBalanceBefore, err := getTokenBalance(accnt, orcaCoin.Address, user.address, "OrcaCoin")
-		if err != nil {
-			return fmt.Errorf("failed to get %s's OrcaCoin balance before minting: %w", user.name, err)
-		}
-
 		dogBalanceBefore, err := getTokenBalance(accnt, dogCoin.Address, user.address, "DogCoin")
 		if err != nil {
 			return fmt.Errorf("failed to get %s's DogCoin balance before minting: %w", user.name, err)
 		}
 
-		fmt.Printf("     📊 %s balances before: OrcaCoin=%s, DogCoin=%s\n", user.name, orcaBalanceBefore, dogBalanceBefore)
-
-		// Fund with OrcaCoin
-		if err := mintTokens(accnt, orcaCoin.Address, user.address, UserFundingAmount, "OrcaCoin"); err != nil {
-			return fmt.Errorf("failed to fund %s with OrcaCoin: %w", user.name, err)
-		}
+		fmt.Printf("     📊 %s balance before: DogCoin=%s\n", user.name, dogBalanceBefore)
 
 		// Fund with DogCoin
 		if err := mintTokens(accnt, dogCoin.Address, user.address, UserFundingAmount, "DogCoin"); err != nil {
@@ -243,28 +248,18 @@ func fundUsers(accnt *account.Account, orcaCoin, dogCoin TokenInfo, aliceAddr, s
 		}
 
 		// Check balance after minting
-		orcaBalanceAfter, err := getTokenBalance(accnt, orcaCoin.Address, user.address, "OrcaCoin")
-		if err != nil {
-			return fmt.Errorf("failed to get %s's OrcaCoin balance after minting: %w", user.name, err)
-		}
-
 		dogBalanceAfter, err := getTokenBalance(accnt, dogCoin.Address, user.address, "DogCoin")
 		if err != nil {
 			return fmt.Errorf("failed to get %s's DogCoin balance after minting: %w", user.name, err)
 		}
 
-		fmt.Printf("     📊 %s balances after: OrcaCoin=%s, DogCoin=%s\n", user.name, orcaBalanceAfter, dogBalanceAfter)
+		fmt.Printf("     📊 %s balance after: DogCoin=%s\n", user.name, dogBalanceAfter)
 
 		// Verify the minting actually worked
 		expectedAmount := new(big.Int)
 		expectedAmount.SetString(UserFundingAmount, 10)
 
-		orcaIncrease := new(big.Int).Sub(orcaBalanceAfter, orcaBalanceBefore)
 		dogIncrease := new(big.Int).Sub(dogBalanceAfter, dogBalanceBefore)
-
-		if orcaIncrease.Cmp(expectedAmount) != 0 {
-			return fmt.Errorf("OrcaCoin minting failed for %s: expected increase %s, got %s", user.name, expectedAmount.String(), orcaIncrease.String())
-		}
 
 		if dogIncrease.Cmp(expectedAmount) != 0 {
 			return fmt.Errorf("DogCoin minting failed for %s: expected increase %s, got %s", user.name, expectedAmount.String(), dogIncrease.String())
@@ -346,7 +341,7 @@ func mintTokens(accnt *account.Account, tokenAddress, recipient, amount, tokenNa
 // getHyperlaneAddress gets the Hyperlane contract address for the network
 func getHyperlaneAddress(networkName string) (string, error) {
 	// Try to read from deployment file
-	deploymentFile := fmt.Sprintf("state/network_state/starknet-deployment.json")
+	deploymentFile := "state/deployment/starknet-hyperlane7683-deployment.json"
 
 	// Check if deployment file exists
 	if _, err := os.Stat(deploymentFile); os.IsNotExist(err) {
@@ -411,8 +406,8 @@ func getTokenBalance(accnt *account.Account, tokenAddress, userAddress, tokenNam
 	return balanceBigInt, nil
 }
 
-// setAllowances sets unlimited allowances for users on tokens
-func setAllowances(accnt *account.Account, orcaCoin, dogCoin TokenInfo, hyperlaneAddress, aliceAddr string) error {
+// setAllowances sets unlimited allowances for users on DogCoin token
+func setAllowances(accnt *account.Account, dogCoin TokenInfo, hyperlaneAddress, aliceAddr string) error {
 	if hyperlaneAddress == "" {
 		fmt.Println("   ⚠️  No Hyperlane address provided, skipping allowance setup")
 		return nil
@@ -436,7 +431,7 @@ func setAllowances(accnt *account.Account, orcaCoin, dogCoin TokenInfo, hyperlan
 		{"Alice", aliceAddr, os.Getenv("STARKNET_ALICE_PRIVATE_KEY"), os.Getenv("STARKNET_ALICE_PUBLIC_KEY")},
 	}
 
-	// Set unlimited allowance for each user on both tokens
+	// Set unlimited allowance for each user on DogCoin
 	for _, user := range users {
 		fmt.Printf("     🔓 Setting %s allowances...\n", user.name)
 
@@ -464,12 +459,6 @@ func setAllowances(accnt *account.Account, orcaCoin, dogCoin TokenInfo, hyperlan
 		userAccnt, err := account.NewAccount(accnt.Provider, userAddrFelt, user.publicKey, userKs, account.CairoV2)
 		if err != nil {
 			return fmt.Errorf("failed to create account for %s: %w", user.name, err)
-		}
-
-		// Set unlimited allowance for OrcaCoin
-		fmt.Printf("       🪙 Approving OrcaCoin unlimited allowance...\n")
-		if err := approveUnlimited(userAccnt, orcaCoin.Address, userAddrFelt, hyperlaneAddrFelt, "OrcaCoin"); err != nil {
-			return fmt.Errorf("failed to approve OrcaCoin for %s: %w", user.name, err)
 		}
 
 		// Set unlimited allowance for DogCoin
@@ -531,7 +520,7 @@ func approveUnlimited(accnt *account.Account, tokenAddress string, ownerAddrFelt
 }
 
 // verifyBalancesAndAllowances verifies that users have the expected balances and allowances
-func verifyBalancesAndAllowances(accnt *account.Account, orcaCoin, dogCoin TokenInfo, hyperlaneAddress, aliceAddr, solverAddr string) error {
+func verifyBalancesAndAllowances(accnt *account.Account, dogCoin TokenInfo, hyperlaneAddress, aliceAddr, solverAddr string) error {
 	// Expected increase in balance after funding
 	expectedIncrease := new(big.Int)
 	expectedIncrease.SetString(UserFundingAmount, 10)
@@ -549,44 +538,20 @@ func verifyBalancesAndAllowances(accnt *account.Account, orcaCoin, dogCoin Token
 	for _, user := range users {
 		fmt.Printf("     🔍 Verifying %s...\n", user.name)
 
-		// Check OrcaCoin balance
-		orcaBalance, err := getTokenBalance(accnt, orcaCoin.Address, user.addr, "OrcaCoin")
-		if err != nil {
-			return fmt.Errorf("failed to get %s's OrcaCoin balance: %w", user.name, err)
-		}
-
 		// Check DogCoin balance
 		dogBalance, err := getTokenBalance(accnt, dogCoin.Address, user.addr, "DogCoin")
 		if err != nil {
 			return fmt.Errorf("failed to get %s's DogCoin balance: %w", user.name, err)
 		}
 
-		// Verify that balances are at least the expected amount (they might have had existing tokens)
-		if orcaBalance.Cmp(expectedIncrease) < 0 {
-			return fmt.Errorf("%s's OrcaCoin balance too low: expected at least %s, got %s", user.name, expectedIncrease.String(), orcaBalance.String())
-		}
-		fmt.Printf("       ✅ OrcaCoin: %s (at least %s)\n", formatTokenAmount(orcaBalance), formatTokenAmount(expectedIncrease))
-
+		// Verify that balance is at least the expected amount (they might have had existing tokens)
 		if dogBalance.Cmp(expectedIncrease) < 0 {
 			return fmt.Errorf("%s's DogCoin balance too low: expected at least %s, got %s", user.name, expectedIncrease.String(), dogBalance.String())
 		}
 		fmt.Printf("       ✅ DogCoin: %s (at least %s)\n", formatTokenAmount(dogBalance), formatTokenAmount(expectedIncrease))
 
-		// Check allowances if Hyperlane address is available and user is Alice
+		// Check allowance if Hyperlane address is available and user is Alice
 		if hyperlaneAddress != "" && user.name == "Alice" {
-			// Check OrcaCoin allowance
-			orcaAllowance, err := getTokenAllowance(accnt, orcaCoin.Address, user.addr, hyperlaneAddress, "OrcaCoin")
-			if err != nil {
-				return fmt.Errorf("failed to get %s's OrcaCoin allowance: %w", user.name, err)
-			}
-
-			// Debug: Show the actual allowance value
-			if orcaAllowance.Cmp(big.NewInt(0)) == 0 {
-				fmt.Printf("       ⚠️  OrcaCoin allowance: %s (this might indicate an issue)\n", formatTokenAmount(orcaAllowance))
-			} else {
-				fmt.Printf("       ✅ OrcaCoin allowance: %s\n", formatTokenAmount(orcaAllowance))
-			}
-
 			// Check DogCoin allowance
 			dogAllowance, err := getTokenAllowance(accnt, dogCoin.Address, user.addr, hyperlaneAddress, "DogCoin")
 			if err != nil {
@@ -678,107 +643,59 @@ func formatTokenAmount(amount *big.Int) string {
 	return tokens.Text('f', 0) + " tokens"
 }
 
-// testAllowanceReading is a simple test function to debug allowance reading
-func testAllowanceReading() {
-	fmt.Println("🧪 Testing allowance reading...")
+// updateEnvFile updates the .env file with the deployed DogCoin address for the given network
+func updateEnvFile(networkName, dogCoinAddress string) error {
+	envFile := ".env"
 
-	// Load token addresses from deployment file
-	tokens, err := loadTokenDeploymentInfo("Starknet")
+	// If .env doesn't exist, try to copy from .example.env
+	if _, err := os.Stat(envFile); os.IsNotExist(err) {
+		if _, err := os.Stat(".example.env"); err == nil {
+			// Copy .example.env to .env
+			input, err := os.ReadFile(".example.env")
+			if err != nil {
+				return fmt.Errorf("failed to read .example.env: %w", err)
+			}
+			if err := os.WriteFile(envFile, input, 0644); err != nil {
+				return fmt.Errorf("failed to create .env from .example.env: %w", err)
+			}
+			fmt.Printf("   📝 Created .env from .example.env\\n")
+		} else {
+			return fmt.Errorf(".env file does not exist and .example.env not found")
+		}
+	}
+
+	// Read current .env content
+	content, err := os.ReadFile(envFile)
 	if err != nil {
-		fmt.Printf("❌ Failed to load token addresses: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to read .env file: %w", err)
 	}
 
-	// Load Hyperlane address from deployment file
-	data, err := os.ReadFile("state/network_state/starknet-deployment.json")
-	if err != nil {
-		fmt.Printf("❌ Failed to load Hyperlane address: %v\n", err)
-		os.Exit(1)
+	// Determine the environment variable name based on network
+	var envVarName string
+	switch strings.ToUpper(networkName) {
+	case "STARKNET":
+		envVarName = "STARKNET_DOG_COIN_ADDRESS"
+	default:
+		return fmt.Errorf("unknown network name: %s", networkName)
 	}
 
-	var deployment struct {
-		DeployedAddress string `json:"deployedAddress"`
-	}
-	if err := json.Unmarshal(data, &deployment); err != nil {
-		fmt.Printf("❌ Failed to parse Hyperlane deployment: %v\n", err)
-		os.Exit(1)
-	}
+	// Create regex pattern to find and replace the environment variable
+	pattern := regexp.MustCompile(fmt.Sprintf(`(?m)^%s=.*$`, envVarName))
+	newLine := fmt.Sprintf("%s=%s", envVarName, dogCoinAddress)
 
-	hyperlaneAddr := deployment.DeployedAddress
-
-	fmt.Printf("📋 Hyperlane address: %s\n", hyperlaneAddr)
-	fmt.Printf("📋 OrcaCoin: %s\n", tokens[0].Address)
-	fmt.Printf("📋 DogCoin: %s\n", tokens[1].Address)
-
-	// Test user (Alice)
-	// Alice's address (Katana default account)
-	aliceAddr := getEnvWithDefault("STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-
-	// Connect to Starknet RPC
-	client, err := rpc.NewProvider(os.Getenv("STARKNET_RPC_URL"))
-	if err != nil {
-		fmt.Printf("❌ Failed to connect to Starknet: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Test allowance reading for OrcaCoin
-	fmt.Printf("\n🔍 Testing OrcaCoin allowance for Alice -> Hyperlane7683...\n")
-
-	// Convert addresses to felt
-	tokenAddrFelt, _ := utils.HexToFelt(tokens[0].Address)
-	ownerAddrFelt, _ := utils.HexToFelt(aliceAddr)
-	spenderAddrFelt, _ := utils.HexToFelt(hyperlaneAddr)
-
-	// Build the allowance function call
-	allowanceCall := rpc.FunctionCall{
-		ContractAddress:    tokenAddrFelt,
-		EntryPointSelector: utils.GetSelectorFromNameFelt("allowance"),
-		Calldata:           []*felt.Felt{ownerAddrFelt, spenderAddrFelt},
-	}
-
-	fmt.Printf("   🔍 Calling allowance(owner=%s, spender=%s)\n", ownerAddrFelt.String(), spenderAddrFelt.String())
-
-	// Call the contract to get allowance
-	resp, err := client.Call(context.Background(), allowanceCall, rpc.WithBlockTag("latest"))
-	if err != nil {
-		fmt.Printf("   ❌ Failed to call allowance: %v\n", err)
-		return
-	}
-
-	// Show the full response
-	fmt.Printf("   🔍 Full allowance response: %d values\n", len(resp))
-	for i, val := range resp {
-		fmt.Printf("   🔍 Response[%d]: %s\n", i, val.String())
-	}
-
-	if len(resp) >= 2 {
-		// Convert low and high felts to big.Ints
-		lowBigInt := utils.FeltToBigInt(resp[0])
-		highBigInt := utils.FeltToBigInt(resp[1])
-
-		// Combine low and high into a single u256 value
-		shiftedHigh := new(big.Int).Lsh(highBigInt, 128)
-		totalAllowance := new(big.Int).Add(shiftedHigh, lowBigInt)
-
-		fmt.Printf("   ✅ Parsed allowance: %s\n", totalAllowance.String())
+	var newContent string
+	if pattern.Match(content) {
+		// Replace existing line
+		newContent = pattern.ReplaceAllString(string(content), newLine)
 	} else {
-		fmt.Printf("   ⚠️  Unexpected response format\n")
+		// Add new line at the end
+		newContent = string(content) + "\n" + newLine + "\n"
 	}
 
-	// Now let's try to set a small allowance and see if it works
-	fmt.Printf("\n🧪 Testing setting a small allowance...\n")
+	// Write updated content back to .env
+	if err := os.WriteFile(envFile, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write updated .env file: %w", err)
+	}
 
-	// Try to set allowance to 1000 tokens
-	smallAmount := new(big.Int).Mul(big.NewInt(1000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
-	lowFelt := utils.BigIntToFelt(smallAmount)
-	highFelt := new(felt.Felt) // 0 for small amounts
-
-	fmt.Printf("   🔍 Setting allowance to: low=%s, high=%s\n", lowFelt.String(), highFelt.String())
-
-	// Build the approve function call
-	fmt.Printf("   🔍 Calling approve(spender=%s, amount_low=%s, amount_high=%s)\n",
-		spenderAddrFelt.String(), lowFelt.String(), highFelt.String())
-
-	// Note: We can't actually send the transaction here without an account, but we can show the call data
-	fmt.Printf("   📝 Approve call data prepared (would need account to send)\n")
+	return nil
 }

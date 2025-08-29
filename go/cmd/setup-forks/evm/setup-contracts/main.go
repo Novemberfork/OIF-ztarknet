@@ -7,11 +7,12 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
 	erc20 "github.com/NethermindEth/oif-starknet/go/internal/contracts"
-	"github.com/NethermindEth/oif-starknet/go/internal/deployer"
+
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -23,15 +24,25 @@ import (
 	"github.com/joho/godotenv"
 )
 
-/// Deploys mock erc20 tokens, funds accounts, and sets allowances
+/// Deploys DogCoin token, funds accounts, and sets allowances
 
-// Network configuration - built from centralized config
-var networks = func() []struct {
+// Network configuration - built from centralized config after initialization
+var networks []struct {
 	name string
 	url  string
-} {
+}
+
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Initialize networks from centralized config after .env is loaded
+	config.InitializeNetworks()
+
+	// Build network list from centralized config
 	networkNames := config.GetNetworkNames()
-	networks := make([]struct {
+	networks = make([]struct {
 		name string
 		url  string
 	}, 0, len(networkNames))
@@ -50,13 +61,7 @@ var networks = func() []struct {
 			name: networkConfig.Name,
 			url:  networkConfig.RPCURL,
 		})
-	}
-	return networks
-}()
-
-func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
+		fmt.Printf("🔍 Using %s RPC URL: %s\n", networkConfig.Name, networkConfig.RPCURL)
 	}
 
 	deployerKeyHex := os.Getenv("DEPLOYER_PRIVATE_KEY")
@@ -90,7 +95,7 @@ func main() {
 
 	// Deploy tokens to all networks
 	for _, network := range networks {
-		fmt.Printf("\n🚀 Deploying tokens to %s...\n", network.name)
+		fmt.Printf("\n🚀 Deploying DogCoin to %s...\n", network.name)
 		fmt.Printf("   URL: %s\n", network.url)
 
 		client, err := ethclient.Dial(network.url)
@@ -99,15 +104,7 @@ func main() {
 			continue
 		}
 
-		// Deploy OrcaCoin (origin chain token)
-		orcaCoinAddress, err := deployERC20(client, deployerKey, "OrcaCoin", network.name)
-		if err != nil {
-			fmt.Printf("   ❌ Failed to deploy OrcaCoin: %v\n", err)
-			continue
-		}
-		fmt.Printf("   ✅ OrcaCoin deployed at: %s\n", orcaCoinAddress)
-
-		// Deploy DogCoin (destination chain token)
+		// Deploy DogCoin token
 		dogCoinAddress, err := deployERC20(client, deployerKey, "DogCoin", network.name)
 		if err != nil {
 			fmt.Printf("   ❌ Failed to deploy DogCoin: %v\n", err)
@@ -115,28 +112,30 @@ func main() {
 		}
 		fmt.Printf("   ✅ DogCoin deployed at: %s\n", dogCoinAddress)
 
-		// Save deployment state for this network
-		if err := deployer.UpdateNetworkState(network.name, orcaCoinAddress.Hex(), dogCoinAddress.Hex()); err != nil {
-			fmt.Printf("   ⚠️  Warning: Failed to save deployment state: %v\n", err)
+		// Note: Contract addresses are now managed via .env file, not deployment state
+		
+		// Update .env file with deployed address
+		if err := updateEnvFile(network.name, dogCoinAddress.Hex()); err != nil {
+			fmt.Printf("   ⚠️  Warning: Failed to update .env file: %v\n", err)
 		} else {
-			fmt.Printf("   💾 Deployment state saved for %s\n", network.name)
+			fmt.Printf("   📝 Updated .env with %s DogCoin address\n", network.name)
 		}
 
 		// Fund both Alice (order creator) and Solver (order solver)
-		if err := fundUsers(client, deployerKey, aliceKey, solverKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
+		if err := fundUsers(client, deployerKey, aliceKey, solverKey, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Failed to fund users: %v\n", err)
 			continue
 		}
 
 		// Set allowances for both Alice and Solver
-		if err := setAllowances(client, aliceKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
+		if err := setAllowances(client, aliceKey, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Failed to set allowances: %v\n", err)
 			continue
 		}
 
 		// Verify balances and allowances for both users
 		fmt.Printf("   🔍 Verifying balances and allowances...\n")
-		if err := verifyBalancesAndAllowances(client, aliceKey, solverKey, orcaCoinAddress, dogCoinAddress, network.name); err != nil {
+		if err := verifyBalancesAndAllowances(client, aliceKey, solverKey, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Verification failed: %v\n", err)
 			continue
 		}
@@ -147,10 +146,11 @@ func main() {
 	}
 
 	fmt.Printf("\n🎯 All networks configured!\n")
-	fmt.Printf("   • OrcaCoin and DogCoin deployed to all networks\n")
+	fmt.Printf("   • DogCoin deployed to all networks\n")
 	fmt.Printf("   • Alice funded with tokens (to open orders)\n")
 	fmt.Printf("   • Solver funded with tokens (to fill orders)\n")
 	fmt.Printf("   • Allowances set for Hyperlane7683\n")
+	fmt.Printf("   • Environment variables updated with deployed addresses\n")
 	fmt.Printf("   • Ready for Alice to open orders and Solver to fill them!\n")
 }
 
@@ -189,18 +189,12 @@ func deployERC20(client *ethclient.Client, privateKey *ecdsa.PrivateKey, symbol,
 	auth.GasLimit = uint64(5000000) // 5M gas
 
 	// Deploy the contract with constructor parameters: name, symbol, decimals, initialSupply
-	// For OrcaCoin: "OrcaCoin", "ORCA", 18, 420690000000000 * 10^18
 	// For DogCoin: "DogCoin", "DOG", 18, 420690000000000 * 10^18
 	var tokenName, tokenSymbol string
 	var decimals uint8
 	var initialSupply *big.Int
 
-	if symbol == "OrcaCoin" {
-		tokenName = "OrcaCoin"
-		tokenSymbol = "ORCA"
-		decimals = 18
-		initialSupply = new(big.Int).Mul(big.NewInt(420690000000000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
-	} else {
+	if symbol == "DogCoin" {
 		tokenName = "DogCoin"
 		tokenSymbol = "DOG"
 		decimals = 18
@@ -248,7 +242,70 @@ func deployERC20(client *ethclient.Client, privateKey *ecdsa.PrivateKey, symbol,
 	return address, nil
 }
 
-func fundUsers(client *ethclient.Client, deployerKey, aliceKey, solverKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
+// updateEnvFile updates the .env file with the deployed DogCoin address for the given network
+func updateEnvFile(networkName, dogCoinAddress string) error {
+	envFile := ".env"
+
+	// If .env doesn't exist, try to copy from .example.env
+	if _, err := os.Stat(envFile); os.IsNotExist(err) {
+		if _, err := os.Stat(".example.env"); err == nil {
+			// Copy .example.env to .env
+			input, err := os.ReadFile(".example.env")
+			if err != nil {
+				return fmt.Errorf("failed to read .example.env: %w", err)
+			}
+			if err := os.WriteFile(envFile, input, 0644); err != nil {
+				return fmt.Errorf("failed to create .env from .example.env: %w", err)
+			}
+			fmt.Printf("   📝 Created .env from .example.env\\n")
+		} else {
+			return fmt.Errorf(".env file does not exist and .example.env not found")
+		}
+	}
+
+	// Read current .env content
+	content, err := os.ReadFile(envFile)
+	if err != nil {
+		return fmt.Errorf("failed to read .env file: %w", err)
+	}
+
+	// Determine the environment variable name based on network
+	var envVarName string
+	switch strings.ToUpper(networkName) {
+	case "ETHEREUM":
+		envVarName = "ETHEREUM_DOG_COIN_ADDRESS"
+	case "OPTIMISM":
+		envVarName = "OPTIMISM_DOG_COIN_ADDRESS"
+	case "ARBITRUM":
+		envVarName = "ARBITRUM_DOG_COIN_ADDRESS"
+	case "BASE":
+		envVarName = "BASE_DOG_COIN_ADDRESS"
+	default:
+		return fmt.Errorf("unknown network name: %s", networkName)
+	}
+
+	// Create regex pattern to find and replace the environment variable
+	pattern := regexp.MustCompile(fmt.Sprintf(`(?m)^%s=.*$`, envVarName))
+	newLine := fmt.Sprintf("%s=%s", envVarName, dogCoinAddress)
+
+	var newContent string
+	if pattern.Match(content) {
+		// Replace existing line
+		newContent = pattern.ReplaceAllString(string(content), newLine)
+	} else {
+		// Add new line at the end
+		newContent = string(content) + "\n" + newLine + "\n"
+	}
+
+	// Write updated content back to .env
+	if err := os.WriteFile(envFile, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("failed to write updated .env file: %w", err)
+	}
+
+	return nil
+}
+
+func fundUsers(client *ethclient.Client, deployerKey, aliceKey, solverKey *ecdsa.PrivateKey, dogCoinAddress common.Address, networkName string) error {
 	fmt.Printf("   💰 Funding test users...\n")
 
 	// Get the ERC20 contract configuration
@@ -288,11 +345,6 @@ func fundUsers(client *ethclient.Client, deployerKey, aliceKey, solverKey *ecdsa
 	}
 
 	for _, user := range users {
-		fmt.Printf("     💸 Funding %s with OrcaCoins...\n", user.name)
-		if err := transferTokens(client, deployerAuth, orcaCoinAddress, parsedABI, user.key, userAmount); err != nil {
-			return fmt.Errorf("failed to fund %s with OrcaCoins: %w", user.name, err)
-		}
-
 		fmt.Printf("     💸 Funding %s with DogCoins...\n", user.name)
 		if err := transferTokens(client, deployerAuth, dogCoinAddress, parsedABI, user.key, userAmount); err != nil {
 			return fmt.Errorf("failed to fund %s with DogCoins: %w", user.name, err)
@@ -368,7 +420,7 @@ func transferTokens(client *ethclient.Client, auth *bind.TransactOpts, tokenAddr
 	return nil
 }
 
-func setAllowances(client *ethclient.Client, aliceKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
+func setAllowances(client *ethclient.Client, aliceKey *ecdsa.PrivateKey, dogCoinAddress common.Address, networkName string) error {
 	fmt.Printf("   🔐 Setting allowances for Hyperlane7683...\n")
 
 	// Get the ERC20 contract configuration
@@ -420,18 +472,6 @@ func setAllowances(client *ethclient.Client, aliceKey *ecdsa.PrivateKey, orcaCoi
 		nonce, err := client.PendingNonceAt(context.Background(), userAuth.From)
 		if err != nil {
 			return fmt.Errorf("failed to get nonce for %s: %w", user.name, err)
-		}
-
-		// Set unlimited allowance for OrcaCoin
-		fmt.Printf("       🪙 Approving OrcaCoin unlimited allowance...\n")
-		if err := approveUnlimited(client, userAuth, orcaCoinAddress, hyperlaneAddress, parsedABI, nonce, gasPrice); err != nil {
-			return fmt.Errorf("failed to approve OrcaCoin for %s: %w", user.name, err)
-		}
-
-		// Get fresh nonce for second transaction
-		nonce, err = client.PendingNonceAt(context.Background(), userAuth.From)
-		if err != nil {
-			return fmt.Errorf("failed to get fresh nonce for %s: %w", user.name, err)
 		}
 
 		// Set unlimited allowance for DogCoin
@@ -492,7 +532,7 @@ func approveUnlimited(client *ethclient.Client, auth *bind.TransactOpts, tokenAd
 }
 
 // verifyBalancesAndAllowances verifies that users have the expected balances and allowances
-func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, solverKey *ecdsa.PrivateKey, orcaCoinAddress, dogCoinAddress common.Address, networkName string) error {
+func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, solverKey *ecdsa.PrivateKey, dogCoinAddress common.Address, networkName string) error {
 
 	// Expected balance after funding
 	expectedBalance := new(big.Int).Mul(big.NewInt(100000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)) // 100,000 tokens
@@ -516,17 +556,7 @@ func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, solverKey *
 	for _, user := range users {
 		fmt.Printf("     🔍 Verifying %s...\n", user.name)
 
-		// Check OrcaCoin balance
 		userAddr := crypto.PubkeyToAddress(user.key.PublicKey)
-		orcaBalance, err := ethutil.ERC20Balance(client, orcaCoinAddress, userAddr)
-		if err != nil {
-			return fmt.Errorf("failed to get %s's OrcaCoin balance: %w", user.name, err)
-		}
-
-		if orcaBalance.Cmp(expectedBalance) != 0 {
-			return fmt.Errorf("%s's OrcaCoin balance mismatch: expected %s, got %s", user.name, expectedBalance.String(), orcaBalance.String())
-		}
-		fmt.Printf("       ✅ OrcaCoin: %s tokens\n", new(big.Float).Quo(new(big.Float).SetInt(orcaBalance), new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))).Text('f', 0))
 
 		// Check DogCoin balance
 		dogBalance, err := ethutil.ERC20Balance(client, dogCoinAddress, userAddr)
@@ -538,26 +568,18 @@ func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, solverKey *
 		}
 		fmt.Printf("       ✅ DogCoin: %s tokens\n", new(big.Float).Quo(new(big.Float).SetInt(dogBalance), new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))).Text('f', 0))
 
-		// Check OrcaCoin allowance
-		orcaAllowance, err := ethutil.ERC20Allowance(client, orcaCoinAddress, userAddr, hyperlaneAddress)
-		if err != nil {
-			return fmt.Errorf("failed to get %s's OrcaCoin allowance: %w", user.name, err)
+		// Check DogCoin allowance (only for Alice since only Alice sets allowances)
+		if user.name == "Alice" {
+			dogAllowance, err := ethutil.ERC20Allowance(client, dogCoinAddress, userAddr, hyperlaneAddress)
+			if err != nil {
+				return fmt.Errorf("failed to get %s's DogCoin allowance: %w", user.name, err)
+			}
+			maxAllowance := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)) // 2^256 - 1
+			if dogAllowance.Cmp(maxAllowance) != 0 {
+				return fmt.Errorf("%s's DogCoin allowance mismatch: expected unlimited, got %s", user.name, dogAllowance.String())
+			}
+			fmt.Printf("       ✅ DogCoin allowance: Unlimited\n")
 		}
-		maxAllowance := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)) // 2^256 - 1
-		if orcaAllowance.Cmp(maxAllowance) != 0 {
-			return fmt.Errorf("%s's OrcaCoin allowance mismatch: expected unlimited, got %s", user.name, orcaAllowance.String())
-		}
-		fmt.Printf("       ✅ OrcaCoin allowance: Unlimited\n")
-
-		// Check DogCoin allowance
-		dogAllowance, err := ethutil.ERC20Allowance(client, dogCoinAddress, userAddr, hyperlaneAddress)
-		if err != nil {
-			return fmt.Errorf("failed to get %s's DogCoin allowance: %w", user.name, err)
-		}
-		if dogAllowance.Cmp(maxAllowance) != 0 {
-			return fmt.Errorf("%s's DogCoin allowance mismatch: expected unlimited, got %s", user.name, dogAllowance.String())
-		}
-		fmt.Printf("       ✅ DogCoin allowance: Unlimited\n")
 	}
 
 	return nil

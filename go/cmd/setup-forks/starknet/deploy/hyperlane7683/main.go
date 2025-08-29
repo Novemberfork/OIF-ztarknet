@@ -17,12 +17,6 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	"github.com/NethermindEth/oif-starknet/go/internal/deployer"
-)
-
-// Default class hash file path
-const (
-	DeclarationFilePath = "state/network_state/starknet.json"
 )
 
 // DeclarationInfo represents the structure of the declaration file
@@ -37,6 +31,9 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		fmt.Println("⚠️  No .env file found, using environment variables")
 	}
+
+	// Initialize networks from centralized config after .env is loaded
+	config.InitializeNetworks()
 
 	fmt.Println("🚀 Deploying Hyperlane7683 contract to Starknet...")
 
@@ -84,7 +81,7 @@ func main() {
 	}
 
 	// Get class hash from declaration file or environment variable
-	classHash, err := getClassHash(networkName)
+	classHash, err := getClassHash()
 	if err != nil {
 		panic(fmt.Sprintf("❌ Failed to get class hash: %s", err))
 	}
@@ -160,12 +157,7 @@ func main() {
 	deployedAddress := utils.PrecomputeAddressForUDC(classHashFelt, salt, constructorCalldata, utils.UDCCairoV0, accnt.Address)
 	fmt.Printf("🏗️  Contract deployed at: %s\n", deployedAddress)
 
-	// Update deployment state
-	if err := deployer.UpdateHyperlaneAddress(networkName, deployedAddress.String()); err != nil {
-		fmt.Printf("⚠️  Failed to update deployment state: %s\n", err)
-	} else {
-		fmt.Printf("✅ Updated deployment state for %s\n", networkName)
-	}
+	// Note: Contract addresses are now managed via .env file, not deployment state
 
 	// Update .env file with deployed address
 	if err := updateEnvFile("STARKNET_HYPERLANE_ADDRESS", deployedAddress.String()); err != nil {
@@ -179,16 +171,16 @@ func main() {
 }
 
 // getClassHash retrieves the class hash from declaration file or environment variable
-func getClassHash(networkName string) (string, error) {
+func getClassHash() (string, error) {
 	// First try to get from environment variable
 	if envClassHash := os.Getenv("HYPERLANE7683_CLASS_HASH"); envClassHash != "" {
 		fmt.Printf("📋 Using class hash from environment variable: %s\n", envClassHash)
 		return envClassHash, nil
 	}
 
-	// Try to read from declaration file in canonical state directory
-	stateDir := filepath.Clean(filepath.Join("state", "network_state"))
-	declarationFile := filepath.Join(stateDir, fmt.Sprintf("starknet-hyperlane7683-declaration.json"))
+	// Try to read from declaration file in deployment directory
+	deploymentDir := filepath.Clean(filepath.Join("state", "deployment"))
+	declarationFile := filepath.Join(deploymentDir, "starknet-hyperlane7683-declaration.json")
 
 	// Read and parse declaration file
 	data, err := os.ReadFile(declarationFile)
@@ -225,14 +217,14 @@ func saveDeploymentInfo(classHash, deployedAddress, txHash, salt, networkName st
 		return
 	}
 
-	// Ensure canonical state directory exists
-	stateDir := filepath.Clean(filepath.Join("state", "network_state"))
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		fmt.Printf("⚠️  Failed to create state directory: %s\n", err)
+	// Ensure deployment directory exists
+	deploymentDir := filepath.Clean(filepath.Join("state", "deployment"))
+	if err := os.MkdirAll(deploymentDir, 0755); err != nil {
+		fmt.Printf("⚠️  Failed to create deployment directory: %s\n", err)
 		return
 	}
 
-	filename := filepath.Join(stateDir, fmt.Sprintf("starknet-hyperlane7683-deployment.json"))
+	filename := filepath.Join(deploymentDir, "starknet-hyperlane7683-deployment.json")
 	if err := os.WriteFile(filename, data, 0644); err != nil {
 		fmt.Printf("⚠️  Failed to save deployment info: %s\n", err)
 		return

@@ -29,6 +29,9 @@ func main() {
 		fmt.Println("⚠️  No .env file found, using environment variables")
 	}
 
+	// Initialize networks from centralized config after .env is loaded
+	config.InitializeNetworks()
+
 	fmt.Println("📋 Declaring Hyperlane7683 contract on Starknet...")
 
 	// Load environment variables
@@ -113,8 +116,11 @@ func main() {
 	if err != nil {
 		if strings.Contains(err.Error(), "is already declared") {
 			fmt.Println("✅ Contract already declared")
+			// Extract class hash from error message if possible, or just exit
+			fmt.Printf("⚠️  Contract is already declared, skipping\n")
 			return
 		}
+		panic(fmt.Sprintf("❌ Declaration failed: %s", err))
 	}
 
 	// Building and sending the declare transaction
@@ -147,14 +153,14 @@ func saveDeclarationInfo(txHash, classHash, networkName string) {
 		return
 	}
 
-	// Ensure canonical state directory exists (local go/state)
-	stateDir := filepath.Clean(filepath.Join("state", "network_state"))
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		fmt.Printf("⚠️  Failed to create state directory: %s\n", err)
+	// Ensure deployment directory exists (local go/state/deployment)
+	deploymentDir := filepath.Clean(filepath.Join("state", "deployment"))
+	if err := os.MkdirAll(deploymentDir, 0755); err != nil {
+		fmt.Printf("⚠️  Failed to create deployment directory: %s\n", err)
 		return
 	}
 
-	filename := filepath.Join(stateDir, fmt.Sprintf("starknet-hyperlane7683-declaration.json"))
+	filename := filepath.Join(deploymentDir, "starknet-hyperlane7683-declaration.json")
 	if err := os.WriteFile(filename, data, 0644); err != nil {
 		fmt.Printf("⚠️  Failed to save declaration info: %s\n", err)
 		return

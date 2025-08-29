@@ -17,13 +17,12 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	"github.com/NethermindEth/oif-starknet/go/internal/deployer"
 )
 
 // Token deployment configuration
 const (
-	// Default class hash file path (local go/state)
-	DeclarationFilePath = "state/network_state/starknet-mock-erc20-declaration.json"
+	// Default class hash file path (local go/state/deployment)
+	DeclarationFilePath = "state/deployment/starknet-mock-erc20-declaration.json"
 )
 
 // DeclarationInfo represents the structure of the declaration file
@@ -46,6 +45,9 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		fmt.Println("⚠️  No .env file found, using environment variables")
 	}
+
+	// Initialize networks from centralized config after .env is loaded
+	config.InitializeNetworks()
 
 	fmt.Println("🚀 Deploying MockERC20 tokens to Starknet...")
 
@@ -116,14 +118,6 @@ func main() {
 		panic(fmt.Sprintf("❌ Invalid class hash: %s", err))
 	}
 
-	// Deploy OrcaCoin (origin chain token)
-	fmt.Println("\n🪙 Deploying OrcaCoin...")
-	orcaCoinAddress, err := deployMockERC20(accnt, classHashFelt, "OrcaCoin", "ORCA", networkName)
-	if err != nil {
-		panic(fmt.Sprintf("❌ Failed to deploy OrcaCoin: %s", err))
-	}
-	fmt.Printf("✅ OrcaCoin deployed at: %s\n", orcaCoinAddress)
-
 	// Deploy DogCoin (destination chain token)
 	fmt.Println("\n🪙 Deploying DogCoin...")
 	dogCoinAddress, err := deployMockERC20(accnt, classHashFelt, "DogCoin", "DOG", networkName)
@@ -132,22 +126,20 @@ func main() {
 	}
 	fmt.Printf("✅ DogCoin deployed at: %s\n", dogCoinAddress)
 
-	// Save deployment state for this network
-	if err := deployer.UpdateNetworkState(networkName, orcaCoinAddress, dogCoinAddress); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to save deployment state: %v\n", err)
+	// Update .env file with deployed DogCoin address
+	if err := updateEnvFile("STARKNET_DOG_COIN_ADDRESS", dogCoinAddress); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to update .env file: %v\n", err)
 	} else {
-		fmt.Printf("💾 Deployment state saved for %s\n", networkName)
+		fmt.Printf("📝 Updated .env with STARKNET_DOG_COIN_ADDRESS=%s\n", dogCoinAddress)
 	}
 
 	// Save deployment info
 	tokens := []TokenInfo{
-		{Name: "OrcaCoin", Symbol: "ORCA", Address: orcaCoinAddress, ClassHash: classHash},
 		{Name: "DogCoin", Symbol: "DOG", Address: dogCoinAddress, ClassHash: classHash},
 	}
 	saveDeploymentInfo(tokens, networkName)
 
 	fmt.Printf("\n🎯 MockERC20 tokens deployed successfully!\n")
-	fmt.Printf("   • OrcaCoin: %s\n", orcaCoinAddress)
 	fmt.Printf("   • DogCoin: %s\n", dogCoinAddress)
 	fmt.Printf("   • Ready for funding and approval setup!\n")
 }
@@ -214,9 +206,9 @@ func getClassHash(networkName string) (string, error) {
 		return envClassHash, nil
 	}
 
-	// Try to read from declaration file in canonical state directory, with fallback to legacy path
-	stateDir := filepath.Clean(filepath.Join("state", "network_state"))
-	declarationFile := filepath.Join(stateDir, fmt.Sprintf("starknet-mock-erc20-declaration.json"))
+	// Try to read from declaration file in deployment directory, with fallback to legacy path
+	deploymentDir := filepath.Clean(filepath.Join("state", "deployment"))
+	declarationFile := filepath.Join(deploymentDir, "starknet-mock-erc20-declaration.json")
 
 	// Check if declaration file exists
 	if _, err := os.Stat(declarationFile); os.IsNotExist(err) {
@@ -224,7 +216,7 @@ func getClassHash(networkName string) (string, error) {
 		if _, err := os.Stat(DeclarationFilePath); err == nil {
 			declarationFile = DeclarationFilePath
 		} else {
-			legacy := fmt.Sprintf("mock_erc20_declaration_starknet.json")
+			legacy := "mock_erc20_declaration_starknet.json"
 			if _, err := os.Stat(legacy); err == nil {
 				declarationFile = legacy
 			} else {
@@ -266,14 +258,14 @@ func saveDeploymentInfo(tokens []TokenInfo, networkName string) {
 		return
 	}
 
-	// Ensure canonical state directory exists
-	stateDir := filepath.Clean(filepath.Join("state", "network_state"))
-	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		fmt.Printf("⚠️  Failed to create state directory: %s\n", err)
+	// Ensure deployment directory exists
+	deploymentDir := filepath.Clean(filepath.Join("state", "deployment"))
+	if err := os.MkdirAll(deploymentDir, 0755); err != nil {
+		fmt.Printf("⚠️  Failed to create deployment directory: %s\n", err)
 		return
 	}
 
-	filename := filepath.Join(stateDir, fmt.Sprintf("%s-mock-erc20-deployment.json", sanitizeNetworkName(networkName)))
+	filename := filepath.Join(deploymentDir, fmt.Sprintf("%s-mock-erc20-deployment.json", sanitizeNetworkName(networkName)))
 	if err := os.WriteFile(filename, data, 0644); err != nil {
 		fmt.Printf("⚠️  Failed to save deployment info: %s\n", err)
 		return
@@ -289,4 +281,39 @@ func sanitizeNetworkName(name string) string {
 	s = strings.ReplaceAll(s, "/", "-")
 	s = strings.ReplaceAll(s, "_", "-")
 	return s
+}
+
+// updateEnvFile updates or adds an environment variable in the .env file
+func updateEnvFile(key, value string) error {
+	envFile := ".env"
+
+	// Read existing .env file if it exists
+	var lines []string
+	if data, err := os.ReadFile(envFile); err == nil {
+		lines = strings.Split(string(data), "\n")
+	}
+
+	// Look for existing key and update it
+	keyPrefix := key + "="
+	found := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, keyPrefix) {
+			lines[i] = keyPrefix + value
+			found = true
+			break
+		}
+	}
+
+	// If key not found, add it
+	if !found {
+		lines = append(lines, keyPrefix+value)
+	}
+
+	// Write back to .env file
+	content := strings.Join(lines, "\n")
+	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write .env file: %w", err)
+	}
+
+	return nil
 }
