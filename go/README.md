@@ -30,8 +30,6 @@ go/
 │   ├── contracts/                    # Go bindings/EVM code for contract interactions & deployments
 │   │   ├── erc20_contract.go         # ERC20 contract byte code and ABI
 │   │   └── hyperlane7683.go          # Hyperlane7683 contract bindings (EVM)
-│   ├── listener/                     # Event listening interface
-│   │   └── base_listener.go          # Base listener interface
 │   ├── logutil/                      # Terminal logging utilities
 │   ├── solvers/                      # Solver implementations
 │   │   └── hyperlane7683/            # Hyperlane7683 solver
