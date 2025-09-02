@@ -30,45 +30,24 @@ type RuleResult struct {
 }
 
 // Rule defines the interface for validation rules
-// T represents the input type for the rule (typically types.ParsedArgs)
-// R represents the result type (typically RuleResult)
-type Rule[T any, R any] interface {
-	Name() string
-	Evaluate(ctx context.Context, args T) R
-}
-
-// LegacyRule maintains backward compatibility with the old interface
-type LegacyRule interface {
+// This interface is designed for plugin architecture - anyone can implement custom rules
+type Rule interface {
 	Name() string
 	Evaluate(ctx context.Context, args types.ParsedArgs) RuleResult
 }
 
 // RulesEngine coordinates rule evaluation
-// T represents the input type for rules (typically types.ParsedArgs)
-// R represents the result type (typically RuleResult)
-type RulesEngine[T any, R any] struct {
-	rules []Rule[T, R]
+type RulesEngine struct {
+	rules []Rule
 }
 
-// LegacyRulesEngine maintains backward compatibility
-type LegacyRulesEngine struct {
-	rules []LegacyRule
-}
-
-// NewRulesEngine creates a new legacy rules engine with default rules
-func NewRulesEngine() *LegacyRulesEngine {
-	return &LegacyRulesEngine{
-		rules: []LegacyRule{
+// NewRulesEngine creates a new rules engine with default rules
+func NewRulesEngine() *RulesEngine {
+	return &RulesEngine{
+		rules: []Rule{
 			&BalanceRule{},
 			&ProfitabilityRule{},
 		},
-	}
-}
-
-// NewGenericRulesEngine creates a new generic rules engine
-func NewGenericRulesEngine[T any, R any]() *RulesEngine[T, R] {
-	return &RulesEngine[T, R]{
-		rules: []Rule[T, R]{},
 	}
 }
 
