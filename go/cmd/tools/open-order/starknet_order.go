@@ -159,7 +159,6 @@ func RunStarknetOrder(command string) {
 func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 	fmt.Println("🎲 Opening Random Starknet Test Order...")
 
-
 	// Use configured Starknet network as origin
 	originChain := getEnvWithDefault("STARKNET_NETWORK_NAME", "Starknet")
 
@@ -171,8 +170,8 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 
 	// Random amounts
 	inputAmount := CreateTokenAmount(int64(rand.Intn(9901)+100), 18) // 100-10000 tokens
-	delta := big.NewInt(int64(rand.Intn(90) + 1))        // 1-90
-	outputAmount := new(big.Int).Sub(inputAmount, delta) // slightly less to ensure it's fillable
+	delta := big.NewInt(int64(rand.Intn(90) + 1))                    // 1-90
+	outputAmount := new(big.Int).Sub(inputAmount, delta)             // slightly less to ensure it's fillable
 
 	order := StarknetOrderConfig{
 		OriginChain:      originChain,

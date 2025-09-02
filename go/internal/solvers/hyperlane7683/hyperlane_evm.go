@@ -76,11 +76,11 @@ func (h *HyperlaneEVM) Fill(ctx context.Context, args types.ParsedArgs) (OrderAc
 		fmt.Printf("   ⚠️  Status check failed: %v\n", err)
 		return OrderActionError, err
 	}
-	
+
 	// Get network name for logging
 	networkName := logutil.NetworkNameByChainID(h.chainID)
 	logutil.LogStatusCheck(networkName, 1, 1, status, "UNKNOWN")
-	
+
 	if status == "FILLED" {
 		fmt.Printf("⏭️  Order already filled, proceeding to settlement\n")
 		return OrderActionSettle, nil
@@ -329,10 +329,10 @@ func (h *HyperlaneEVM) setupApprovals(ctx context.Context, args types.ParsedArgs
 		return fmt.Errorf("no fill instructions found")
 	}
 	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
-	
+
 	// Get origin chain ID for cross-chain logging
 	originChainID := args.ResolvedOrder.OriginChainID.Uint64()
-	logutil.CrossChainOperation("Setting up token approvals", originChainID, destinationChainID, args.OrderID)
+	//logutil.CrossChainOperation("Setting up token approvals", originChainID, destinationChainID, args.OrderID)
 
 	for _, maxSpent := range args.ResolvedOrder.MaxSpent {
 		// Skip native ETH (empty string)
@@ -488,9 +488,9 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 // waitForOrderStatus waits for the order status to become the expected value with retry logic
 func (h *HyperlaneEVM) waitForOrderStatus(ctx context.Context, args types.ParsedArgs, expectedStatus string, maxRetries int, initialDelay time.Duration) (string, error) {
 	delay := initialDelay
-	
+
 	networkName := logutil.NetworkNameByChainID(h.chainID)
-	
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		status, err := h.GetOrderStatus(ctx, args)
 		if err != nil {
@@ -501,7 +501,7 @@ func (h *HyperlaneEVM) waitForOrderStatus(ctx context.Context, args types.Parsed
 				return status, nil
 			}
 		}
-		
+
 		// Don't wait after the last attempt
 		if attempt < maxRetries {
 			logutil.LogRetryWait(networkName, attempt, maxRetries, delay.String())
@@ -514,12 +514,12 @@ func (h *HyperlaneEVM) waitForOrderStatus(ctx context.Context, args types.Parsed
 			}
 		}
 	}
-	
+
 	// Final attempt to get the current status
 	finalStatus, err := h.GetOrderStatus(ctx, args)
 	if err != nil {
 		return "UNKNOWN", fmt.Errorf("final status check failed after %d attempts: %w", maxRetries, err)
 	}
-	
+
 	return finalStatus, nil
 }

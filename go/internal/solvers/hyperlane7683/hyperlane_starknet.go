@@ -313,10 +313,10 @@ func (h *HyperlaneStarknet) setupApprovals(ctx context.Context, args types.Parse
 		return fmt.Errorf("no fill instructions found")
 	}
 	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
-	
+
 	// Get origin chain ID for cross-chain logging
 	originChainID := args.ResolvedOrder.OriginChainID.Uint64()
-	logutil.CrossChainOperation("Setting up token approvals", originChainID, destinationChainID, args.OrderID)
+	//logutil.CrossChainOperation("Setting up token approvals", originChainID, destinationChainID, args.OrderID)
 
 	for _, maxSpent := range args.ResolvedOrder.MaxSpent {
 		// Skip native ETH (empty string)
@@ -511,7 +511,7 @@ func (h *HyperlaneStarknet) ensureTokenApproval(ctx context.Context, tokenHex st
 // waitForOrderStatus waits for the order status to become the expected value with retry logic
 func (h *HyperlaneStarknet) waitForOrderStatus(ctx context.Context, args types.ParsedArgs, expectedStatus string, maxRetries int, initialDelay time.Duration) (string, error) {
 	delay := initialDelay
-	
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		status, err := h.GetOrderStatus(ctx, args)
 		if err != nil {
@@ -522,7 +522,7 @@ func (h *HyperlaneStarknet) waitForOrderStatus(ctx context.Context, args types.P
 				return status, nil
 			}
 		}
-		
+
 		// Don't wait after the last attempt
 		if attempt < maxRetries {
 			fmt.Printf("   ⏳ Waiting %v before retry %d/%d...\n", delay, attempt+1, maxRetries)
@@ -535,14 +535,12 @@ func (h *HyperlaneStarknet) waitForOrderStatus(ctx context.Context, args types.P
 			}
 		}
 	}
-	
+
 	// Final attempt to get the current status
 	finalStatus, err := h.GetOrderStatus(ctx, args)
 	if err != nil {
 		return "UNKNOWN", fmt.Errorf("final status check failed after %d attempts: %w", maxRetries, err)
 	}
-	
+
 	return finalStatus, nil
 }
-
-

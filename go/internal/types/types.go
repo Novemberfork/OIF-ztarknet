@@ -95,16 +95,22 @@ type RuleConfig struct {
 }
 
 // AllowBlockListItem represents a single allow/block list item
+// Use "*" as a wildcard to match any value for a field
+// Example: {SenderAddress: "*", DestinationDomain: "Ethereum", RecipientAddress: "*"}
+//          would allow/block all orders from any sender to any recipient on Ethereum
 type AllowBlockListItem struct {
-	SenderAddress     string `json:"senderAddress"`
-	DestinationDomain string `json:"destinationDomain"`
-	RecipientAddress  string `json:"recipientAddress"`
+	SenderAddress     string `json:"senderAddress"`     // Order sender address (use "*" for any)
+	DestinationDomain string `json:"destinationDomain"` // Destination chain name (use "*" for any)
+	RecipientAddress  string `json:"recipientAddress"`  // Order recipient address (use "*" for any)
 }
 
-// AllowBlockLists contains allow and block lists
+// AllowBlockLists contains allow and block lists for controlling order processing
+// BlockList: Orders matching these patterns will be rejected
+// AllowList: If specified, only orders matching these patterns will be processed
+//           If empty, all orders (not in BlockList) will be processed
 type AllowBlockLists struct {
-	AllowList []AllowBlockListItem `json:"allowList"`
-	BlockList []AllowBlockListItem `json:"blockList"`
+	AllowList []AllowBlockListItem `json:"allowList"` // Patterns to allow (empty = allow all)
+	BlockList []AllowBlockListItem `json:"blockList"` // Patterns to block
 }
 
 // Result represents a generic result with success/error handling
