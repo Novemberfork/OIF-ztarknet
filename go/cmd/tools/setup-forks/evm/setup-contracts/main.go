@@ -7,7 +7,7 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"regexp"
+
 	"strings"
 
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
@@ -114,12 +114,7 @@ func main() {
 
 		// Note: Contract addresses are now managed via .env file, not deployment state
 
-		// Update .env file with deployed address
-		if err := updateEnvFile(network.name, dogCoinAddress.Hex()); err != nil {
-			fmt.Printf("   ⚠️  Warning: Failed to update .env file: %v\n", err)
-		} else {
-			fmt.Printf("   📝 Updated .env with %s DogCoin address\n", network.name)
-		}
+		// Note: .env file updates removed - addresses should be set manually after live deployment
 
 		// Fund both Alice (order creator) and Solver (order solver)
 		if err := fundUsers(client, deployerKey, aliceKey, solverKey, dogCoinAddress, network.name); err != nil {
@@ -242,68 +237,7 @@ func deployERC20(client *ethclient.Client, privateKey *ecdsa.PrivateKey, symbol,
 	return address, nil
 }
 
-// updateEnvFile updates the .env file with the deployed DogCoin address for the given network
-func updateEnvFile(networkName, dogCoinAddress string) error {
-	envFile := ".env"
 
-	// If .env doesn't exist, try to copy from .example.env
-	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		if _, err := os.Stat(".example.env"); err == nil {
-			// Copy .example.env to .env
-			input, err := os.ReadFile(".example.env")
-			if err != nil {
-				return fmt.Errorf("failed to read .example.env: %w", err)
-			}
-			if err := os.WriteFile(envFile, input, 0644); err != nil {
-				return fmt.Errorf("failed to create .env from .example.env: %w", err)
-			}
-			fmt.Printf("   📝 Created .env from .example.env\\n")
-		} else {
-			return fmt.Errorf(".env file does not exist and .example.env not found")
-		}
-	}
-
-	// Read current .env content
-	content, err := os.ReadFile(envFile)
-	if err != nil {
-		return fmt.Errorf("failed to read .env file: %w", err)
-	}
-
-	// Determine the environment variable name based on network
-	var envVarName string
-	switch strings.ToUpper(networkName) {
-	case "ETHEREUM":
-		envVarName = "ETHEREUM_DOG_COIN_ADDRESS"
-	case "OPTIMISM":
-		envVarName = "OPTIMISM_DOG_COIN_ADDRESS"
-	case "ARBITRUM":
-		envVarName = "ARBITRUM_DOG_COIN_ADDRESS"
-	case "BASE":
-		envVarName = "BASE_DOG_COIN_ADDRESS"
-	default:
-		return fmt.Errorf("unknown network name: %s", networkName)
-	}
-
-	// Create regex pattern to find and replace the environment variable
-	pattern := regexp.MustCompile(fmt.Sprintf(`(?m)^%s=.*$`, envVarName))
-	newLine := fmt.Sprintf("%s=%s", envVarName, dogCoinAddress)
-
-	var newContent string
-	if pattern.Match(content) {
-		// Replace existing line
-		newContent = pattern.ReplaceAllString(string(content), newLine)
-	} else {
-		// Add new line at the end
-		newContent = string(content) + "\n" + newLine + "\n"
-	}
-
-	// Write updated content back to .env
-	if err := os.WriteFile(envFile, []byte(newContent), 0644); err != nil {
-		return fmt.Errorf("failed to write updated .env file: %w", err)
-	}
-
-	return nil
-}
 
 func fundUsers(client *ethclient.Client, deployerKey, aliceKey, solverKey *ecdsa.PrivateKey, dogCoinAddress common.Address, networkName string) error {
 	fmt.Printf("   💰 Funding test users...\n")

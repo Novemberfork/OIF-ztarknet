@@ -126,12 +126,7 @@ func main() {
 	}
 	fmt.Printf("✅ DogCoin deployed at: %s\n", dogCoinAddress)
 
-	// Update .env file with deployed DogCoin address
-	if err := updateEnvFile("STARKNET_DOG_COIN_ADDRESS", dogCoinAddress); err != nil {
-		fmt.Printf("⚠️  Warning: Failed to update .env file: %v\n", err)
-	} else {
-		fmt.Printf("📝 Updated .env with STARKNET_DOG_COIN_ADDRESS=%s\n", dogCoinAddress)
-	}
+	// Note: .env file updates removed - addresses should be set manually after live deployment
 
 	// Save deployment info
 	tokens := []TokenInfo{
@@ -283,37 +278,4 @@ func sanitizeNetworkName(name string) string {
 	return s
 }
 
-// updateEnvFile updates or adds an environment variable in the .env file
-func updateEnvFile(key, value string) error {
-	envFile := ".env"
 
-	// Read existing .env file if it exists
-	var lines []string
-	if data, err := os.ReadFile(envFile); err == nil {
-		lines = strings.Split(string(data), "\n")
-	}
-
-	// Look for existing key and update it
-	keyPrefix := key + "="
-	found := false
-	for i, line := range lines {
-		if strings.HasPrefix(line, keyPrefix) {
-			lines[i] = keyPrefix + value
-			found = true
-			break
-		}
-	}
-
-	// If key not found, add it
-	if !found {
-		lines = append(lines, keyPrefix+value)
-	}
-
-	// Write back to .env file
-	content := strings.Join(lines, "\n")
-	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write .env file: %w", err)
-	}
-
-	return nil
-}
