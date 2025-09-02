@@ -1,9 +1,13 @@
-package main
+package openorder
+
+// Starknet order creation logic - extracted from the original open-order/starknet/main.go
+// This handles creating orders on Starknet chains
 
 import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math/big"
 	"math/rand"
 	"os"
@@ -15,16 +19,13 @@ import (
 	"github.com/NethermindEth/starknet.go/rpc"
 	"github.com/NethermindEth/starknet.go/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/joho/godotenv"
 
-	githubConfig "github.com/NethermindEth/oif-starknet/go/internal/config"
+	"github.com/NethermindEth/oif-starknet/go/internal/config"
+	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 )
 
-// Network configuration - will be loaded from deployment state
-var networks []NetworkConfig
-
-// NetworkConfig represents a single network configuration
-type NetworkConfig struct {
+// NetworkConfig represents a single network configuration for Starknet
+type StarknetNetworkConfig struct {
 	name             string
 	url              string
 	chainID          uint64
@@ -32,157 +33,54 @@ type NetworkConfig struct {
 	dogCoinAddress   string
 }
 
-// loadNetworks loads network configuration from deployment state
-func loadNetworks() error {
-	// Base network entry - completely configurable via env vars
-	networks = []NetworkConfig{
-		{
-			name:             "Starknet",
-			url:              getEnvWithDefault("STARKNET_RPC_URL", "http://localhost:5050"),
-			chainID:          getEnvUint64("STARKNET_CHAIN_ID", 23448591),
-			hyperlaneAddress: "",
-			dogCoinAddress:   "",
-		},
-	}
-
-	// Check FORKING mode for address loading
-	// forkingStr := strings.ToLower(getEnvWithDefault("FORKING", "true"))
-	//isForking, _ := strconv.ParseBool(forkingStr)
-
-	//	if isForking {
-	//		// Local forks: Use deployment state
-	//		fmt.Printf("🔄 FORKING=true: Loading addresses from deployment state (fork mode)\n")
-	//		state, err := githubDeployer.GetDeploymentState()
-	//		if err == nil {
-	//			if sn, ok := state.Networks[starknetNetworkName]; ok {
-	//				for i := range networks {
-	//					if networks[i].name == starknetNetworkName {
-	//						networks[i].hyperlaneAddress = sn.HyperlaneAddress
-	//						networks[i].dogCoinAddress = sn.DogCoinAddress
-	//						fmt.Printf("   🔍 Loaded centralized state for %s\n", networks[i].name)
-	//						fmt.Printf("   🔍 Hyperlane7683: %s\n", networks[i].hyperlaneAddress)
-	//						fmt.Printf("   🔍 DogCoin: %s\n", networks[i].dogCoinAddress)
-	//						return nil
-	//					}
-	//				}
-	//			}
-	//		}
-	//	} else {
-	// Live networks: Use .env addresses
-	for i := range networks {
-		if networks[i].name == "Starknet" {
-			hyperlaneAddr := getEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")
-			dogAddr := getEnvWithDefault("STARKNET_DOG_COIN_ADDRESS", "")
-
-			if hyperlaneAddr == "" || dogAddr == "" {
-				return fmt.Errorf("missing STARKNET_HYPERLANE_ADDRESS or STARKNET_DOG_COIN_ADDRESS in .env")
-			}
-
-			networks[i].hyperlaneAddress = hyperlaneAddr
-			networks[i].dogCoinAddress = dogAddr
-			if dogAddr != "" {
-				fmt.Printf("   🔄 Using %s DogCoin from .env: %s\n", networks[i].name, dogAddr)
-			}
-			return nil
-		}
-		//		}
-	}
-
-	//// If neither mode loaded addresses successfully, try fallback to legacy files
-	// if networks[0].hyperlaneAddress == "" {
-	//	fmt.Printf("   ⚠️ Fallback: Trying legacy per-file state\n")
-	//	for i, network := range networks {
-	//		if network.name == starknetNetworkName {
-	//			if hyperlaneAddr, err := loadHyperlaneAddress(); err == nil && hyperlaneAddr != "" {
-	//				networks[i].hyperlaneAddress = hyperlaneAddr
-	//				fmt.Printf("   🔍 Loaded %s Hyperlane7683: %s\n", network.name, hyperlaneAddr)
-	//			}
-	//			if tokens, err := loadTokenAddresses(); err == nil {
-	//				for _, token := range tokens {
-	//					if token.Name == "DogCoin" {
-	//						networks[i].dogCoinAddress = token.Address
-	//						fmt.Printf("   🔍 Loaded %s DogCoin: %s\n", network.name, token.Address)
-	//					}
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
-
-	return nil
+// OrderConfig represents order configuration for Starknet
+type StarknetOrderConfig struct {
+	OriginChain      string
+	DestinationChain string
+	InputToken       string
+	OutputToken      string
+	InputAmount      *big.Int
+	OutputAmount     *big.Int
+	User             string
+	OpenDeadline     uint64
+	FillDeadline     uint64
 }
 
-//// loadHyperlaneAddress loads the Hyperlane7683 address from deployment file
-// func loadHyperlaneAddress() (string, error) {
-//	// Try multiple possible paths
-//	paths := []string{
-//		"state/network_state/starknet-sepolia-deployment.json",
-//		"../state/network_state/starknet-sepolia-deployment.json",
-//		"../../state/network_state/starknet-sepolia-deployment.json",
-//	}
-//
-//	for _, path := range paths {
-//		data, err := os.ReadFile(path)
-//		if err == nil {
-//			fmt.Printf("   🔍 Loaded Hyperlane address from: %s\n", path)
-//			var deployment struct {
-//				DeployedAddress string `json:"deployedAddress"`
-//			}
-//			if err := json.Unmarshal(data, &deployment); err != nil {
-//				continue
-//			}
-//			return deployment.DeployedAddress, nil
-//		}
-//	}
-//
-//	return "", fmt.Errorf("could not find Hyperlane deployment file in any of the expected paths")
-//}
-
-// loadTokenAddresses loads token addresses from deployment file
-// func loadTokenAddresses() ([]TokenInfo, error) {
-//	// Try multiple possible paths
-//	paths := []string{
-//		"state/network_state/starknet-mock-erc20-deployment.json",
-//		"../state/network_state/starknet-mock-erc20-deployment.json",
-//		"../../state/network_state/deployment-state.json",
-//	}
-//
-//	for _, path := range paths {
-//		data, err := os.ReadFile(path)
-//		if err == nil {
-//			fmt.Printf("   🔍 Loaded token addresses from: %s\n", path)
-//			var deployment struct {
-//				Tokens []TokenInfo `json:"tokens"`
-//			}
-//			if err := json.Unmarshal(data, &deployment); err != nil {
-//				continue
-//			}
-//			return deployment.Tokens, nil
-//		}
-//	}
-//
-//	return nil, fmt.Errorf("could not find token deployment file in any of the expected paths")
-//}
-
-// TokenInfo represents token deployment information
-type TokenInfo struct {
-	Name      string `json:"name"`
-	Symbol    string `json:"symbol"`
-	Address   string `json:"address"`
-	ClassHash string `json:"classHash"`
+// OrderData struct matching the Cairo OrderData
+type StarknetOrderData struct {
+	Sender             *felt.Felt
+	Recipient          *felt.Felt
+	InputToken         *felt.Felt
+	OutputToken        *felt.Felt
+	AmountIn           *big.Int
+	AmountOut          *big.Int
+	SenderNonce        *felt.Felt
+	OriginDomain       uint32
+	DestinationDomain  uint32
+	DestinationSettler *felt.Felt
+	OpenDeadline       uint64
+	FillDeadline       uint64
+	Data               []*felt.Felt
 }
 
-// Test user configuration (Alice-only for orders, Solver for fills)
-// NOTE: This gets initialized after .env is loaded to ensure addresses come from environment
-var testUsers []struct {
+// StarknetOnchainCrossChainOrder struct matching the Cairo interface
+type StarknetOnchainCrossChainOrder struct {
+	FillDeadline      uint64
+	OrderDataTypeLow  *felt.Felt
+	OrderDataTypeHigh *felt.Felt
+	OrderData         []*felt.Felt
+}
+
+// Test user configuration for Starknet
+var starknetTestUsers []struct {
 	name       string
 	privateKey string
 	address    string
 }
 
-// initializeTestUsers initializes the test user configuration after .env is loaded
-func initializeTestUsers() {
-	testUsers = []struct {
+// initializeStarknetTestUsers initializes the test user configuration after .env is loaded
+func initializeStarknetTestUsers() {
+	starknetTestUsers = []struct {
 		name       string
 		privateKey string
 		address    string
@@ -192,88 +90,75 @@ func initializeTestUsers() {
 	}
 }
 
-// Order configuration
-type OrderConfig struct {
-	OriginChain      string
-	DestinationChain string
-	InputToken       string
-	OutputToken      string
-	InputAmount      *big.Int
-	OutputAmount     *big.Int
-	User             string
-	OpenDeadline     uint64 // Changed from uint32 to uint64
-	FillDeadline     uint64 // Changed from uint32 to uint64
-}
+// loadStarknetNetworks loads network configuration from centralized config and environment variables
+func loadStarknetNetworks() []StarknetNetworkConfig {
+	// Initialize networks from centralized config after .env is loaded
+	config.InitializeNetworks()
 
-// OrderData struct matching the Cairo OrderData
-type OrderData struct {
-	Sender             *felt.Felt
-	Recipient          *felt.Felt
-	InputToken         *felt.Felt
-	OutputToken        *felt.Felt
-	AmountIn           *big.Int // Changed from *felt.Felt to *big.Int for u256 splitting
-	AmountOut          *big.Int // Changed from *felt.Felt to *big.Int for u256 splitting
-	SenderNonce        *felt.Felt
-	OriginDomain       uint32
-	DestinationDomain  uint32
-	DestinationSettler *felt.Felt
-	OpenDeadline       uint64       // Added missing field
-	FillDeadline       uint64       // Changed from uint32 to uint64
-	Data               []*felt.Felt // Empty for basic orders
-}
+	// Build networks from centralized config
+	networkNames := config.GetNetworkNames()
+	networks := make([]StarknetNetworkConfig, 0, len(networkNames))
 
-// OnchainCrossChainOrder struct matching the Cairo interface
-// NOTE: order_data_type is now u256 → two felts (low, high)
-type OnchainCrossChainOrder struct {
-	FillDeadline      uint64
-	OrderDataTypeLow  *felt.Felt
-	OrderDataTypeHigh *felt.Felt
-	OrderData         []*felt.Felt
-}
+	for _, networkName := range networkNames {
+		// Only include Starknet networks
+		if networkName != "Starknet" {
+			continue
+		}
 
-func main() {
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("⚠️  No .env file found, using environment variables")
+		networkConfig := config.Networks[networkName]
+
+		// Load addresses from environment variables
+		hyperlaneAddr := getEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")
+		dogAddr := getEnvWithDefault("STARKNET_DOG_COIN_ADDRESS", "")
+
+		if hyperlaneAddr == "" || dogAddr == "" {
+			log.Fatalf("missing STARKNET_HYPERLANE_ADDRESS or STARKNET_DOG_COIN_ADDRESS in .env")
+		}
+
+		fmt.Printf("   🔍 Loaded %s DogCoin from env: %s\n", networkName, dogAddr)
+
+		networks = append(networks, StarknetNetworkConfig{
+			name:             networkConfig.Name,
+			url:              networkConfig.RPCURL,
+			chainID:          networkConfig.ChainID,
+			hyperlaneAddress: hyperlaneAddr,
+			dogCoinAddress:   dogAddr,
+		})
 	}
 
-	// Initialize network configuration after loading .env
-	githubConfig.InitializeNetworks()
+	return networks
+}
+
+// RunStarknetOrder creates a Starknet order based on the command
+func RunStarknetOrder(command string) {
+	fmt.Println("🎯 Running Starknet order creation...")
+
+	// Load configuration (this loads .env and initializes networks)
+	_, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	// Initialize test users after .env is loaded
-	initializeTestUsers()
+	initializeStarknetTestUsers()
 
 	// Load network configuration
-	if err := loadNetworks(); err != nil {
-		fmt.Printf("❌ Failed to load networks: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Check command line arguments
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: open-starknet-order <command>")
-		fmt.Println("Commands:")
-		fmt.Println("  default       - Open default Starknet→EVM order")
-		os.Exit(1)
-	}
-
-	command := os.Args[1]
+	networks := loadStarknetNetworks()
 
 	switch command {
 	case "random":
-		openRandomOrder()
+		openRandomStarknetOrder(networks)
 	case "default":
-		openDefaultStarknetToEvm()
+		openDefaultStarknetToEvm(networks)
 	default:
-		fmt.Printf("Unknown command: %s\n", command)
-		os.Exit(1)
+		// Default to random Starknet order
+		openRandomStarknetOrder(networks)
 	}
 }
 
-func openRandomOrder() {
+func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 	fmt.Println("🎲 Opening Random Starknet Test Order...")
 
-	// Seed random number generator
-	rand.Seed(time.Now().UnixNano())
 
 	// Use configured Starknet network as origin
 	originChain := getEnvWithDefault("STARKNET_NETWORK_NAME", "Starknet")
@@ -285,12 +170,11 @@ func openRandomOrder() {
 	user := "Alice"
 
 	// Random amounts
-	inputAmount :=
-		new(big.Int).Mul(big.NewInt(int64(rand.Intn(9901)+100)), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)) // 100-10000 tokens
+	inputAmount := CreateTokenAmount(int64(rand.Intn(9901)+100), 18) // 100-10000 tokens
 	delta := big.NewInt(int64(rand.Intn(90) + 1))        // 1-90
 	outputAmount := new(big.Int).Sub(inputAmount, delta) // slightly less to ensure it's fillable
 
-	order := OrderConfig{
+	order := StarknetOrderConfig{
 		OriginChain:      originChain,
 		DestinationChain: destinationChain,
 		InputToken:       "DogCoin",
@@ -302,36 +186,36 @@ func openRandomOrder() {
 		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}
 
-	executeOrder(order)
+	executeStarknetOrder(order, networks)
 }
 
-func openDefaultStarknetToEvm() {
-	fmt.Println("🎯 Opening Default Starknet → EVM Test Order (Nonce: 3)...")
+func openDefaultStarknetToEvm(networks []StarknetNetworkConfig) {
+	fmt.Println("🎯 Opening Default Starknet → EVM Test Order...")
 
 	// Use configured networks instead of hardcoded names
 	originChain := getEnvWithDefault("STARKNET_NETWORK_NAME", "Starknet")
 	destinationChain := getEnvWithDefault("DEFAULT_EVM_DESTINATION", "Ethereum")
 
-	order := OrderConfig{
+	order := StarknetOrderConfig{
 		OriginChain:      originChain,
 		DestinationChain: destinationChain,
 		InputToken:       "DogCoin",
 		OutputToken:      "DogCoin",
-		InputAmount:      new(big.Int).Mul(big.NewInt(1000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)), // 1000 tokens
-		OutputAmount:     new(big.Int).Mul(big.NewInt(999), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)),  // 999 tokens
+		InputAmount:      CreateTokenAmount(1000, 18), // 1000 tokens
+		OutputAmount:     CreateTokenAmount(999, 18),  // 999 tokens
 		User:             "Alice",
 		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
 		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}
 
-	executeOrder(order)
+	executeStarknetOrder(order, networks)
 }
 
-func executeOrder(order OrderConfig) {
+func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkConfig) {
 	fmt.Printf("\n📋 Executing Order: %s → %s\n", order.OriginChain, order.DestinationChain)
 
 	// Find origin network (should be Starknet)
-	var originNetwork *NetworkConfig
+	var originNetwork *StarknetNetworkConfig
 	for _, network := range networks {
 		if network.name == order.OriginChain {
 			originNetwork = &network
@@ -362,7 +246,7 @@ func executeOrder(order OrderConfig) {
 
 	// Get user address
 	var userAddr string
-	for _, user := range testUsers {
+	for _, user := range starknetTestUsers {
 		if user.name == order.User {
 			userAddr = user.address
 			break
@@ -371,14 +255,14 @@ func executeOrder(order OrderConfig) {
 
 	// Get domains from config
 	var originDomain, destinationDomain uint32
-	if originConfig, err := githubConfig.GetHyperlaneDomain(order.OriginChain); err == nil {
+	if originConfig, err := config.GetHyperlaneDomain(order.OriginChain); err == nil {
 		originDomain = uint32(originConfig)
 	} else {
 		fmt.Printf("   ⚠️  Warning: Could not get origin domain from config, using chain ID\n")
 		originDomain = uint32(originNetwork.chainID)
 	}
 
-	if destConfig, err := githubConfig.GetHyperlaneDomain(order.DestinationChain); err == nil {
+	if destConfig, err := config.GetHyperlaneDomain(order.DestinationChain); err == nil {
 		destinationDomain = uint32(destConfig)
 	} else {
 		fmt.Printf("   ⚠️  Warning: Could not get destination domain from config\n")
@@ -390,9 +274,9 @@ func executeOrder(order OrderConfig) {
 	owner := userAddr
 
 	// Get initial balances
-	initialUserBalance, err := getTokenBalanceFromRPC(client, inputToken, owner)
+	initialUserBalance, err := starknetutil.ERC20Balance(client, inputToken, owner)
 	if err == nil {
-		fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", formatTokenAmount(initialUserBalance))
+		fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
 	} else {
 		fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
 	}
@@ -404,15 +288,15 @@ func executeOrder(order OrderConfig) {
 	senderNonce := big.NewInt(time.Now().UnixNano())
 
 	// Build the order data
-	orderData := buildOrderData(order, originNetwork, originDomain, destinationDomain, senderNonce, order.DestinationChain)
+	orderData := buildStarknetOrderData(order, originNetwork, originDomain, destinationDomain, senderNonce, order.DestinationChain)
 
-	// Build the OnchainCrossChainOrder with u256 order_data_type (low, high)
+	// Build the StarknetOnchainCrossChainOrder with u256 order_data_type (low, high)
 	lowHash, highHash := getOrderDataTypeHashU256()
-	crossChainOrder := OnchainCrossChainOrder{
+	crossChainOrder := StarknetOnchainCrossChainOrder{
 		FillDeadline:      order.FillDeadline,
 		OrderDataTypeLow:  lowHash,
 		OrderDataTypeHigh: highHash,
-		OrderData:         encodeOrderData(orderData),
+		OrderData:         encodeStarknetOrderData(orderData),
 	}
 
 	// Use generated bindings for open()
@@ -483,11 +367,11 @@ func executeOrder(order OrderConfig) {
 	}
 
 	fmt.Printf("   ✅ Order opened successfully!\n")
-	fmt.Printf("   🎯 Order ID: %s\n", calculateOrderId(orderData))
+	fmt.Printf("   🎯 Order ID: %s\n", calculateStarknetOrderId(orderData))
 
 	// Verify that balances actually changed as expected
 	fmt.Printf("   🔍 Verifying balance changes...\n")
-	if err := verifyBalanceChangesFromRPC(client, inputToken, owner, initialBalance, order.InputAmount); err != nil {
+	if err := verifyStarknetBalanceChanges(client, inputToken, owner, initialBalance, order.InputAmount); err != nil {
 		fmt.Printf("   ⚠️  Balance verification failed: %v\n", err)
 	} else {
 		fmt.Printf("   👍 Balance changes verified!\n")
@@ -496,10 +380,10 @@ func executeOrder(order OrderConfig) {
 	fmt.Printf("\n🎉 Order execution completed!\n")
 }
 
-func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, originDomain uint32, destinationDomain uint32, senderNonce *big.Int, destChainName string) OrderData {
+func buildStarknetOrderData(order StarknetOrderConfig, originNetwork *StarknetNetworkConfig, originDomain uint32, destinationDomain uint32, senderNonce *big.Int, destChainName string) StarknetOrderData {
 	// Get the actual user address for the specified user
 	var userAddr string
-	for _, user := range testUsers {
+	for _, user := range starknetTestUsers {
 		if user.name == order.User {
 			userAddr = user.address
 			break
@@ -540,7 +424,7 @@ func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, originDomai
 		outputTokenFelt, _ = utils.HexToFelt(originNetwork.dogCoinAddress)
 	} else {
 		// If destination is EVM, get DogCoin address from destination network config (.env)
-		if _, exists := githubConfig.Networks[destChainName]; exists {
+		if _, exists := config.Networks[destChainName]; exists {
 			dogCoinAddr := getEnvWithDefault(strings.ToUpper(destChainName)+"_DOG_COIN_ADDRESS", "")
 			if dogCoinAddr != "" {
 				// For EVM addresses, we need to left-pad to 32 bytes for Cairo ContractAddress
@@ -562,9 +446,9 @@ func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, originDomai
 
 	// Destination settler must be the EVM Hyperlane address for the destination network
 	destSettlerHex := ""
-	if staticAddr, err := githubConfig.GetHyperlaneAddress(destChainName); err == nil {
+	if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
 		destSettlerHex = staticAddr.Hex()
-	} else if destNetwork, exists := githubConfig.Networks[destChainName]; exists {
+	} else if destNetwork, exists := config.Networks[destChainName]; exists {
 		destSettlerHex = destNetwork.HyperlaneAddress.Hex()
 	}
 	if destSettlerHex == "" {
@@ -586,7 +470,7 @@ func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, originDomai
 		fmt.Printf("   🔍 EVM destination settler address padded to 32 bytes: %s\n", hex.EncodeToString(paddedAddr))
 	}
 
-	return OrderData{
+	return StarknetOrderData{
 		Sender:             userAddrFelt,
 		Recipient:          recipientFelt,
 		InputToken:         inputTokenFelt,
@@ -617,25 +501,7 @@ func getOrderDataTypeHashU256() (low *felt.Felt, high *felt.Felt) {
 	return utils.BigIntToFelt(lowBI), utils.BigIntToFelt(highBI)
 }
 
-func encodeOrderData(orderData OrderData) []*felt.Felt {
-	//// Log the input values for debugging
-	// fmt.Printf("   🧪 OrderData Input Debug:\n")
-	//fmt.Printf("     • sender: %s\n", orderData.Sender.String())
-	//fmt.Printf("     • recipient: %s\n", orderData.Recipient.String())
-	//fmt.Printf("     • input_token: %s\n", orderData.InputToken.String())
-	//fmt.Printf("     • output_token: %s\n", orderData.OutputToken.String())
-	//fmt.Printf("     • amount_in: %s\n", orderData.AmountIn.String())
-	//fmt.Printf("     • amount_out: %s\n", orderData.AmountOut.String())
-	//fmt.Printf("     • sender_nonce: %s\n", orderData.SenderNonce.String())
-	//fmt.Printf("     • origin_domain: %d (u32)\n", orderData.OriginDomain)
-	//fmt.Printf("     • destination_domain: %d (u32)\n", orderData.DestinationDomain)
-	//fmt.Printf("     • destination_settler: %s\n", orderData.DestinationSettler.String())
-	//fmt.Printf("     • fill_deadline: %d (u64)\n", orderData.FillDeadline)
-	//fmt.Printf("     • data: %d elements\n", len(orderData.Data))
-
-	// Build Solidity ABI-compatible bytes for OrderData
-	// Head (12 words of 32 bytes), then tail for bytes data (length + data padded)
-
+func encodeStarknetOrderData(orderData StarknetOrderData) []*felt.Felt {
 	leftPad := func(src []byte, size int) []byte {
 		if len(src) >= size {
 			return src[len(src)-size:]
@@ -690,7 +556,6 @@ func encodeOrderData(orderData OrderData) []*felt.Felt {
 	var raw []byte
 
 	// 0) Dynamic data offset (32 bytes) - this is the offset to where the data field starts
-	// In Solidity ABI encoding, this is the first field when you have dynamic data
 	writeWord(&raw, u32Word(32))
 
 	// 1) sender, recipient, input_token, output_token (bytes32)
@@ -715,11 +580,9 @@ func encodeOrderData(orderData OrderData) []*felt.Felt {
 	writeWord(&raw, u32Word(384))
 
 	// Tail: data length (32 bytes) then data padded to 32
-	// Currently no dynamic data, so encode zero length
 	writeWord(&raw, make([]byte, 0)) // length = 0 -> becomes 32 zero bytes
 
 	// Now wrap into Cairo Bytes: size, words_len, then 16-byte words as felts
-	// split into u128 words (16 bytes)
 	numElements := (len(raw) + 15) / 16
 	words := make([]*felt.Felt, 0, numElements)
 	for i := 0; i < len(raw); i += 16 {
@@ -749,60 +612,18 @@ func encodeOrderData(orderData OrderData) []*felt.Felt {
 	return bytesStruct
 }
 
-
-
-func calculateOrderId(orderData OrderData) string {
+func calculateStarknetOrderId(orderData StarknetOrderData) string {
 	// Generate a simple order ID for now
-	// In production, this should match the contract's order ID generation
 	return fmt.Sprintf("sn_order_%d", time.Now().UnixNano())
 }
 
-// getTokenBalance gets the balance of a token for a specific address using RPC
-func getTokenBalanceFromRPC(client rpc.RpcProvider, tokenAddress, userAddress string) (*big.Int, error) {
-	// Convert addresses to felt
-	tokenAddrFelt, err := utils.HexToFelt(tokenAddress)
-	if err != nil {
-		return nil, fmt.Errorf("invalid token address: %w", err)
-	}
-
-	userAddrFelt, err := utils.HexToFelt(userAddress)
-	if err != nil {
-		return nil, fmt.Errorf("invalid user address: %w", err)
-	}
-
-	// Build the balanceOf function call
-	balanceCall := rpc.FunctionCall{
-		ContractAddress:    tokenAddrFelt,
-		EntryPointSelector: utils.GetSelectorFromNameFelt("balanceOf"),
-		Calldata:           []*felt.Felt{userAddrFelt},
-	}
-
-	// Call the contract to get balance
-	resp, err := client.Call(context.Background(), balanceCall, rpc.WithBlockTag("latest"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to call balanceOf: %w", err)
-	}
-
-	if len(resp) == 0 {
-		return nil, fmt.Errorf("no response from balanceOf call")
-	}
-
-	// Convert felt response to big.Int
-	balanceFelt := resp[0]
-	balanceBigInt := utils.FeltToBigInt(balanceFelt)
-
-	return balanceBigInt, nil
-}
-
-
-
-// verifyBalanceChanges verifies that opening an order actually transferred tokens using RPC
-func verifyBalanceChangesFromRPC(client rpc.RpcProvider, tokenAddress, userAddress string, initialBalance, expectedTransferAmount *big.Int) error {
+// verifyStarknetBalanceChanges verifies that opening an order actually transferred tokens using RPC
+func verifyStarknetBalanceChanges(client rpc.RpcProvider, tokenAddress, userAddress string, initialBalance, expectedTransferAmount *big.Int) error {
 	// Wait a moment for the transaction to be fully processed
 	time.Sleep(2 * time.Second)
 
 	// Get final balance
-	finalUserBalance, err := getTokenBalanceFromRPC(client, tokenAddress, userAddress)
+	finalUserBalance, err := starknetutil.ERC20Balance(client, tokenAddress, userAddress)
 	if err != nil {
 		return fmt.Errorf("failed to get final user balance: %w", err)
 	}
@@ -812,52 +633,24 @@ func verifyBalanceChangesFromRPC(client rpc.RpcProvider, tokenAddress, userAddre
 
 	// Print balance changes
 	fmt.Printf("     💰 User balance change: %s → %s (Δ: %s)\n",
-		formatTokenAmount(initialBalance),
-		formatTokenAmount(finalUserBalance),
-		formatTokenAmount(userBalanceChange))
+		starknetutil.FormatTokenAmount(initialBalance, 18),
+		starknetutil.FormatTokenAmount(finalUserBalance, 18),
+		starknetutil.FormatTokenAmount(userBalanceChange, 18))
 
 	// Verify the change matches expectations
 	if userBalanceChange.Cmp(expectedTransferAmount) != 0 {
 		return fmt.Errorf("user balance decreased by %s, expected %s",
-			formatTokenAmount(userBalanceChange),
-			formatTokenAmount(expectedTransferAmount))
+			starknetutil.FormatTokenAmount(userBalanceChange, 18),
+			starknetutil.FormatTokenAmount(expectedTransferAmount, 18))
 	}
 
 	return nil
 }
 
-// formatTokenAmount formats a token amount for display (converts from wei to tokens)
-func formatTokenAmount(amount *big.Int) string {
-	// Convert from wei (18 decimals) to tokens
-	decimals := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
-	tokens := new(big.Float).Quo(new(big.Float).SetInt(amount), new(big.Float).SetInt(decimals))
-	return tokens.Text('f', 0) + " tokens"
-}
-
-// getEnvWithDefault gets an environment variable with a default fallback
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// getEnvUint64 gets an environment variable as uint64 with a default fallback
-func getEnvUint64(key string, defaultValue uint64) uint64 {
-	if value := os.Getenv(key); value != "" {
-		bi, ok := new(big.Int).SetString(value, 10)
-		if ok {
-			return bi.Uint64()
-		}
-		fmt.Printf("⚠️  Environment variable %s has invalid value: %s. Using default %d.\n", key, value, defaultValue)
-	}
-	return defaultValue
-}
-
 // getRandomDestinationChain gets a random destination chain from available networks
 func getRandomDestinationChain(originChain string) string {
 	// Get all available networks from the internal config
-	allNetworks := githubConfig.GetNetworkNames()
+	allNetworks := config.GetNetworkNames()
 
 	// Filter out the origin chain and non-EVM networks
 	var evmDestinations []string
