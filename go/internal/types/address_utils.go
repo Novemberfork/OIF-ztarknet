@@ -10,6 +10,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// Address length constants
+const (
+	StarknetAddressLength = 64
+	EthereumAddressLength = 40
+	StarknetAddressLengthWithPrefix = 62
+	EthereumAddressLengthWithPrefix = 42
+	Bytes32Length = 32
+	Bytes31Length = 31
+)
+
 // AddressConverter handles conversion between different address formats
 type AddressConverter struct{}
 
@@ -24,17 +34,17 @@ func ToEVMAddress(address string) (common.Address, error) {
 	cleanAddr := strings.TrimPrefix(address, "0x")
 
 	// If it's a 40-character hex string (EVM address), use directly
-	if len(cleanAddr) == 40 {
+	if len(cleanAddr) == EthereumAddressLength {
 		return common.HexToAddress(address), nil
 	}
 
 	// If it's a 64-character hex string (EVM bytes32 - 32 bytes), extract the address
-	if len(cleanAddr) == 64 {
+	if len(cleanAddr) == StarknetAddressLength {
 		bytes, err := hex.DecodeString(cleanAddr)
 		if err != nil {
 			return common.Address{}, fmt.Errorf("failed to decode bytes32 address: %w", err)
 		}
-		if len(bytes) != 32 {
+		if len(bytes) != Bytes32Length {
 			return common.Address{}, fmt.Errorf("invalid bytes32 address length: %d", len(bytes))
 		}
 		// Take last 20 bytes for EVM address (right-aligned)
@@ -60,12 +70,12 @@ func (ac *AddressConverter) ToBytes32(address string) ([32]byte, error) {
 	cleanAddr := strings.TrimPrefix(address, "0x")
 
 	// If it's already a 64-character hex string (bytes32), decode directly
-	if len(cleanAddr) == 64 {
+	if len(cleanAddr) == StarknetAddressLength {
 		bytes, err := hex.DecodeString(cleanAddr)
 		if err != nil {
 			return [32]byte{}, fmt.Errorf("failed to decode bytes32 address: %w", err)
 		}
-		if len(bytes) != 32 {
+		if len(bytes) != Bytes32Length {
 			return [32]byte{}, fmt.Errorf("invalid bytes32 address length: %d", len(bytes))
 		}
 		var result [32]byte
@@ -74,12 +84,12 @@ func (ac *AddressConverter) ToBytes32(address string) ([32]byte, error) {
 	}
 
 	// If it's a 62-character hex string (Starknet felt), pad to 32 bytes
-	if len(cleanAddr) == 62 {
+	if len(cleanAddr) == StarknetAddressLengthWithPrefix {
 		bytes, err := hex.DecodeString(cleanAddr)
 		if err != nil {
 			return [32]byte{}, fmt.Errorf("failed to decode Starknet address: %w", err)
 		}
-		if len(bytes) != 31 {
+		if len(bytes) != Bytes31Length {
 			return [32]byte{}, fmt.Errorf("invalid Starknet address length: %d", len(bytes))
 		}
 		var result [32]byte
@@ -88,7 +98,7 @@ func (ac *AddressConverter) ToBytes32(address string) ([32]byte, error) {
 	}
 
 	// If it's a 40-character hex string (EVM address), left-pad to 32 bytes
-	if len(cleanAddr) == 40 {
+	if len(cleanAddr) == EthereumAddressLength {
 		evmAddr := common.HexToAddress(address)
 		var result [32]byte
 		copy(result[12:], evmAddr.Bytes()) // Left-pad with 12 zero bytes
@@ -101,19 +111,19 @@ func (ac *AddressConverter) ToBytes32(address string) ([32]byte, error) {
 // IsStarknetAddress checks if an address string represents a Starknet address
 func (ac *AddressConverter) IsStarknetAddress(address string) bool {
 	cleanAddr := strings.TrimPrefix(address, "0x")
-	return len(cleanAddr) == 62
+	return len(cleanAddr) == StarknetAddressLengthWithPrefix
 }
 
 // IsEVMAddress checks if an address string represents an EVM address
 func (ac *AddressConverter) IsEVMAddress(address string) bool {
 	cleanAddr := strings.TrimPrefix(address, "0x")
-	return len(cleanAddr) == 40
+	return len(cleanAddr) == EthereumAddressLength
 }
 
 // IsBytes32Address checks if an address string represents a bytes32 address
 func (ac *AddressConverter) IsBytes32Address(address string) bool {
 	cleanAddr := strings.TrimPrefix(address, "0x")
-	return len(cleanAddr) == 64
+	return len(cleanAddr) == StarknetAddressLength
 }
 
 // FormatAddress formats an address string consistently

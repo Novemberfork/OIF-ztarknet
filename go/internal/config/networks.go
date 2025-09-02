@@ -7,6 +7,29 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// Network configuration constants
+const (
+	// Chain IDs
+	EthereumSepoliaChainID = 11155111
+	OptimismSepoliaChainID = 11155420
+	ArbitrumSepoliaChainID = 421614
+	BaseSepoliaChainID = 84532
+	StarknetSepoliaChainID = 23448591
+	
+	// Default block numbers
+	EthereumDefaultStartBlock = 8319000
+	OptimismDefaultStartBlock = 27370000
+	ArbitrumDefaultStartBlock = 138020000
+	BaseDefaultStartBlock = 25380000
+	StarknetDefaultStartBlock = 1530000
+	
+	// Default intervals
+	DefaultPollIntervalMs = 1000
+	StarknetDefaultPollIntervalMs = 2000
+	DefaultMaxBlockRange = 10
+	StarknetDefaultMaxBlockRange = 100
+)
+
 // NetworkConfig represents a single network configuration
 type NetworkConfig struct {
 	Name             string
@@ -39,8 +62,6 @@ func getEnvUint64(key string, defaultValue uint64) uint64 {
 	}
 	return defaultValue
 }
-
-
 
 // getEnvUint64Any returns the first present uint64 among keys, or defaultValue
 func getEnvUint64Any(keys []string, defaultValue uint64) uint64 {
@@ -98,62 +119,62 @@ func initializeNetworks() {
 		"Ethereum": {
 			Name:               "Ethereum",
 			RPCURL:             getEnvWithDefault("ETHEREUM_RPC_URL", "http://localhost:8545"),
-			ChainID:            getEnvUint64Any([]string{"ETHEREUM_CHAIN_ID", "SEPOLIA_CHAIN_ID"}, 11155111),
+			ChainID:            getEnvUint64Any([]string{"ETHEREUM_CHAIN_ID", "SEPOLIA_CHAIN_ID"}, EthereumSepoliaChainID),
 			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64Any([]string{"ETHEREUM_DOMAIN_ID", "SEPOLIA_DOMAIN_ID"}, 11155111),
-			ForkStartBlock:     getEnvUint64Any([]string{"ETHEREUM_SOLVER_START_BLOCK", "SEPOLIA_SOLVER_START_BLOCK"}, 8319000),
-			SolverStartBlock:   getEnvUint64Any([]string{"ETHEREUM_SOLVER_START_BLOCK", "SEPOLIA_SOLVER_START_BLOCK"}, 8319000),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", 1000),
+			HyperlaneDomain:    getEnvUint64Any([]string{"ETHEREUM_DOMAIN_ID", "SEPOLIA_DOMAIN_ID"}, EthereumSepoliaChainID),
+			ForkStartBlock:     getEnvUint64Any([]string{"ETHEREUM_SOLVER_START_BLOCK", "SEPOLIA_SOLVER_START_BLOCK"}, EthereumDefaultStartBlock),
+			SolverStartBlock:   getEnvUint64Any([]string{"ETHEREUM_SOLVER_START_BLOCK", "SEPOLIA_SOLVER_START_BLOCK"}, EthereumDefaultStartBlock),
+			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
 			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", 500),
+			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Optimism": {
 			Name:               "Optimism",
 			RPCURL:             getEnvWithDefault("OPTIMISM_RPC_URL", "http://localhost:8546"),
-			ChainID:            getEnvUint64("OPTIMISM_CHAIN_ID", 11155420),
+			ChainID:            getEnvUint64("OPTIMISM_CHAIN_ID", OptimismSepoliaChainID),
 			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64("OPTIMISM_DOMAIN_ID", 11155420),
-			ForkStartBlock:     getEnvUint64("OPTIMISM_SOLVER_START_BLOCK", 27370000),
-			SolverStartBlock:   getEnvUint64("OPTIMISM_SOLVER_START_BLOCK", 27370000),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", 1000),
+			HyperlaneDomain:    getEnvUint64("OPTIMISM_DOMAIN_ID", OptimismSepoliaChainID),
+			ForkStartBlock:     getEnvUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock),
+			SolverStartBlock:   getEnvUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock),
+			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
 			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", 500),
+			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Arbitrum": {
 			Name:               "Arbitrum",
 			RPCURL:             getEnvWithDefault("ARBITRUM_RPC_URL", "http://localhost:8547"),
-			ChainID:            getEnvUint64("ARBITRUM_CHAIN_ID", 421614),
+			ChainID:            getEnvUint64("ARBITRUM_CHAIN_ID", ArbitrumSepoliaChainID),
 			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64("ARBITRUM_DOMAIN_ID", 421614),
-			ForkStartBlock:     getEnvUint64("ARBITRUM_SOLVER_START_BLOCK", 138020000),
-			SolverStartBlock:   getEnvUint64("ARBITRUM_SOLVER_START_BLOCK", 138020000),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", 1000),
+			HyperlaneDomain:    getEnvUint64("ARBITRUM_DOMAIN_ID", ArbitrumSepoliaChainID),
+			ForkStartBlock:     getEnvUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock),
+			SolverStartBlock:   getEnvUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock),
+			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
 			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", 500),
+			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Base": {
 			Name:               "Base",
 			RPCURL:             getEnvWithDefault("BASE_RPC_URL", "http://localhost:8548"),
-			ChainID:            getEnvUint64("BASE_CHAIN_ID", 84532),
+			ChainID:            getEnvUint64("BASE_CHAIN_ID", BaseSepoliaChainID),
 			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64("BASE_DOMAIN_ID", 84532),
-			ForkStartBlock:     getEnvUint64("BASE_SOLVER_START_BLOCK", 25380000),
-			SolverStartBlock:   getEnvUint64("BASE_SOLVER_START_BLOCK", 25380000),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", 1000),
+			HyperlaneDomain:    getEnvUint64("BASE_DOMAIN_ID", BaseSepoliaChainID),
+			ForkStartBlock:     getEnvUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock),
+			SolverStartBlock:   getEnvUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock),
+			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
 			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", 500),
+			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Starknet": {
 			Name:               "Starknet",
 			RPCURL:             getEnvWithDefault("STARKNET_RPC_URL", "http://localhost:5050"),
-			ChainID:            getEnvUint64("STARKNET_CHAIN_ID", 23448591),
+			ChainID:            getEnvUint64("STARKNET_CHAIN_ID", StarknetSepoliaChainID),
 			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")),
-			HyperlaneDomain:    getEnvUint64("STARKNET_DOMAIN_ID", 23448591),
-			ForkStartBlock:     getEnvUint64("STARKNET_SOLVER_START_BLOCK", 1530000),
-			SolverStartBlock:   getEnvUint64("STARKNET_SOLVER_START_BLOCK", 1530000),
-			PollInterval:       getEnvInt("STARKNET_POLL_INTERVAL_MS", getEnvInt("POLL_INTERVAL_MS", 2000)),
+			HyperlaneDomain:    getEnvUint64("STARKNET_DOMAIN_ID", StarknetSepoliaChainID),
+			ForkStartBlock:     getEnvUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock),
+			SolverStartBlock:   getEnvUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock),
+			PollInterval:       getEnvInt("STARKNET_POLL_INTERVAL_MS", getEnvInt("POLL_INTERVAL_MS", StarknetDefaultPollIntervalMs)),
 			ConfirmationBlocks: getEnvUint64("STARKNET_CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("STARKNET_MAX_BLOCK_RANGE", getEnvUint64("MAX_BLOCK_RANGE", 100)),
+			MaxBlockRange:      getEnvUint64("STARKNET_MAX_BLOCK_RANGE", getEnvUint64("MAX_BLOCK_RANGE", StarknetDefaultMaxBlockRange)),
 		},
 	}
 	networksInitialized = true
