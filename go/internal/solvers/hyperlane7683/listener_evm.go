@@ -17,7 +17,6 @@ import (
 	"github.com/NethermindEth/oif-starknet/go/internal/base"
 	"github.com/NethermindEth/oif-starknet/go/internal/config"
 	contracts "github.com/NethermindEth/oif-starknet/go/internal/contracts"
-
 	"github.com/NethermindEth/oif-starknet/go/internal/logutil"
 	"github.com/NethermindEth/oif-starknet/go/internal/types"
 	"github.com/ethereum/go-ethereum"
@@ -175,7 +174,7 @@ func (l *evmListener) catchUpHistoricalBlocks(ctx context.Context, handler base.
 		if err := config.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
 			fmt.Printf("%s⚠️  Failed to persist LastIndexedBlock: %v\n", p, err)
 		} else {
-			fmt.Printf("%s💾 Persisted LastIndexedBlock=%d\n", p, newLast)
+			//fmt.Printf("%s💾 Persisted LastIndexedBlock=%d\n", p, newLast)
 		}
 	}
 
@@ -224,21 +223,33 @@ func (l *evmListener) processCurrentBlockRange(ctx context.Context, handler base
 		return nil
 	}
 
-	fmt.Printf("🧭 %s EVM range: from=%d to=%d (current=%d, conf=%d)\n", l.config.ChainName, fromBlock, toBlock, currentBlock, l.config.ConfirmationBlocks)
+	// Respect MaxBlockRange by chunking large ranges
+	chunkSize := l.config.MaxBlockRange
+	newLast := l.lastProcessedBlock
 
-	newLast, err := l.processBlockRange(ctx, fromBlock, toBlock, handler)
-	if err != nil {
-		return fmt.Errorf("failed to process blocks %d-%d: %v", fromBlock, toBlock, err)
+	for start := fromBlock; start <= toBlock; start += chunkSize {
+		end := start + chunkSize - 1
+		if end > toBlock {
+			end = toBlock
+		}
+
+		logutil.LogWithNetworkTag(l.config.ChainName, "🧭 EVM range: from=%d to=%d (current=%d, conf=%d)\n", start, end, currentBlock, l.config.ConfirmationBlocks)
+
+		chunkLast, err := l.processBlockRange(ctx, start, end, handler)
+		if err != nil {
+			return fmt.Errorf("failed to process blocks %d-%d: %v", start, end, err)
+		}
+
+		newLast = chunkLast
+		if err := config.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
+			fmt.Printf("⚠️  Failed to persist LastIndexedBlock for %s: %v\n", l.config.ChainName, err)
+		} else {
+			//fmt.Printf("💾 Persisted LastIndexedBlock=%d for %s\n", newLast, l.config.ChainName)
+		}
 	}
 
 	// Block processing complete
 	l.lastProcessedBlock = newLast
-	if err := config.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
-		fmt.Printf("⚠️  Failed to persist LastIndexedBlock for %s: %v\n", l.config.ChainName, err)
-	} else {
-		fmt.Printf("💾 Persisted LastIndexedBlock=%d for %s\n", newLast, l.config.ChainName)
-	}
-
 	return nil
 }
 
@@ -262,10 +273,8 @@ func (l *evmListener) processBlockRange(ctx context.Context, fromBlock, toBlock 
 		return l.lastProcessedBlock, fmt.Errorf("failed to filter logs: %w", err)
 	}
 
-	fmt.Printf("📩 %s logs found: %d\n", l.config.ChainName, len(logs))
-	if len(logs) > 0 {
-		fmt.Printf("📩 Found %d Open events on %s\n", len(logs), l.config.ChainName)
-	}
+	// Use the new logging system for reduced verbosity
+	logutil.LogBlockProcessing(l.config.ChainName, fromBlock, toBlock, len(logs))
 
 	// Group logs by block
 	byBlock := make(map[uint64][]ethtypes.Log)
@@ -304,7 +313,11 @@ func (l *evmListener) processBlockRange(ctx context.Context, fromBlock, toBlock 
 
 		// Mark block as processed
 		newLast = b
-		fmt.Printf("   ✅ Block %d processed: %d events\n", b, len(events))
+
+		// Only log individual blocks if there are events
+		if len(events) > 0 {
+			logutil.LogWithNetworkTag(l.config.ChainName, "   ✅ Block %d processed: %d events\n", b, len(events))
+		}
 	}
 
 	return newLast, nil

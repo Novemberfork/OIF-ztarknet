@@ -173,7 +173,7 @@ func (l *starknetListener) catchUpHistoricalBlocks(ctx context.Context, handler 
 		if err := config.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
 			fmt.Printf("%s⚠️  Failed to persist LastIndexedBlock: %v\n", p, err)
 		} else {
-			fmt.Printf("%s💾 Persisted LastIndexedBlock=%d\n", p, newLast)
+			//fmt.Printf("%s💾 Persisted LastIndexedBlock=%d\n", p, newLast)
 		}
 	}
 	fmt.Printf("%s✅ Historical block processing complete\n", p)
@@ -218,21 +218,33 @@ func (l *starknetListener) processCurrentBlockRange(ctx context.Context, handler
 		return nil
 	}
 
-	fmt.Printf("🧭 %s Starknet range: from=%d to=%d (current=%d, conf=%d)\n", l.config.ChainName, fromBlock, toBlock, currentBlock, l.config.ConfirmationBlocks)
+	// Respect MaxBlockRange by chunking large ranges
+	chunkSize := l.config.MaxBlockRange
+	newLast := l.lastProcessedBlock
 
-	newLast, err := l.processBlockRange(ctx, fromBlock, toBlock, handler)
-	if err != nil {
-		return fmt.Errorf("failed to process blocks %d-%d: %v", fromBlock, toBlock, err)
+	for start := fromBlock; start <= toBlock; start += chunkSize {
+		end := start + chunkSize - 1
+		if end > toBlock {
+			end = toBlock
+		}
+
+		logutil.LogWithNetworkTag(l.config.ChainName, "🧭 Starknet range: from=%d to=%d (current=%d, conf=%d)\n", start, end, currentBlock, l.config.ConfirmationBlocks)
+
+		chunkLast, err := l.processBlockRange(ctx, start, end, handler)
+		if err != nil {
+			return fmt.Errorf("failed to process blocks %d-%d: %v", start, end, err)
+		}
+
+		newLast = chunkLast
+		if err := config.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
+			fmt.Printf("⚠️  Failed to persist LastIndexedBlock for %s: %v\n", l.config.ChainName, err)
+		} else {
+			//fmt.Printf("💾 Persisted LastIndexedBlock=%d for %s\n", newLast, l.config.ChainName)
+		}
 	}
 
 	// Block processing complete
 	l.lastProcessedBlock = newLast
-	if err := config.UpdateLastIndexedBlock(l.config.ChainName, newLast); err != nil {
-		fmt.Printf("⚠️  Failed to persist LastIndexedBlock for %s: %v\n", l.config.ChainName, err)
-	} else {
-		fmt.Printf("💾 Persisted LastIndexedBlock=%d for %s\n", newLast, l.config.ChainName)
-	}
-
 	return nil
 }
 
@@ -261,7 +273,7 @@ func (l *starknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 		return l.lastProcessedBlock, fmt.Errorf("failed to filter events: %w", err)
 	}
 
-	fmt.Printf("📩 %s events found: %d\n", l.config.ChainName, len(logs.Events))
+	logutil.LogWithNetworkTag(l.config.ChainName, "📩 events found: %d\n", len(logs.Events))
 	if len(logs.Events) > 0 {
 		fmt.Printf("📩 Found %d Open events on %s\n", len(logs.Events), l.config.ChainName)
 	}
@@ -315,7 +327,10 @@ func (l *starknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 
 		// Mark block as processed
 		newLast = b
-		fmt.Printf("   ✅ Block %d processed: %d events\n", b, len(events))
+		// Only log individual blocks if there are events
+		if len(events) > 0 {
+			logutil.LogWithNetworkTag(l.config.ChainName, "   ✅ Block %d processed: %d events\n", b, len(events))
+		}
 	}
 
 	return newLast, nil
