@@ -3,7 +3,7 @@ package base
 import (
 	"context"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 )
 
 // Rule represents a rule that can be evaluated during intent processing

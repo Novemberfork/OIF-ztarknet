@@ -20,7 +20,7 @@ import (
 	"github.com/NethermindEth/starknet.go/utils"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 )
 

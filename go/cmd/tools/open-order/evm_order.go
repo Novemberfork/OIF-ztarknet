@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	contracts "github.com/NethermindEth/oif-starknet/go/internal/contracts"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
+	contracts "github.com/NethermindEth/oif-starknet/go/solvercore/contracts"
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"

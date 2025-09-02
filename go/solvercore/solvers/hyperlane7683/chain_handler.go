@@ -3,7 +3,7 @@ package hyperlane7683
 import (
 	"context"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 )
 
 // OrderAction represents what action should be taken after Fill

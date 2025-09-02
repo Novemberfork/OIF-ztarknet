@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 )
 
 const (

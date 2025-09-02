@@ -4,6 +4,7 @@
 help:
 	@echo "Available targets:"
 	@echo "  deps     - Install dependencies"
+	@echo "  dev-deps - Install development tools (linter, debugger)"
 	@echo "  build    - Build the solver binary"
 	@echo "  build-all - Build all tools (solver + network tools)"
 	@echo "  run      - Run the solver"
@@ -11,6 +12,7 @@ help:
 	@echo "  clean    - Clean build artifacts"
 	@echo "  rebuild  - Clean and rebuild everything"
 	@echo "  lint     - Run linter"
+	@echo "  lint-fix - Run linter with auto-fix"
 	@echo ""
 	@echo "Network Setup:"
 	@echo "  setup-forks              - Setup all forks (EVM and Starknet)"
@@ -49,9 +51,14 @@ deps:
 	go mod tidy
 	go mod download
 
+# Install development dependencies (linter, debugger, etc.)
+dev-deps:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/go-delve/delve/cmd/dlv@latest
+
 # Build the solver
 build:
-	go build -o bin/solver ./cmd/solver
+	go build -o bin/solver ./cmd/main.go
 
 # Clean all built binaries and solver state
 clean:
@@ -62,14 +69,14 @@ clean:
 	@echo "✅ Clean complete (solver will start from .env start blocks)"
 
 # Build all tools
-build-all: build build-verify-hyperlane build-setup-evm-contracts build-open-order build-open-starknet-order build-deploy-hyperlane7683 build-declare-hyperlane7683 build-declare-mock-erc20 build-deploy-mock-erc20 build-setup-starknet-contracts build-register-evm-routers build-register-sn-routers
+build-all: build build-verify-hyperlane build-setup-evm-contracts build-deploy-hyperlane7683 build-declare-hyperlane7683 build-declare-mock-erc20 build-deploy-mock-erc20 build-setup-starknet-contracts build-register-evm-routers build-register-sn-routers
 
 # Rebuild everything (clean + build)
 rebuild: clean build-all
 
 # Run the solver
 run: build
-	./bin/solver
+	./bin/solver solver
 
 # Start all testnet forks with color-coded logging
 start-networks:
@@ -124,23 +131,23 @@ build-register-sn-routers:
 	go build -o bin/register-sn-routers ./cmd/setup-forks/starknet/setup-contracts/register_routers
 
 # Default order commands for debugging (identical data except nonces)
-default-evm-order: build-open-order
-	./bin/open-order default-evm-evm
+default-evm-order: build
+	./bin/solver tools open-order evm
 
-default-evm-sn-order: build-open-order
-	./bin/open-order default-evm-sn
+default-evm-sn-order: build
+	./bin/solver tools open-order evm
 
-default-sn-order: build-open-starknet-order
-	./bin/open-starknet-order default
+default-sn-order: build
+	./bin/solver tools open-order starknet
 
-open-random-evm-order: build-open-order
-	./bin/open-order random-to-evm
+open-random-evm-order: build
+	./bin/solver tools open-order evm
 
-open-random-evm-sn-order: build-open-order
-	./bin/open-order random-to-sn
+open-random-evm-sn-order: build
+	./bin/solver tools open-order evm random-to-sn
 
-open-random-sn-order: build-open-starknet-order
-	./bin/open-starknet-order random
+open-random-sn-order: build
+	./bin/solver tools open-order starknet
 
 # Build Hyperlane7683 verification tool
 build-verify-hyperlane:
@@ -150,13 +157,8 @@ build-verify-hyperlane:
 build-setup-evm-contracts:
 	go build -o bin/setup-evm-contracts ./cmd/setup-forks/evm/setup-contracts
 
-# Build order opening tool
-build-open-order:
-	go build -o bin/open-order ./cmd/open-order/evm
-
-# Build Starknet order opening tool
-build-open-starknet-order:
-	go build -o bin/open-starknet-order ./cmd/open-order/starknet
+# Order opening is now handled by the single binary
+# build-open-order and build-open-starknet-order removed - use ./bin/solver tools open-order <chain>
 
 # Build Hyperlane7683 deployment tool
 build-deploy-hyperlane7683:
@@ -201,12 +203,17 @@ test:
 
 # Run linter
 lint:
-	golangci-lint run
+	$(HOME)/go/bin/golangci-lint run
 
-# Install development tools
-dev-deps:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install github.com/go-delve/delve/cmd/dlv@latest
+# Run linter with fix suggestions
+lint-fix:
+	$(HOME)/go/bin/golangci-lint run --fix
+
+# Run linter on specific package
+lint-pkg:
+	$(HOME)/go/bin/golangci-lint run ./solvercore/...
+
+
 
 # Run with hot reload (requires air)
 dev:
@@ -214,4 +221,4 @@ dev:
 
 # Generate mocks (if using mockery)
 mocks:
-	mockery --all --keeptree --output=./internal/mocks
+	mockery --all --keeptree --output=./solvercore/mocks

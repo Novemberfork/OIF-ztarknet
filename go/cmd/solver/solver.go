@@ -10,8 +10,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/NethermindEth/oif-starknet/go/internal"
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/sirupsen/logrus"
 )
@@ -53,7 +53,7 @@ func RunSolver() {
 	}()
 
 	// Initialize solver manager
-	solverManager := internal.NewSolverManager(cfg)
+	solverManager := solvercore.NewSolverManager(cfg)
 
 	// Start the solver
 	logrus.Info("🚀 Starting OIF Starknet Solver...")

@@ -20,10 +20,10 @@ import (
 	"github.com/NethermindEth/starknet.go/utils"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/base"
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	"github.com/NethermindEth/oif-starknet/go/internal/logutil"
-	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/base"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/logutil"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 )
 
 // Open event topic

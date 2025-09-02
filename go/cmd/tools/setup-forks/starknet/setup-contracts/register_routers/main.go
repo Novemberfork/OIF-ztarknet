@@ -14,7 +14,7 @@ import (
 	"github.com/NethermindEth/starknet.go/utils"
 	"github.com/joho/godotenv"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 )
 
 // Registers EVM routers and sets destination gas configs on Starknet Hyperlane using owner account

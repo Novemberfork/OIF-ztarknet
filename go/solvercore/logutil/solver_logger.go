@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 )
 
 // SolverLogger provides enhanced logging for solver operations

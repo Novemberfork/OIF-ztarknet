@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 )
 
 // EventHandler is a function that processes parsed event arguments

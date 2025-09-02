@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	"github.com/NethermindEth/oif-starknet/go/internal/logutil"
-	"github.com/NethermindEth/oif-starknet/go/internal/types"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/logutil"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 
 	"github.com/NethermindEth/juno/core/felt"

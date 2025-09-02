@@ -19,10 +19,10 @@ go/
 │   │   ├── evm/                      # EVM fork setup (Anvil)
 │   │   └── starknet/                 # Starknet fork setup (Katana)
 │   └── solver/                       # Main solver binary
-├── internal/                         # Core solver logic
-│   ├── base/                         # Core solver interfaces (base_listener & base_solver)
-│   │   └── base_listener.go          # Base listener interface
-│   │   └── base_solver.go            # Base solver interface
+├── solvercore/                       # Core solver logic
+│   ├── base/                         # Core solver interfaces (listener & solver)
+│   │   ├── listener.go               # Base listener interface
+│   │   └── solver.go                 # Base solver interface
 │   ├── config/                       # Configuration management
 │   │   ├── config.go                 # Solver configuration
 │   │   ├── networks.go               # Multi-chain network configs
@@ -31,6 +31,8 @@ go/
 │   │   ├── erc20_contract.go         # ERC20 contract byte code and ABI
 │   │   └── hyperlane7683.go          # Hyperlane7683 contract bindings (EVM)
 │   ├── logutil/                      # Terminal logging utilities
+│   │   ├── logutil.go                # Basic logging utilities
+│   │   └── solver_logger.go          # Enhanced solver logging with cross-chain context
 │   ├── solvers/                      # Solver implementations
 │   │   └── hyperlane7683/            # Hyperlane7683 solver
 │   │       ├── chain_handler.go      # Wrapper interface for solvers
@@ -38,14 +40,15 @@ go/
 │   │       ├── hyperlane_starknet.go # Starknet chain handler (fill and settle orders on Starknet)
 │   │       ├── listener_evm.go       # EVM Open event listener
 │   │       ├── listener_starknet.go  # Starknet Open event listener
-│   │       ├── rules.go              # Intent validation rules (balance checks, allowlists)
+│   │       ├── rules.go              # Intent validation rules (balance checks, profitability, allowlists)
 │   │       └── solver.go             # Main Hyperlane7683 solver orchestration
 │   ├── types/                        # Cross-chain data structures
 │   │   ├── address_utils.go          # Address conversion utilities
 │   │   └── types.go                  # Core type definitions
 │   └── solver_manager.go             # Solver orchestration & lifecycle
 ├── pkg/                              # Public utilities
-│   └── ethutil/                      # Ethereum utilities (signing, gas, ERC20)
+│   ├── ethutil/                      # Ethereum utilities (signing, gas, ERC20)
+│   └── starknetutil/                 # Starknet utilities (address conversion, ERC20 operations)
 ├── state/                            # Persistent state storage
 ├── Makefile                          # Build & deployment automation
 └── go.mod                            # Go module dependencies
@@ -55,7 +58,7 @@ go/
 
 #### 1. **Interface-Based Multi-Chain Architecture**
 
-- `BaseListener` interface enables any blockchain to plug into the system
+- `Listener` interface enables any blockchain to plug into the system
 - `BaseFiller` interface provides a common intent processing pipeline
 - Chain-specific implementations handle translation between common types and native operations
 
@@ -89,10 +92,10 @@ ParsedArgs → XYZ Fill Transaction (hyperlane_xyz.go - easy to add)
 
 To add support for a new blockchain (e.g., Solana):
 
-1. **Create listener**: `listener_solana.go` implementing `BaseListener`
+1. **Create listener**: `listener_solana.go` implementing `Listener`
 2. **Create operations**: `hyperlane_solana.go` with Solana-specific fill logic
 3. **Update routing**: Add Solana case in `solver.go` destination routing
-4. **Add config**: Network configuration in `internal/config/networks.go`
+4. **Add config**: Network configuration in `solvercore/config/networks.go`
 
 #### **Context-Based Lifecycle Management**
 
@@ -124,6 +127,14 @@ go func() {
 **🎉 (Local Sepolia) solves all 3 order types on local forks**: Requires spoofing a call to each EVM Hyperlane7683 contract to register the Starknet domain
 
 **🎉 (Live Sepolia) solves 2/3 order types on live Sepolia:**: Awaiting Hyperlane contract to register Starknet domain
+
+### Recent Improvements
+
+- **✅ Enhanced Logging**: Cross-chain context with colored network tags (`[BASE] → [STRK]`)
+- **✅ Rules System**: Pluggable validation with balance checks, profitability analysis, and allow/block lists
+- **✅ Performance Optimizations**: `uint256` library for efficient 256-bit arithmetic
+- **✅ Single Binary Architecture**: Unified CLI with `tools` subcommands for development
+- **✅ Clean Package Structure**: Renamed `internal/` to `solvercore/` for better clarity
 
 ## Quick Start
 
@@ -213,8 +224,8 @@ The `SOLVER_START_BLOCK` for each network (in the `.env`) becomes the value of t
 
 This implementation is designed to be easily extensible:
 
-- Support new chains in `internal/config/networks.go` & `internal/solvers/hyperlane7683/`
-- Add new solvers (Eco, Polymer) in `internal/solvers/`
+- Support new chains in `solvercore/config/networks.go` & `solvercore/solvers/hyperlane7683/`
+- Add new solvers (Eco, Polymer) in `solvercore/solvers/`
 
 ## License
 

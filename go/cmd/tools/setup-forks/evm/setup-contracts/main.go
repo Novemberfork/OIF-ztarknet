@@ -10,8 +10,8 @@ import (
 
 	"strings"
 
-	"github.com/NethermindEth/oif-starknet/go/internal/config"
-	erc20 "github.com/NethermindEth/oif-starknet/go/internal/contracts"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
+	erc20 "github.com/NethermindEth/oif-starknet/go/solvercore/contracts"
 
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
 	"github.com/ethereum/go-ethereum"
