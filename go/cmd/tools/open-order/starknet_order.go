@@ -20,8 +20,8 @@ import (
 	"github.com/NethermindEth/starknet.go/utils"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 )
 
 // NetworkConfig represents a single network configuration for Starknet
@@ -80,13 +80,33 @@ var starknetTestUsers []struct {
 
 // initializeStarknetTestUsers initializes the test user configuration after .env is loaded
 func initializeStarknetTestUsers() {
-	starknetTestUsers = []struct {
-		name       string
-		privateKey string
-		address    string
-	}{
-		{"Alice", "STARKNET_ALICE_PRIVATE_KEY", getEnvWithDefault("STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")},
-		{"Solver", "STARKNET_SOLVER_PRIVATE_KEY", getEnvWithDefault("STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")},
+	// Use conditional environment variable logic based on FORKING
+	useLocalForks := os.Getenv("FORKING") == "true"
+	
+	if useLocalForks {
+		// Use local fork addresses
+		aliceAddr := getEnvWithDefault("LOCAL_STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
+		solverAddr := getEnvWithDefault("LOCAL_STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")
+		starknetTestUsers = []struct {
+			name       string
+			privateKey string
+			address    string
+		}{
+			{"Alice", "LOCAL_STARKNET_ALICE_PRIVATE_KEY", aliceAddr},
+			{"Solver", "LOCAL_STARKNET_SOLVER_PRIVATE_KEY", solverAddr},
+		}
+	} else {
+		// Use live network addresses
+		aliceAddr := getEnvWithDefault("STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
+		solverAddr := getEnvWithDefault("STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")
+		starknetTestUsers = []struct {
+			name       string
+			privateKey string
+			address    string
+		}{
+			{"Alice", "STARKNET_ALICE_PRIVATE_KEY", aliceAddr},
+			{"Solver", "STARKNET_SOLVER_PRIVATE_KEY", solverAddr},
+		}
 	}
 }
 
@@ -234,12 +254,23 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 		os.Exit(1)
 	}
 
-	// Get user private key and public key
-	userKey := os.Getenv(fmt.Sprintf("STARKNET_%s_PRIVATE_KEY", strings.ToUpper(order.User)))
-	userPublicKey := os.Getenv(fmt.Sprintf("STARKNET_%s_PUBLIC_KEY", strings.ToUpper(order.User)))
+	// Get user private key and public key using conditional environment variable logic
+	var userKey, userPublicKey string
+	useLocalForks := os.Getenv("FORKING") == "true"
+	if useLocalForks {
+		userKey = os.Getenv(fmt.Sprintf("LOCAL_STARKNET_%s_PRIVATE_KEY", strings.ToUpper(order.User)))
+		userPublicKey = os.Getenv(fmt.Sprintf("LOCAL_STARKNET_%s_PUBLIC_KEY", strings.ToUpper(order.User)))
+	} else {
+		userKey = os.Getenv(fmt.Sprintf("STARKNET_%s_PRIVATE_KEY", strings.ToUpper(order.User)))
+		userPublicKey = os.Getenv(fmt.Sprintf("STARKNET_%s_PUBLIC_KEY", strings.ToUpper(order.User)))
+	}
 	if userKey == "" || userPublicKey == "" {
-		fmt.Printf("❌ Missing credentials for user: %s\n", order.User)
-		fmt.Printf("   Required: STARKNET_%s_PRIVATE_KEY and STARKNET_%s_PUBLIC_KEY\n", strings.ToUpper(order.User), strings.ToUpper(order.User))
+		fmt.Printf("❌ Missing credentials for user: %s (FORKING=%s)\n", order.User, os.Getenv("FORKING"))
+		if useLocalForks {
+			fmt.Printf("   Required: LOCAL_STARKNET_%s_PRIVATE_KEY and LOCAL_STARKNET_%s_PUBLIC_KEY\n", strings.ToUpper(order.User), strings.ToUpper(order.User))
+		} else {
+			fmt.Printf("   Required: STARKNET_%s_PRIVATE_KEY and STARKNET_%s_PUBLIC_KEY\n", strings.ToUpper(order.User), strings.ToUpper(order.User))
+		}
 		os.Exit(1)
 	}
 
@@ -271,6 +302,7 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 	// Preflight: check balances and allowances
 	inputToken := originNetwork.dogCoinAddress
 	owner := userAddr
+	spender := originNetwork.hyperlaneAddress
 
 	// Get initial balances
 	initialUserBalance, err := starknetutil.ERC20Balance(client, inputToken, owner)
@@ -280,28 +312,21 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 		fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
 	}
 
-	// Store initial balance for comparison
-	initialBalance := initialUserBalance
-
-	// Generate a random nonce for the order
-	senderNonce := big.NewInt(time.Now().UnixNano())
-
-	// Build the order data
-	orderData := buildStarknetOrderData(order, originNetwork, originDomain, destinationDomain, senderNonce, order.DestinationChain)
-
-	// Build the StarknetOnchainCrossChainOrder with u256 order_data_type (low, high)
-	lowHash, highHash := getOrderDataTypeHashU256()
-	crossChainOrder := StarknetOnchainCrossChainOrder{
-		FillDeadline:      order.FillDeadline,
-		OrderDataTypeLow:  lowHash,
-		OrderDataTypeHigh: highHash,
-		OrderData:         encodeStarknetOrderData(orderData),
+	// Check if Alice has sufficient tokens for the order
+	requiredAmount := order.InputAmount
+	if initialUserBalance == nil || initialUserBalance.Cmp(requiredAmount) < 0 {
+		fmt.Printf("   ⚠️  Insufficient balance! Alice needs %s tokens but has %s\n", 
+			starknetutil.FormatTokenAmount(requiredAmount, 18),
+			starknetutil.FormatTokenAmount(initialUserBalance, 18))
+		fmt.Printf("   💡 Please mint tokens manually using the MockERC20 contract's mint() function\n")
+		fmt.Printf("   📝 Contract address: %s\n", inputToken)
+		fmt.Printf("❌ Insufficient token balance for order creation\n")
+		os.Exit(1)
+	} else {
+		fmt.Printf("   ✅ Alice has sufficient tokens (%s)\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
 	}
 
-	// Use generated bindings for open()
-	fmt.Printf("   📝 Calling open() function...\n")
-
-	// Create user account for transaction signing
+	// Create user account for transaction signing (needed for approval)
 	userAddrFelt, err := utils.HexToFelt(userAddr)
 	if err != nil {
 		fmt.Printf("❌ Failed to convert user address to felt: %v\n", err)
@@ -323,6 +348,69 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 		fmt.Printf("❌ Failed to create account for %s: %v\n", order.User, err)
 		os.Exit(1)
 	}
+
+	// Check allowance
+	allowance, err := starknetutil.ERC20Allowance(client, inputToken, owner, spender)
+	if err == nil {
+		fmt.Printf("   🔍 Current allowance(owner->hyperlane): %s\n", starknetutil.FormatTokenAmount(allowance, 18))
+	} else {
+		fmt.Printf("   ⚠️  Could not read allowance: %v\n", err)
+	}
+
+	// Store initial balance for comparison
+	initialBalance := initialUserBalance
+
+	// If allowance is insufficient, approve the Hyperlane contract
+	requiredAmount = order.InputAmount
+	if allowance == nil || allowance.Cmp(requiredAmount) < 0 {
+		fmt.Printf("   🔄 Insufficient allowance, approving %s tokens...\n", starknetutil.FormatTokenAmount(requiredAmount, 18))
+		
+		// Create approval transaction
+		approveCall, err := starknetutil.ERC20Approve(inputToken, spender, requiredAmount)
+		if err != nil {
+			fmt.Printf("❌ Failed to create approve transaction: %v\n", err)
+			os.Exit(1)
+		}
+		
+		// Send approval transaction
+		approveTx, err := userAccnt.BuildAndSendInvokeTxn(context.Background(), []rpc.InvokeFunctionCall{*approveCall}, nil)
+		if err != nil {
+			fmt.Printf("❌ Failed to send approval transaction: %v\n", err)
+			os.Exit(1)
+		}
+		
+		fmt.Printf("   🚀 Approval transaction sent: %s\n", approveTx.Hash.String())
+		fmt.Printf("   ⏳ Waiting for approval confirmation...\n")
+		
+		// Wait for approval transaction to be mined
+		_, err = userAccnt.WaitForTransactionReceipt(context.Background(), approveTx.Hash, 2*time.Second)
+		if err != nil {
+			fmt.Printf("❌ Failed to wait for approval transaction: %v\n", err)
+			os.Exit(1)
+		}
+		
+		fmt.Printf("   ✅ Approval confirmed!\n")
+	} else {
+		fmt.Printf("   ✅ Sufficient allowance already exists\n")
+	}
+
+	// Generate a random nonce for the order
+	senderNonce := big.NewInt(time.Now().UnixNano())
+
+	// Build the order data
+	orderData := buildStarknetOrderData(order, originNetwork, originDomain, destinationDomain, senderNonce, order.DestinationChain)
+
+	// Build the StarknetOnchainCrossChainOrder with u256 order_data_type (low, high)
+	lowHash, highHash := getOrderDataTypeHashU256()
+	crossChainOrder := StarknetOnchainCrossChainOrder{
+		FillDeadline:      order.FillDeadline,
+		OrderDataTypeLow:  lowHash,
+		OrderDataTypeHigh: highHash,
+		OrderData:         encodeStarknetOrderData(orderData),
+	}
+
+	// Use generated bindings for open()
+	fmt.Printf("   📝 Calling open() function...\n")
 
 	// Get Hyperlane7683 contract address
 	hyperlaneAddrFelt, err := utils.HexToFelt(originNetwork.hyperlaneAddress)

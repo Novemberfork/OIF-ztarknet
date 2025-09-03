@@ -28,15 +28,11 @@ func RunOpenOrder(chain string) {
 }
 
 func runStarknetOrder() {
-	// Import and run the Starknet order creation logic
-	// This will be implemented by moving the Starknet order logic here
-	fmt.Println("   📝 Creating Starknet order...")
-	fmt.Println("   (Starknet order logic will be integrated here)")
+	// Run the Starknet order creation logic with default command
+	RunStarknetOrder("default")
 }
 
 func runEVMOrder() {
-	// Import and run the EVM order creation logic
-	// This will be implemented by moving the EVM order logic here
-	fmt.Println("   📝 Creating EVM order...")
-	fmt.Println("   (EVM order logic will be integrated here)")
+	// Run the EVM order creation logic with default command
+	RunEVMOrder("default-evm-evm")
 }
