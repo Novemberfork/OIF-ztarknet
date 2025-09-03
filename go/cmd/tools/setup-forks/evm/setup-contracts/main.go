@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
+	"github.com/NethermindEth/oif-starknet/go/solvercore/contracts"
 	erc20 "github.com/NethermindEth/oif-starknet/go/solvercore/contracts"
 
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
@@ -122,6 +123,15 @@ func main() {
 			continue
 		}
 
+		// If using MockERC20 (local forks), mint tokens for Alice
+		useLocalForks := os.Getenv("FORKING") == "true"
+		if useLocalForks {
+			if err := mintTokensForAlice(client, deployerKey, aliceKey, dogCoinAddress, network.name); err != nil {
+				fmt.Printf("   ❌ Failed to mint tokens for Alice: %v\n", err)
+				continue
+			}
+		}
+
 		// Set allowances for both Alice and Solver
 		if err := setAllowances(client, aliceKey, dogCoinAddress, network.name); err != nil {
 			fmt.Printf("   ❌ Failed to set allowances: %v\n", err)
@@ -152,53 +162,96 @@ func main() {
 func deployERC20(client *ethclient.Client, privateKey *ecdsa.PrivateKey, symbol, networkName string) (common.Address, error) {
 	fmt.Printf("   📝 Deploying %s...\n", symbol)
 
-	// Get the ERC20 contract configuration
-	contract := erc20.GetERC20Contract()
+	// Check if we're forking (use MockERC20) or live networks (use standard ERC20)
+	useLocalForks := os.Getenv("FORKING") == "true"
+	
+	var address common.Address
+	var tx *types.Transaction
+	var err error
 
-	// Parse the ABI
-	parsedABI, err := abi.JSON(strings.NewReader(contract.ABI))
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to parse ABI: %w", err)
-	}
+	if useLocalForks {
+		// Use MockERC20 for local forks (has mint function)
+		fmt.Printf("   🔧 Using MockERC20 for local fork...\n")
+		
+		// Get chain ID for transaction signing
+		chainID, err := client.ChainID(context.Background())
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to get chain ID: %w", err)
+		}
 
-	// Get chain ID for transaction signing
-	chainID, err := client.ChainID(context.Background())
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to get chain ID: %w", err)
-	}
+		// Create auth for transaction signing
+		auth, err := ethutil.NewTransactor(chainID, privateKey)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to create auth: %w", err)
+		}
 
-	// Create auth for transaction signing
-	auth, err := ethutil.NewTransactor(chainID, privateKey)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to create auth: %w", err)
-	}
+		// Get current gas price from network
+		gasPrice, err := ethutil.SuggestGas(client)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to get gas price: %w", err)
+		}
 
-	// Get current gas price from network
-	gasPrice, err := ethutil.SuggestGas(client)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to get gas price: %w", err)
-	}
+		// Set gas price and limit
+		auth.GasPrice = gasPrice
+		auth.GasLimit = uint64(5000000) // 5M gas
 
-	// Set gas price and limit
-	auth.GasPrice = gasPrice
-	auth.GasLimit = uint64(5000000) // 5M gas
+		// Deploy MockERC20 (no constructor parameters needed)
+		address, tx, _, err = contracts.DeployMockERC20(auth, client)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to deploy MockERC20: %w", err)
+		}
+	} else {
+		// Use standard ERC20 for live networks
+		fmt.Printf("   🔧 Using standard ERC20 for live network...\n")
+		
+		// Get the ERC20 contract configuration
+		contract := erc20.GetERC20Contract()
 
-	// Deploy the contract with constructor parameters: name, symbol, decimals, initialSupply
-	// For DogCoin: "DogCoin", "DOG", 18, 420690000000000 * 10^18
-	var tokenName, tokenSymbol string
-	var decimals uint8
-	var initialSupply *big.Int
+		// Parse the ABI
+		parsedABI, err := abi.JSON(strings.NewReader(contract.ABI))
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to parse ABI: %w", err)
+		}
 
-	if symbol == "DogCoin" {
-		tokenName = "DogCoin"
-		tokenSymbol = "DOG"
-		decimals = 18
-		initialSupply = new(big.Int).Mul(big.NewInt(420690000000000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
-	}
+		// Get chain ID for transaction signing
+		chainID, err := client.ChainID(context.Background())
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to get chain ID: %w", err)
+		}
 
-	address, tx, _, err := bind.DeployContract(auth, parsedABI, common.FromHex(contract.Bytecode), client, tokenName, tokenSymbol, decimals, initialSupply)
-	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to deploy contract: %w", err)
+		// Create auth for transaction signing
+		auth, err := ethutil.NewTransactor(chainID, privateKey)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to create auth: %w", err)
+		}
+
+		// Get current gas price from network
+		gasPrice, err := ethutil.SuggestGas(client)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to get gas price: %w", err)
+		}
+
+		// Set gas price and limit
+		auth.GasPrice = gasPrice
+		auth.GasLimit = uint64(5000000) // 5M gas
+
+		// Deploy the contract with constructor parameters: name, symbol, decimals, initialSupply
+		// For DogCoin: "DogCoin", "DOG", 18, 420690000000000 * 10^18
+		var tokenName, tokenSymbol string
+		var decimals uint8
+		var initialSupply *big.Int
+
+		if symbol == "DogCoin" {
+			tokenName = "DogCoin"
+			tokenSymbol = "DOG"
+			decimals = 18
+			initialSupply = new(big.Int).Mul(big.NewInt(420690000000000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
+		}
+
+		address, tx, _, err = bind.DeployContract(auth, parsedABI, common.FromHex(contract.Bytecode), client, tokenName, tokenSymbol, decimals, initialSupply)
+		if err != nil {
+			return common.Address{}, fmt.Errorf("failed to deploy contract: %w", err)
+		}
 	}
 
 	fmt.Printf("   📡 Deployment transaction: %s\n", tx.Hash().Hex())
@@ -515,5 +568,66 @@ func verifyBalancesAndAllowances(client *ethclient.Client, aliceKey, solverKey *
 		}
 	}
 
+	return nil
+}
+
+// mintTokensForAlice mints tokens for Alice using MockERC20 when FORKING=true
+func mintTokensForAlice(client *ethclient.Client, deployerKey, aliceKey *ecdsa.PrivateKey, tokenAddress common.Address, networkName string) error {
+	fmt.Printf("   🪙 Minting tokens for Alice using MockERC20...\n")
+
+	// Get chain ID
+	chainID, err := client.ChainID(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	// Create deployer auth (deployer is the owner of MockERC20)
+	deployerAuth, err := ethutil.NewTransactor(chainID, deployerKey)
+	if err != nil {
+		return fmt.Errorf("failed to create deployer auth: %w", err)
+	}
+
+	// Get current gas price
+	gasPrice, err := ethutil.SuggestGas(client)
+	if err != nil {
+		return fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Set gas price and limit
+	deployerAuth.GasPrice = gasPrice
+	deployerAuth.GasLimit = uint64(200000) // 200K gas for mint
+
+	// Create MockERC20 contract instance
+	mockERC20, err := contracts.NewMockERC20(tokenAddress, client)
+	if err != nil {
+		return fmt.Errorf("failed to create MockERC20 contract instance: %w", err)
+	}
+
+	// Get Alice's address
+	aliceAddr := crypto.PubkeyToAddress(aliceKey.PublicKey)
+
+	// Amount to mint for Alice (100,000 tokens with 18 decimals)
+	mintAmount := new(big.Int).Mul(big.NewInt(100000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
+
+	// Mint tokens for Alice
+	tx, err := mockERC20.Mint(deployerAuth, aliceAddr, mintAmount)
+	if err != nil {
+		return fmt.Errorf("failed to mint tokens for Alice: %w", err)
+	}
+
+	fmt.Printf("   📡 Mint transaction: %s\n", tx.Hash().Hex())
+	fmt.Printf("   ⏳ Waiting for confirmation...\n")
+
+	// Wait for transaction confirmation
+	receipt, err := bind.WaitMined(context.Background(), client, tx)
+	if err != nil {
+		return fmt.Errorf("failed to wait for mint confirmation: %w", err)
+	}
+
+	if receipt.Status == 0 {
+		return fmt.Errorf("mint transaction failed")
+	}
+
+	fmt.Printf("   ✅ Minted %s tokens for Alice\n", new(big.Float).Quo(new(big.Float).SetInt(mintAmount), new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))).Text('f', 0))
 	return nil
 }
