@@ -113,41 +113,32 @@ func (f *Hyperlane7683Solver) Fill(ctx context.Context, args types.ParsedArgs) (
 		return OrderActionError, fmt.Errorf("no fill instructions found")
 	}
 
-	for _, instruction := range args.ResolvedOrder.FillInstructions {
-		switch {
-		case f.isStarknetChain(instruction.DestinationChainID):
-			// Get or create Starknet chain handler
-			handler, err := f.getStarknetHandler(instruction.DestinationChainID)
-			if err != nil {
-				return OrderActionError, fmt.Errorf("failed to get Starknet handler for chain %s: %w", instruction.DestinationChainID.String(), err)
-			}
-
-			action, err := handler.Fill(ctx, args)
-			if err != nil {
-				return OrderActionError, fmt.Errorf("starknet fill failed for chain %s: %w", instruction.DestinationChainID.String(), err)
-			}
-			return action, nil
-
-		case f.isEVMChain(instruction.DestinationChainID):
-			// Get or create EVM chain handler
-			handler, err := f.getEVMHandler(instruction.DestinationChainID)
-			if err != nil {
-				return OrderActionError, fmt.Errorf("failed to get EVM handler for chain %s: %w", instruction.DestinationChainID.String(), err)
-			}
-
-			action, err := handler.Fill(ctx, args)
-			if err != nil {
-				return OrderActionError, fmt.Errorf("EVM fill failed for chain %s: %w", instruction.DestinationChainID.String(), err)
-			}
-			return action, nil
-
-		default:
-			return OrderActionError, fmt.Errorf("unsupported destination chain: %s", instruction.DestinationChainID.String())
+	// Process all fill instructions (supports both single and multiple instructions)
+	for i, instruction := range args.ResolvedOrder.FillInstructions {
+		logutil.LogWithNetworkTag("", "Processing fill instruction %d/%d for chain %s", 
+			i+1, len(args.ResolvedOrder.FillInstructions), instruction.DestinationChainID.String())
+		
+		action, err := f.executeChainOperation(ctx, args, instruction.DestinationChainID, "fill", func(handler ChainHandler) (OrderAction, error) {
+			return handler.Fill(ctx, args)
+		})
+		if err != nil {
+			return OrderActionError, fmt.Errorf("fill instruction %d failed: %w", i+1, err)
+		}
+		
+		// If any instruction fails or returns an error, return immediately
+		if action == OrderActionError {
+			return OrderActionError, fmt.Errorf("fill instruction %d returned error", i+1)
+		}
+		
+		// If this instruction completed successfully, continue to next
+		// (In most cases there will only be one instruction, but this supports multiple)
+		if action == OrderActionComplete {
+			logutil.LogWithNetworkTag("", "Fill instruction %d completed successfully", i+1)
 		}
 	}
 
-	// This should never happen since we return early in each case
-	return OrderActionError, fmt.Errorf("no valid chain found for fill instructions")
+	// All instructions processed successfully
+	return OrderActionComplete, nil
 }
 
 func (f *Hyperlane7683Solver) SettleOrder(ctx context.Context, args types.ParsedArgs) error {
@@ -158,38 +149,66 @@ func (f *Hyperlane7683Solver) SettleOrder(ctx context.Context, args types.Parsed
 		return fmt.Errorf("no fill instructions found for settlement")
 	}
 
-	instruction := args.ResolvedOrder.FillInstructions[0]
-
-	// Simple chain router for settlement
-	switch {
-	case f.isStarknetChain(instruction.DestinationChainID):
-		// Get or create Starknet chain handler
-		handler, err := f.getStarknetHandler(instruction.DestinationChainID)
+	// Process all settlement instructions (supports both single and multiple instructions)
+	for i, instruction := range args.ResolvedOrder.FillInstructions {
+		logutil.LogWithNetworkTag("", "Processing settlement instruction %d/%d for chain %s", 
+			i+1, len(args.ResolvedOrder.FillInstructions), instruction.DestinationChainID.String())
+		
+		_, err := f.executeChainOperation(ctx, args, instruction.DestinationChainID, "settle", func(handler ChainHandler) (OrderAction, error) {
+			err := handler.Settle(ctx, args)
+			return OrderActionComplete, err // Return OrderActionComplete for successful settlement
+		})
 		if err != nil {
-			return fmt.Errorf("failed to get Starknet handler for chain %s: %w", instruction.DestinationChainID.String(), err)
+			return fmt.Errorf("settlement instruction %d failed: %w", i+1, err)
 		}
-
-		if err := handler.Settle(ctx, args); err != nil {
-			return fmt.Errorf("starknet settlement failed for chain %s: %w", instruction.DestinationChainID.String(), err)
-		}
-
-	case f.isEVMChain(instruction.DestinationChainID):
-		// Get or create EVM chain handler
-		handler, err := f.getEVMHandler(instruction.DestinationChainID)
-		if err != nil {
-			return fmt.Errorf("failed to get EVM handler for chain %s: %w", instruction.DestinationChainID.String(), err)
-		}
-
-		if err := handler.Settle(ctx, args); err != nil {
-			return fmt.Errorf("EVM settlement failed for chain %s: %w", instruction.DestinationChainID.String(), err)
-		}
-
-	default:
-		return fmt.Errorf("unsupported destination chain: %s", instruction.DestinationChainID.String())
+		
+		logutil.LogWithNetworkTag("", "Settlement instruction %d completed successfully", i+1)
 	}
 
 	logutil.LogOperationComplete(args, "Settlement", true)
 	return nil
+}
+
+// executeChainOperation is a common helper that handles chain detection, handler retrieval, and operation execution
+// This eliminates duplication between Fill, Settle, and other chain operations
+func (f *Hyperlane7683Solver) executeChainOperation(
+	_ context.Context, 
+	args types.ParsedArgs, 
+	chainID *big.Int, 
+	operation string,
+	operationFunc func(ChainHandler) (OrderAction, error),
+) (OrderAction, error) {
+	var handler ChainHandler
+	var err error
+	var chainType string
+
+	// Chain detection and handler retrieval
+	switch {
+	case f.isStarknetChain(chainID):
+		chainType = "Starknet"
+		handler, err = f.getStarknetHandler(chainID)
+		if err != nil {
+			return OrderActionError, fmt.Errorf("failed to get %s handler for chain %s: %w", chainType, chainID.String(), err)
+		}
+
+	case f.isEVMChain(chainID):
+		chainType = "EVM"
+		handler, err = f.getEVMHandler(chainID)
+		if err != nil {
+			return OrderActionError, fmt.Errorf("failed to get %s handler for chain %s: %w", chainType, chainID.String(), err)
+		}
+
+	default:
+		return OrderActionError, fmt.Errorf("unsupported destination chain: %s", chainID.String())
+	}
+
+	// Execute the operation
+	action, err := operationFunc(handler)
+	if err != nil {
+		return OrderActionError, fmt.Errorf("%s %s failed for chain %s: %w", chainType, operation, chainID.String(), err)
+	}
+
+	return action, nil
 }
 
 // getEVMHandler gets or creates an EVM chain handler for the given chain ID
