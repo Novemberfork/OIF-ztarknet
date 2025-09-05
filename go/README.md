@@ -1,150 +1,16 @@
 # Hyperlane7683 Solver - Go Implementation
 
-This (Golang) solver is an extension to BootNodeDev's Hyperlane7683 (Typescript) solver adding Starknet support. This codebase should be used as a reference for protocols to implement or extend.
+This (Golang) solver is an extension to BootNodeDev's Hyperlane7683 (Typescript) solver adding support for Starknet. This codebase should be used as a reference for protocols to implement or extend.
 
 ## Overview
 
-The solver listens for `Open` events from Hyperlane7683 contracts on Starknet and across multiple EVM chains, then fills the intents based on configurable rules. This implementation supports both EVM and Cairo contracts, making it suitable for cross-chain intent processing.
-
-## Architecture
-
-```js
-go/
-├── cmd/                          # CLI entry points
-│   ├── open-order/               # Create orders (EVM & Starknet)
-│   │   ├── evm/                  # EVM order creation utilities
-│   │   └── starknet/             # Starknet order creation utilities
-│   ├── setup-forks/              # Setup local testnet forks
-│   │   ├── evm/                  # EVM fork setup (Anvil)
-│   │   └── starknet/             # Starknet fork setup (Katana)
-│   └── solver/                   # Main solver binary
-├── internal/                     # Core solver logic
-│   ├── config/                   # Configuration management
-│   │   ├── config.go             # Solver configuration
-│   │   └── networks.go           # Multi-chain network configs
-│   ├── contracts/                # Go bindings for smart contracts
-│   │   ├── erc20_contract.go     # ERC20 contract bindings
-│   │   └── hyperlane7683.go      # Hyperlane7683 contract bindings
-│   ├── deployer/                 # Deployment state management
-│   │   └── deployment_state.go   # Contract deployment tracking
-│   ├── filler/                   # Intent filling interface
-│   │   └── base_filler.go        # Base filler interface
-│   ├── listener/                 # Event listening interface
-│   │   └── base_listener.go      # Base listener interface
-│   ├── logutil/                  # Terminal logging utilities
-│   ├── solvers/                  # Solver implementations
-│   │   └── hyperlane7683/        # Hyperlane7683 solver
-│   │       ├── filler.go         # Main orchestrator - routes intents to chain-specific handlers
-│   │       ├── filler_starknet.go # Low-level Starknet operations (build/send transactions)
-│   │       ├── hyperlane_evm.go  # EVM chain handler (fill/settle/approvals)
-│   │       ├── hyperlane_starknet.go # Starknet chain handler (coordinates StarknetFiller)
-│   │       ├── listener_evm.go   # EVM Open event listener (polls blocks, parses events)
-│   │       ├── listener_starknet.go # Starknet Open event listener (Cairo event parsing)
-│   │       └── rules.go          # Intent validation rules (balance checks, allowlists)
-│   ├── types/                    # Cross-chain data structures
-│   │   ├── address_utils.go      # Address conversion utilities
-│   │   └── types.go              # Core type definitions
-│   └── solver_manager.go         # Solver orchestration & lifecycle
-├── pkg/                          # Public utilities
-│   └── ethutil/                  # Ethereum utilities (signing, gas, ERC20)
-├── state/                        # Persistent state storage
-│   └── network_state/            # Network deployment states
-├── bin/                          # Built binaries
-├── env.example                   # Environment configuration template
-├── Makefile                      # Build & deployment automation
-├── start-networks.sh             # Multi-network startup script
-└── go.mod                        # Go module dependencies
-```
-
-### Key Design Patterns
-
-#### 1. **Interface-Based Multi-Chain Architecture**
-
-- `BaseListener` interface enables any blockchain to plug into the system
-- `BaseFiller` interface provides a common intent processing pipeline
-- Chain-specific implementations handle translation between common types and native operations
-
-#### 2. **Translation Layer Strategy**
-
-The system uses **multiple translation layers** for maximum extensibility:
-
-**Level 1: Chain Events → Common Format**
-
-```
-EVM Open Event → ParsedArgs
-Starknet Open Event → ParsedArgs
-XYZ Chain Event → ParsedArgs (easy to add)
-```
-
-**Level 2: Common Format → Chain Operations**
-
-```
-IntentData → EVM Fill Transaction (hyperlane_evm.go)
-IntentData → Starknet Fill Transaction (hyperlane_starknet.go)
-IntentData → XYZ Fill Transaction (hyperlane_xyz.go - easy to add)
-```
-
-#### 3. **Concurrent Multi-Network Processing**
-
-- Each network runs its own goroutine-based listener
-- All events flow through a unified handler for consistent processing
-- Context-based cancellation enables graceful shutdown across all networks
-
-#### 4. **Extensibility for New VMs**
-
-To add support for a new blockchain (e.g., Solana):
-
-1. **Create listener**: `listener_solana.go` implementing `BaseListener`
-2. **Create operations**: `hyperlane_solana.go` with Solana-specific fill logic
-3. **Update routing**: Add Solana case in `filler.go` destination routing
-4. **Add config**: Network configuration in `internal/config/networks.go`
-
-**The core orchestration code doesn't need to change** - this is the power of the interface-based design.
-
-### Concurrency Architecture
-
-The solver uses **Go concurrency patterns** for high-performance multi-chain processing:
-
-#### **Context-Based Lifecycle Management**
-
-```go
-ctx, cancel := context.WithCancel(context.Background())
-// All goroutines respect this context for graceful shutdown
-```
-
-#### **Coordinated Goroutine Management**
-
-```go
-sm.shutdownWg.Add(1)
-go func() {
-    defer sm.shutdownWg.Done()
-    <-sm.ctx.Done()
-    shutdownFunc()  // Clean shutdown per network
-}()
-```
-
-#### **Multi-Network Concurrent Event Processing**
-
-- Each blockchain network runs in its own goroutine
-- Events from all chains feed through the same `EventHandler` function
-- Maintains **order integrity** while enabling **parallel processing**
-- No blocking between networks - if one network is slow, others continue processing
-
-### Recommendations for Improvement
-
-#### **Architecture Enhancements**
-
-1. **Database integration**: Persist order state for crash recovery
-
-#### **Testing Infrastructure**
-
-1. **Integration tests**: End-to-end testing across multiple chains
-2. **Load testing**: Validate performance under high intent volumes
+The solver listens for `Open` events from Hyperlane7683 contracts on Starknet and multiple EVM chains, then fills the intents based on configurable rules.
 
 ## 🚀 Current Status
 
-**✅ SOLVING ORDERS ON LOCAL FORKS**
+**🎉 (Local Sepolia) solves all 3 order types on local forks**: Opens, Fills, and Settles EVM->EVM, EVM->Starknet & Starknet->EVM orders. Requires spoofing a call to each EVM Hyperlane7683 contract to register the Starknet domain
 
+**🎉 (Live Sepolia) solves 2/3 order types on live Sepolia:**: Only Opens & Fills Starknet->EVM orders. The Settle stop is awaiting Hyperlane contract to register the Starknet domain on each EVM contract.
 
 ## Quick Start
 
@@ -157,14 +23,132 @@ go func() {
 2. Configure your environment:
 
    ```bash
-   cp .env.example .env
+   cp example.env .env
    # Edit .env with your configuration
    ```
 
 3. Run the solver:
    ```bash
-   go run cmd/solver/main.go
+   make run
    ```
+
+## Running on Local Forks
+
+For an efficient setup, open 3 terminals and move each to the `go/` directory. Make sure your `FORKING` env var is set to true in your `.env` file.
+
+**Terminal 1: Start networks (runs continuously)**
+
+```bash
+make clean-state                # Reset solver state (last indexed blocks)
+make rebuild                    # Rebuild contracts & binaries
+make start-networks             # Start local forked networks (EVM + Starknet)
+```
+
+**Terminal 2: Setup and run solver**
+
+```bash
+make register-starknet-on-evm   # Spoof call to register Starknet domain on EVM contracts
+make fund-accounts              # Fund Dog coins to Alice and the Solver on all networks
+make run                        # Start the solver
+```
+
+**Terminal 3: Create orders**
+
+```bash
+make open-random-evm-order    # EVM → EVM order
+make open-random-evm-sn-order # EVM → Starknet order
+make open-random-sn-order     # Starknet → EVM order
+```
+
+## Order Lifecycle
+
+1. **Opened on origin**: Alice locks input tokens into the origin chain's hyperlane contract
+2. **Fill on destination**: Solver sends output tokens to Alice's destination chain wallet
+3. **Settle on destination**: Prevents double-filling, triggers dispatch
+4. **Hyperlane dispatch**: Releases locked input tokens to solver (handled by Hyperlane protocol)
+
+## Architecture
+
+```js
+go/
+├── cmd/                              # CLI entry points
+│   ├── open-order/                   # Create orders (EVM & Starknet)
+│   ├── setup-forks/                  # Setup local testnet forks
+│   └── solver/                       # Main solver binary
+├── solvercore/                       # Core solver logic
+│   ├── base/                         # Core interfaces (listener & solver)
+│   ├── config/                       # Configuration management
+│   ├── contracts/                    # Contract bindings & deployments
+│   ├── logutil/                      # Logging utilities
+│   ├── solvers/hyperlane7683/        # Hyperlane7683 solver implementation
+│   │   ├── chain_handler.go          # Chain handler interface definition
+│   │   ├── hyperlane_evm.go          # EVM chain operations (fill/settle)
+│   │   ├── hyperlane_starknet.go     # Starknet chain operations (fill/settle)
+│   │   ├── listener_base.go          # Common listener logic & block processing
+│   │   ├── listener_evm.go           # EVM event listener & processing
+│   │   ├── listener_starknet.go      # Starknet event listener & processing
+│   │   ├── rules.go                  # Intent validation rules & profitability
+│   ├── types/                        # Cross-chain data structures
+│   │   └── solver.go                 # Main solver orchestration & chain routing
+│   └── solver_manager.go             # Solver orchestration & lifecycle
+├── pkg/                              # Public utilities
+│   ├── envutil/                      # Environment variable utilities
+│   ├── ethutil/                      # Ethereum utilities
+│   └── starknetutil/                 # Starknet utilities
+└── state/                            # Persistent state storage
+```
+
+## Key Files in `solvers/hyperlane7683/`
+
+### Core Orchestration
+
+- **`solver.go`** - Main solver orchestration, chain routing, and multi-instruction support
+- **`chain_handler.go`** - Defines the `ChainHandler` interface for chain-specific operations
+
+### Chain-Specific Operations
+
+- **`hyperlane_evm.go`** - EVM chain operations (fill orders, settle orders, balance checks)
+- **`hyperlane_starknet.go`** - Starknet chain operations (fill orders, settle orders, balance checks)
+
+### Event Processing
+
+- **`listener_evm.go`** - EVM event listener, processes `Open` events from EVM chains
+- **`listener_starknet.go`** - Starknet event listener, processes `Open` events from Starknet
+- **`listener_base.go`** - Common listener logic, block range processing, eliminates duplication
+
+### Validation & Rules
+
+- **`rules.go`** - Intent validation rules, profitability analysis, balance checks, allow/block lists
+
+### Key Design Patterns
+
+#### Interface-Based Multi-Chain Architecture
+
+- `Listener` interface enables any blockchain to plug into the system
+- `ChainHandler` interface provides common intent processing pipeline
+- Chain-specific implementations handle translation between common types and native operations
+
+#### Translation Layer Strategy
+
+**Level 1: Chain Events → Common Format**
+
+```
+EVM Open Event → ParsedArgs
+Starknet Open Event → ParsedArgs
+```
+
+**Level 2: Common Format → Chain Operations**
+
+```
+ParsedArgs → EVM Fill Transaction (hyperlane_evm.go)
+ParsedArgs → Starknet Fill Transaction (hyperlane_starknet.go)
+```
+
+#### Concurrent Multi-Network Processing
+
+- Each network runs its own goroutine-based listener
+- All events flow through a unified handler for consistent processing
+- Context-based cancellation enables graceful shutdown across all networks
 
 ## Configuration
 
@@ -173,18 +157,32 @@ The solver uses environment variables to manage:
 - RPC endpoints for different chains
 - Private keys for transaction signing
 - Contract addresses
-- Rule parameters
-- Allow/block lists
-- Solver enable/disable flags
+- Operational parameters (polling intervals, gas limits, starting block numbers, etc.)
 
 ## Extending
 
-This implementation is designed to be easily extensible:
+To add support for a new blockchain (e.g., Solana):
 
-- Add new rules in `internal/solvers/hyperlane7683/rules.go`
-- Support new chains in `internal/config/networks.go`
-- Implement custom fillers in `internal/solvers/hyperlane7683/`
-- Add new solvers in `internal/solvers/`
+1. **Create listener**: `listener_solana.go` implementing `Listener`
+2. **Create operations**: `hyperlane_solana.go` with Solana-specific fill logic
+3. **Update routing**: Add Solana case in `solver.go` destination routing
+4. **Add config**: Network configuration in `solvercore/config/networks.go`
+
+## Testing
+
+```bash
+# Unit tests (no RPC required)
+make test-unit
+
+# RPC tests (requires networks)
+make start-networks  # Terminal 1
+make test-rpc        # Terminal 2
+
+# Integration tests (requires full setup)
+make start-networks  # Terminal 1
+make fund-accounts register-starknet-on-evm  # Terminal 2
+make test-integration
+```
 
 ## License
 

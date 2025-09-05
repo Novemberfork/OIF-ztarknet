@@ -7,13 +7,20 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+)
+
+const (
+	// Gas limit constants
+	transferGasLimit = 100000
+	approveGasLimit  = 200000
 )
 
 // ERC20ABI contains the minimal ABI for ERC20 operations
@@ -74,6 +81,11 @@ func ERC20Balance(client *ethclient.Client, tokenAddress, ownerAddress common.Ad
 		return nil, fmt.Errorf("failed to call balanceOf: %w", err)
 	}
 
+	// Check if result is empty (contract might not exist)
+	if len(result) == 0 {
+		return nil, fmt.Errorf("empty result from balanceOf call - contract may not exist at address %s", tokenAddress.Hex())
+	}
+
 	var balance *big.Int
 	if err := parsedABI.UnpackIntoInterface(&balance, "balanceOf", result); err != nil {
 		return nil, fmt.Errorf("failed to unpack balanceOf result: %w", err)
@@ -109,7 +121,7 @@ func ERC20Allowance(client *ethclient.Client, tokenAddress, ownerAddress, spende
 }
 
 // ERC20Transfer creates a transfer transaction for ERC20 tokens
-func ERC20Transfer(client *ethclient.Client, auth *bind.TransactOpts, tokenAddress, recipientAddress common.Address, amount *big.Int) (*types.Transaction, error) {
+func ERC20Transfer(client *ethclient.Client, auth *bind.TransactOpts, tokenAddress, recipientAddress common.Address, amount *big.Int) (*gethtypes.Transaction, error) {
 	parsedABI, err := abi.JSON(strings.NewReader(ERC20ABI))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ERC20 ABI: %w", err)
@@ -133,11 +145,11 @@ func ERC20Transfer(client *ethclient.Client, auth *bind.TransactOpts, tokenAddre
 	}
 
 	// Create transaction
-	tx := types.NewTransaction(
+	tx := gethtypes.NewTransaction(
 		nonce,
 		tokenAddress,
-		big.NewInt(0), // No ETH value
-		100000,        // Gas limit
+		big.NewInt(0),    // No ETH value
+		transferGasLimit, // Gas limit
 		gasPrice,
 		data,
 	)
@@ -158,7 +170,7 @@ func ERC20Transfer(client *ethclient.Client, auth *bind.TransactOpts, tokenAddre
 }
 
 // ERC20Approve creates an approve transaction for ERC20 tokens
-func ERC20Approve(client *ethclient.Client, auth *bind.TransactOpts, tokenAddress, spenderAddress common.Address, amount *big.Int) (*types.Transaction, error) {
+func ERC20Approve(client *ethclient.Client, auth *bind.TransactOpts, tokenAddress, spenderAddress common.Address, amount *big.Int) (*gethtypes.Transaction, error) {
 	parsedABI, err := abi.JSON(strings.NewReader(ERC20ABI))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse ERC20 ABI: %w", err)
@@ -182,11 +194,11 @@ func ERC20Approve(client *ethclient.Client, auth *bind.TransactOpts, tokenAddres
 	}
 
 	// Create transaction
-	tx := types.NewTransaction(
+	tx := gethtypes.NewTransaction(
 		nonce,
 		tokenAddress,
-		big.NewInt(0), // No ETH value
-		200000,        // Gas limit
+		big.NewInt(0),   // No ETH value
+		approveGasLimit, // Gas limit
 		gasPrice,
 		data,
 	)
@@ -207,23 +219,14 @@ func ERC20Approve(client *ethclient.Client, auth *bind.TransactOpts, tokenAddres
 }
 
 // WaitForTransaction waits for a transaction to be mined and returns the receipt
-func WaitForTransaction(client *ethclient.Client, tx *types.Transaction) (*types.Receipt, error) {
+func WaitForTransaction(client *ethclient.Client, tx *gethtypes.Transaction) (*gethtypes.Receipt, error) {
 	return bind.WaitMined(context.Background(), client, tx)
 }
 
 // FormatTokenAmount formats a token amount from wei to tokens with specified decimals
+// Uses the shared utility function from types package
 func FormatTokenAmount(amount *big.Int, decimals int) string {
-	if amount == nil {
-		return "0"
-	}
-
-	// Convert from wei to tokens
-	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
-	tokenAmount := new(big.Float).Quo(
-		new(big.Float).SetInt(amount),
-		new(big.Float).SetInt(divisor))
-
-	return tokenAmount.Text('f', 2) + " tokens"
+	return types.FormatTokenAmount(amount, decimals)
 }
 
 // ParsePrivateKey parses a hex private key string
