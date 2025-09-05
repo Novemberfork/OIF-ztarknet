@@ -1,15 +1,22 @@
-# OIF-starknet
+# OIF-Starknet 🚀
 
 Extension of BootNodeDev's [Open Intent Framework](https://github.com/BootNodeDev/intents-framework/tree/main) for adding Starknet support.
 
-## Solidity Contracts
+## Overview
 
-- `solidity`: Copy of [Open Intent Framework](https://github.com/BootNodeDev/intents-framework/tree/main) Solidity contracts.
+This project extends the Open Intent Framework to support cross-chain order filling between EVM chains and Starknet using the Hyperlane protocol.
 
-## Cairo Contracts
+## Project Structure
 
-- `cairo`: Starknet translation of Solidity contracts.
+- `solidity/`: Copy of [Open Intent Framework](https://github.com/BootNodeDev/intents-framework/tree/main) Solidity contracts
+- `cairo/`: Starknet translation of Solidity contracts  
+- `go/`: Hyperlane intent solver implementation - [See detailed README](go/README.md)
 
-## Go
+## Documentation
 
-- `go`: Hyperlane intent solver.
+- **Go Solver Implementation**: [go/README.md](go/README.md) - Detailed architecture, setup, and development guide
+- **Testing Commands**: Run `make help` for complete command reference
+
+## License
+
+Apache-2.0
