@@ -6,10 +6,10 @@ import (
 	"log"
 	"math/big"
 	"os"
-
 	"time"
 
 	"github.com/NethermindEth/juno/core/felt"
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/NethermindEth/starknet.go/account"
@@ -19,10 +19,10 @@ import (
 
 func fundStarknet(amount *big.Int) {
 	fmt.Printf("📡 Funding Starknet network...\n")
-	
+
 	// Load network configuration
 	config.InitializeNetworks()
-	
+
 	starknetConfig, exists := config.Networks["Starknet"]
 	if !exists {
 		log.Fatalf("Starknet network not found in config")
@@ -44,18 +44,9 @@ func fundStarknet(amount *big.Int) {
 	fmt.Printf("   🪙 MockERC20: %s\n", tokenAddress)
 
 	// Get minter account (use Alice as minter)
-	useLocalForks := os.Getenv("FORKING") == "true"
-	var minterPrivateKey, minterPublicKey, minterAddress string
-	
-	if useLocalForks {
-		minterPrivateKey = os.Getenv("LOCAL_STARKNET_ALICE_PRIVATE_KEY")
-		minterPublicKey = os.Getenv("LOCAL_STARKNET_ALICE_PUBLIC_KEY")
-		minterAddress = getEnvWithDefault("LOCAL_STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-	} else {
-		minterPrivateKey = os.Getenv("STARKNET_ALICE_PRIVATE_KEY")
-		minterPublicKey = os.Getenv("STARKNET_ALICE_PUBLIC_KEY")
-		minterAddress = getEnvWithDefault("STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-	}
+	minterPrivateKey := envutil.GetStarknetAlicePrivateKey()
+	minterPublicKey := envutil.GetStarknetAlicePublicKey()
+	minterAddress := envutil.GetStarknetAliceAddress()
 
 	if minterPrivateKey == "" || minterPublicKey == "" {
 		log.Fatalf("Starknet minter credentials not found (Alice's keys)")
@@ -80,12 +71,12 @@ func fundStarknet(amount *big.Int) {
 	}
 
 	// Get recipient addresses
-	recipients := getStarknetRecipients(useLocalForks)
-	
+	recipients := getStarknetRecipients()
+
 	// Fund each recipient
 	for _, recipient := range recipients {
 		fmt.Printf("   💸 Funding %s (%s)...\n", recipient.Name, recipient.Address)
-		
+
 		// Check current balance
 		currentBalance, err := starknetutil.ERC20Balance(client, tokenAddress, recipient.Address)
 		if err == nil {
@@ -107,35 +98,35 @@ func fundStarknet(amount *big.Int) {
 
 		// Convert amount to two felts (low, high) for u256
 		amountLow, amountHigh := starknetutil.ConvertBigIntToU256Felts(amount)
-		
+
 		// Build mint calldata: mint(to: ContractAddress, amount: u256)
 		mintCalldata := []*felt.Felt{recipientFelt, amountLow, amountHigh}
-		
+
 		// Create mint transaction
 		mintCall := rpc.InvokeFunctionCall{
 			ContractAddress: tokenFelt,
 			FunctionName:    "mint",
 			CallData:        mintCalldata,
 		}
-		
+
 		// Send mint transaction
 		mintTx, err := minterAccount.BuildAndSendInvokeTxn(context.Background(), []rpc.InvokeFunctionCall{mintCall}, nil)
 		if err != nil {
 			log.Printf("     ❌ Failed to send mint transaction for %s: %v", recipient.Name, err)
 			continue
 		}
-		
+
 		fmt.Printf("     🚀 Mint transaction: %s\n", mintTx.Hash.String())
-		
+
 		// Wait for confirmation
 		_, err = minterAccount.WaitForTransactionReceipt(context.Background(), mintTx.Hash, 2*time.Second)
 		if err != nil {
 			log.Printf("     ❌ Failed to wait for transaction confirmation: %v", err)
 			continue
 		}
-		
+
 		fmt.Printf("     ✅ Minted %s tokens\n", starknetutil.FormatTokenAmount(amount, 18))
-		
+
 		// Verify new balance
 		newBalance, err := starknetutil.ERC20Balance(client, tokenAddress, recipient.Address)
 		if err == nil {
@@ -149,31 +140,19 @@ type StarknetRecipient struct {
 	Address string
 }
 
-func getStarknetRecipients(useLocalForks bool) []StarknetRecipient {
+func getStarknetRecipients() []StarknetRecipient {
 	var recipients []StarknetRecipient
-	
+
 	// Alice
-	var aliceAddr string
-	if useLocalForks {
-		aliceAddr = getEnvWithDefault("LOCAL_STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-	} else {
-		aliceAddr = getEnvWithDefault("STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-	}
 	recipients = append(recipients, StarknetRecipient{
 		Name:    "Alice",
-		Address: aliceAddr,
+		Address: envutil.GetStarknetAliceAddress(),
 	})
 
 	// Solver
-	var solverAddr string
-	if useLocalForks {
-		solverAddr = getEnvWithDefault("LOCAL_STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")
-	} else {
-		solverAddr = getEnvWithDefault("STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")
-	}
 	recipients = append(recipients, StarknetRecipient{
 		Name:    "Solver",
-		Address: solverAddr,
+		Address: envutil.GetStarknetSolverAddress(),
 	})
 
 	return recipients

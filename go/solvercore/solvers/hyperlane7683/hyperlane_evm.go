@@ -13,12 +13,11 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	contracts "github.com/NethermindEth/oif-starknet/go/solvercore/contracts"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/logutil"
@@ -184,14 +183,7 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args types.ParsedArgs) error 
 	// Check if origin is Starknet and we're on live networks (not forking)
 	starknetDomain := uint32(config.Networks["Starknet"].HyperlaneDomain)
 	if originDomain == starknetDomain {
-		// Check FORKING environment variable (default: true for local development)
-		forkingStr := strings.ToLower(os.Getenv("FORKING"))
-		if forkingStr == "" {
-			forkingStr = "true" // Default to forking mode
-		}
-		isForking, _ := strconv.ParseBool(forkingStr)
-
-		if !isForking {
+		if !envutil.IsForking() {
 			// Live networks: Skip settlement until Starknet domain is registered
 			fmt.Printf("   ⚠️  Skipping EVM settlement for Starknet origin (domain %d) on live network\n", originDomain)
 			fmt.Printf("   ⏳ Starknet domain not yet registered on EVM contracts - waiting for Hyperlane team\n")

@@ -34,24 +34,24 @@ func GetNetworkTagByChainID(chainID uint64) string {
 func CrossChainOperation(operation string, originChainID, destChainID uint64, orderID string) {
 	originTag := GetNetworkTagByChainID(originChainID)
 	destTag := GetNetworkTagByChainID(destChainID)
-	
+
 	// Keep the color codes for better readability
 	originClean := strings.TrimSpace(originTag)
 	destClean := strings.TrimSpace(destTag)
-	
+
 	fmt.Printf("%s → %s 🔄 %s (Order: %s)\n", originClean, destClean, operation, orderID[:8]+"...")
 }
 
 // removeColorCodes removes ANSI color codes from a string
 func removeColorCodes(s string) string {
 	// Remove common ANSI escape sequences
-	s = strings.ReplaceAll(s, "\033[32m", "") // green
-	s = strings.ReplaceAll(s, "\033[91m", "") // pastelRed
-	s = strings.ReplaceAll(s, "\033[35m", "") // purple
-	s = strings.ReplaceAll(s, "\033[38;5;27m", "") // royalBlue
+	s = strings.ReplaceAll(s, "\033[32m", "")       // green
+	s = strings.ReplaceAll(s, "\033[91m", "")       // pastelRed
+	s = strings.ReplaceAll(s, "\033[35m", "")       // purple
+	s = strings.ReplaceAll(s, "\033[38;5;27m", "")  // royalBlue
 	s = strings.ReplaceAll(s, "\033[38;5;208m", "") // orange
-	s = strings.ReplaceAll(s, "\033[36m", "") // cyan
-	s = strings.ReplaceAll(s, "\033[0m", "") // reset
+	s = strings.ReplaceAll(s, "\033[36m", "")       // cyan
+	s = strings.ReplaceAll(s, "\033[0m", "")        // reset
 	return s
 }
 
@@ -60,9 +60,9 @@ func LogOrderProcessing(args types.ParsedArgs, operation string) {
 	if args.ResolvedOrder.OriginChainID != nil && len(args.ResolvedOrder.FillInstructions) > 0 {
 		destChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID
 		if destChainID != nil {
-			CrossChainOperation(operation, 
-				args.ResolvedOrder.OriginChainID.Uint64(), 
-				destChainID.Uint64(), 
+			CrossChainOperation(operation,
+				args.ResolvedOrder.OriginChainID.Uint64(),
+				destChainID.Uint64(),
 				args.OrderID)
 		} else {
 			fmt.Printf("🔄 %s (Order: %s)\n", operation, args.OrderID[:8]+"...")
@@ -126,10 +126,10 @@ func LogOperationComplete(args types.ParsedArgs, operation string, success bool)
 		if destChainID != nil {
 			originTag := GetNetworkTagByChainID(args.ResolvedOrder.OriginChainID.Uint64())
 			destTag := GetNetworkTagByChainID(destChainID.Uint64())
-			
+
 			originClean := strings.TrimSpace(originTag)
 			destClean := strings.TrimSpace(destTag)
-			
+
 			if success {
 				fmt.Printf("%s → %s ✅ %s completed (Order: %s)\n", originClean, destClean, operation, args.OrderID[:8]+"...")
 			} else {
@@ -164,7 +164,7 @@ func LogPersistence(networkName string, blockNumber uint64) {
 	counter := persistenceCounters[networkName]
 	counter++
 	persistenceCounters[networkName] = counter
-	
+
 	// Only log every 30 blocks or if it's the first block
 	if counter%30 == 1 || counter == 1 {
 		tag := Prefix(networkName)

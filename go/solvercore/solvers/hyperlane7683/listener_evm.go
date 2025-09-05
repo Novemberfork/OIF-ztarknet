@@ -53,14 +53,14 @@ func NewEVMListener(listenerConfig *base.ListenerConfig, rpcURL string) (base.Li
 	var lastProcessedBlock uint64
 	configStartBlock := listenerConfig.InitialBlock.Uint64()
 
-	// Special case: if start block is 0, use current block
+	// Special case: if start block is <= 0, use current block (minus delta)
 	if configStartBlock == 0 {
 		ctx := context.Background()
 		currentBlock, err := client.BlockNumber(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current block for start block 0: %w", err)
 		}
-		configStartBlock = currentBlock
+		configStartBlock += currentBlock
 		fmt.Printf("%s📚 Start block was 0, using current block: %d\n",
 			logutil.Prefix(listenerConfig.ChainName), configStartBlock)
 	}

@@ -14,14 +14,14 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 	"sync"
 	"time"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
+	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/logutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/types"
-	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 
 	"github.com/NethermindEth/juno/core/felt"
 	"github.com/NethermindEth/starknet.go/account"
@@ -50,9 +50,11 @@ func NewHyperlaneStarknet(rpcURL string, chainID uint64) *HyperlaneStarknet {
 		return nil
 	}
 
-	pub := os.Getenv("STARKNET_SOLVER_PUBLIC_KEY")
-	addrHex := os.Getenv("STARKNET_SOLVER_ADDRESS")
-	priv := os.Getenv("STARKNET_SOLVER_PRIVATE_KEY")
+	// Use conditional environment variables based on FORKING
+	pub := envutil.GetStarknetSolverPublicKey()
+	addrHex := envutil.GetStarknetSolverAddress()
+	priv := envutil.GetStarknetSolverPrivateKey()
+	
 	if pub == "" || addrHex == "" || priv == "" {
 		fmt.Printf("missing STARKNET_SOLVER_* env vars for Starknet signer")
 		return nil

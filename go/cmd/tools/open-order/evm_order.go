@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	contracts "github.com/NethermindEth/oif-starknet/go/solvercore/contracts"
@@ -195,28 +196,15 @@ var testUsers = []struct {
 // initializeTestUsers initializes the test user configuration after .env is loaded
 func initializeTestUsers() {
 	// Use conditional environment variable logic based on FORKING
-	useLocalForks := os.Getenv("FORKING") == "true"
+	aliceAddr := envutil.GetAlicePublicKey()
+	privateKeyVar := envutil.GetConditionalAccountEnv("ALICE_PRIVATE_KEY")
 	
-	if useLocalForks {
-		// Use local fork addresses (only Alice needed for order creation)
-		aliceAddr := getEnvWithDefault("LOCAL_ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-		testUsers = []struct {
-			name       string
-			privateKey string
-			address    string
-		}{
-			{"Alice", "LOCAL_ALICE_PRIVATE_KEY", aliceAddr},
-		}
-	} else {
-		// Use live network addresses (only Alice needed for order creation)
-		aliceAddr := getEnvWithDefault("ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-		testUsers = []struct {
-			name       string
-			privateKey string
-			address    string
-		}{
-			{"Alice", "ALICE_PRIVATE_KEY", aliceAddr},
-		}
+	testUsers = []struct {
+		name       string
+		privateKey string
+		address    string
+	}{
+		{"Alice", privateKeyVar, aliceAddr},
 	}
 }
 
@@ -269,14 +257,6 @@ func loadNetworks() []NetworkConfig {
 	}
 
 	return networks
-}
-
-// getEnvWithDefault gets an environment variable with a default fallback
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // getHyperlaneDomain returns the Hyperlane domain ID for a given network
@@ -681,9 +661,9 @@ func executeOrder(order OrderConfig, networks []NetworkConfig) {
 
 		// Verify that balances actually changed as expected
 		fmt.Printf("   🔍 Verifying input tokens were transferred...\n")
-		// For balance verification, use the amount the user actually provided (MaxSpent)
-		// This is what the user gave up to open the order
-		expectedTransferAmount := orderData.MaxSpent[0].Amount.ToBig()
+		// For balance verification, use the actual input amount the user paid
+		// This is what the user actually gave up to open the order (not MaxSpent which is output amount)
+		expectedTransferAmount := order.InputAmount
 		if err := verifyBalanceChanges(client, inputToken, owner, spender, initialBalances, expectedTransferAmount); err != nil {
 			fmt.Printf("⚠️  Balance verification failed: %v\n", err)
 		} else {
@@ -709,14 +689,6 @@ func executeOrder(order OrderConfig, networks []NetworkConfig) {
 
 func buildOrderData(order OrderConfig, originNetwork *NetworkConfig, destinationNetwork *NetworkConfig, originDomain uint32, senderNonce *big.Int) OrderData {
 
-	// Get the actual user address for the specified user
-	// var userAddr common.Address
-	// for _, user := range testUsers {
-	// 	if user.name == order.User {
-	// 		userAddr = common.HexToAddress(user.address)
-	// 		break
-	// 	}
-	// }
 
 	// Input token from origin network, output token from destination network
 	// inputTokenAddr := originNetwork.dogCoinAddress

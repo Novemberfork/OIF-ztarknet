@@ -2,8 +2,8 @@ package config
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -13,28 +13,28 @@ const (
 	EthereumSepoliaChainID = 11155111
 	OptimismSepoliaChainID = 11155420
 	ArbitrumSepoliaChainID = 421614
-	BaseSepoliaChainID = 84532
+	BaseSepoliaChainID     = 84532
 	StarknetSepoliaChainID = 23448591
-	
+
 	// Default block numbers (0 = latest block for live networks)
 	EthereumDefaultStartBlock = 0
 	OptimismDefaultStartBlock = 0
 	ArbitrumDefaultStartBlock = 0
-	BaseDefaultStartBlock = 0
+	BaseDefaultStartBlock     = 0
 	StarknetDefaultStartBlock = 0
-	
+
 	// Local fork block numbers (latest blocks for local development)
 	EthereumLocalStartBlock = 9121214
 	OptimismLocalStartBlock = 32529526
 	ArbitrumLocalStartBlock = 190326088
-	BaseLocalStartBlock = 30546661
+	BaseLocalStartBlock     = 30546661
 	StarknetLocalStartBlock = 1850850
-	
+
 	// Default intervals
-	DefaultPollIntervalMs = 1000
+	DefaultPollIntervalMs         = 1000
 	StarknetDefaultPollIntervalMs = 2000
-	DefaultMaxBlockRange = 10
-	StarknetDefaultMaxBlockRange = 100
+	DefaultMaxBlockRange          = 10
+	StarknetDefaultMaxBlockRange  = 100
 )
 
 // NetworkConfig represents a single network configuration
@@ -52,101 +52,11 @@ type NetworkConfig struct {
 	MaxBlockRange      uint64 // 0 = use default
 }
 
-// getEnvWithDefault gets an environment variable with a default fallback
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// getConditionalEnv gets an environment variable based on FORKING flag
-// If FORKING=true, uses LOCAL_* version, otherwise uses regular version
-func getConditionalEnv(key, defaultValue string) string {
-	// Check if we're in forking mode
-	forking := os.Getenv("FORKING")
-	
-	var targetKey string
-	if forking == "true" {
-		targetKey = "LOCAL_" + key
-	} else {
-		targetKey = key
-	}
-	
-	if value := os.Getenv(targetKey); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 // GetConditionalAccountEnv gets account-related environment variables based on FORKING flag
 // This is a convenience function for account keys and addresses
+// Deprecated: Use envutil.GetConditionalAccountEnv instead
 func GetConditionalAccountEnv(key string) string {
-	return getConditionalEnv(key, "")
-}
-
-// getConditionalUint64 gets a uint64 environment variable based on FORKING flag
-// If FORKING=true, uses LOCAL_* version with local defaults, otherwise uses regular version with live defaults
-func getConditionalUint64(key string, liveDefault, localDefault uint64) uint64 {
-	// Check if we're in forking mode
-	forking := os.Getenv("FORKING")
-	
-	var targetKey string
-	var defaultValue uint64
-	if forking == "true" {
-		targetKey = "LOCAL_" + key
-		defaultValue = localDefault
-	} else {
-		targetKey = key
-		defaultValue = liveDefault
-	}
-	
-	if value := os.Getenv(targetKey); value != "" {
-		if parsed, err := parseUint64(value); err == nil {
-			return parsed
-		}
-	}
-	return defaultValue
-}
-
-// getEnvUint64 gets an environment variable as uint64 with a default fallback
-func getEnvUint64(key string, defaultValue uint64) uint64 {
-	if value := os.Getenv(key); value != "" {
-		if parsed, err := parseUint64(value); err == nil {
-			return parsed
-		}
-	}
-	return defaultValue
-}
-
-// getEnvUint64Any returns the first present uint64 among keys, or defaultValue
-func getEnvUint64Any(keys []string, defaultValue uint64) uint64 {
-	for _, k := range keys {
-		if v := os.Getenv(k); v != "" {
-			if parsed, err := parseUint64(v); err == nil {
-				return parsed
-			}
-		}
-	}
-	return defaultValue
-}
-
-// getEnvInt gets an environment variable as int with a default fallback
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		var result int
-		if _, err := fmt.Sscanf(value, "%d", &result); err == nil {
-			return result
-		}
-	}
-	return defaultValue
-}
-
-// parseUint64 parses a string to uint64
-func parseUint64(s string) (uint64, error) {
-	var result uint64
-	_, err := fmt.Sscanf(s, "%d", &result)
-	return result, err
+	return envutil.GetConditionalAccountEnv(key)
 }
 
 // networksInitialized tracks whether networks have been initialized from env vars
@@ -174,63 +84,63 @@ func initializeNetworks() {
 	Networks = map[string]NetworkConfig{
 		"Ethereum": {
 			Name:               "Ethereum",
-			RPCURL:             getConditionalEnv("ETHEREUM_RPC_URL", "http://localhost:8545"),
-			ChainID:            getEnvUint64Any([]string{"ETHEREUM_CHAIN_ID", "SEPOLIA_CHAIN_ID"}, EthereumSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64Any([]string{"ETHEREUM_DOMAIN_ID", "SEPOLIA_DOMAIN_ID"}, EthereumSepoliaChainID),
-			ForkStartBlock:     getConditionalUint64("ETHEREUM_SOLVER_START_BLOCK", EthereumDefaultStartBlock, EthereumLocalStartBlock),
-			SolverStartBlock:   getConditionalUint64("ETHEREUM_SOLVER_START_BLOCK", EthereumDefaultStartBlock, EthereumLocalStartBlock),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
-			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
+			RPCURL:             envutil.GetConditionalEnv("ETHEREUM_RPC_URL", "http://localhost:8545"),
+			ChainID:            envutil.GetEnvUint64Any([]string{"ETHEREUM_CHAIN_ID", "SEPOLIA_CHAIN_ID"}, EthereumSepoliaChainID),
+			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneDomain:    envutil.GetEnvUint64Any([]string{"ETHEREUM_DOMAIN_ID", "SEPOLIA_DOMAIN_ID"}, EthereumSepoliaChainID),
+			ForkStartBlock:     envutil.GetConditionalUint64("ETHEREUM_SOLVER_START_BLOCK", EthereumDefaultStartBlock, EthereumLocalStartBlock),
+			SolverStartBlock:   envutil.GetConditionalUint64("ETHEREUM_SOLVER_START_BLOCK", EthereumDefaultStartBlock, EthereumLocalStartBlock),
+			PollInterval:       envutil.GetEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
+			ConfirmationBlocks: envutil.GetEnvUint64("CONFIRMATION_BLOCKS", 0),
+			MaxBlockRange:      envutil.GetEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Optimism": {
 			Name:               "Optimism",
-			RPCURL:             getConditionalEnv("OPTIMISM_RPC_URL", "http://localhost:8546"),
-			ChainID:            getEnvUint64("OPTIMISM_CHAIN_ID", OptimismSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64("OPTIMISM_DOMAIN_ID", OptimismSepoliaChainID),
-			ForkStartBlock:     getConditionalUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock, OptimismLocalStartBlock),
-			SolverStartBlock:   getConditionalUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock, OptimismLocalStartBlock),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
-			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
+			RPCURL:             envutil.GetConditionalEnv("OPTIMISM_RPC_URL", "http://localhost:8546"),
+			ChainID:            envutil.GetEnvUint64("OPTIMISM_CHAIN_ID", OptimismSepoliaChainID),
+			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneDomain:    envutil.GetEnvUint64("OPTIMISM_DOMAIN_ID", OptimismSepoliaChainID),
+			ForkStartBlock:     envutil.GetConditionalUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock, OptimismLocalStartBlock),
+			SolverStartBlock:   envutil.GetConditionalUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock, OptimismLocalStartBlock),
+			PollInterval:       envutil.GetEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
+			ConfirmationBlocks: envutil.GetEnvUint64("CONFIRMATION_BLOCKS", 0),
+			MaxBlockRange:      envutil.GetEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Arbitrum": {
 			Name:               "Arbitrum",
-			RPCURL:             getConditionalEnv("ARBITRUM_RPC_URL", "http://localhost:8547"),
-			ChainID:            getEnvUint64("ARBITRUM_CHAIN_ID", ArbitrumSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64("ARBITRUM_DOMAIN_ID", ArbitrumSepoliaChainID),
-			ForkStartBlock:     getConditionalUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock, ArbitrumLocalStartBlock),
-			SolverStartBlock:   getConditionalUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock, ArbitrumLocalStartBlock),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
-			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
+			RPCURL:             envutil.GetConditionalEnv("ARBITRUM_RPC_URL", "http://localhost:8547"),
+			ChainID:            envutil.GetEnvUint64("ARBITRUM_CHAIN_ID", ArbitrumSepoliaChainID),
+			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneDomain:    envutil.GetEnvUint64("ARBITRUM_DOMAIN_ID", ArbitrumSepoliaChainID),
+			ForkStartBlock:     envutil.GetConditionalUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock, ArbitrumLocalStartBlock),
+			SolverStartBlock:   envutil.GetConditionalUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock, ArbitrumLocalStartBlock),
+			PollInterval:       envutil.GetEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
+			ConfirmationBlocks: envutil.GetEnvUint64("CONFIRMATION_BLOCKS", 0),
+			MaxBlockRange:      envutil.GetEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Base": {
 			Name:               "Base",
-			RPCURL:             getConditionalEnv("BASE_RPC_URL", "http://localhost:8548"),
-			ChainID:            getEnvUint64("BASE_CHAIN_ID", BaseSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
-			HyperlaneDomain:    getEnvUint64("BASE_DOMAIN_ID", BaseSepoliaChainID),
-			ForkStartBlock:     getConditionalUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock, BaseLocalStartBlock),
-			SolverStartBlock:   getConditionalUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock, BaseLocalStartBlock),
-			PollInterval:       getEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
-			ConfirmationBlocks: getEnvUint64("CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
+			RPCURL:             envutil.GetConditionalEnv("BASE_RPC_URL", "http://localhost:8548"),
+			ChainID:            envutil.GetEnvUint64("BASE_CHAIN_ID", BaseSepoliaChainID),
+			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneDomain:    envutil.GetEnvUint64("BASE_DOMAIN_ID", BaseSepoliaChainID),
+			ForkStartBlock:     envutil.GetConditionalUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock, BaseLocalStartBlock),
+			SolverStartBlock:   envutil.GetConditionalUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock, BaseLocalStartBlock),
+			PollInterval:       envutil.GetEnvInt("POLL_INTERVAL_MS", DefaultPollIntervalMs),
+			ConfirmationBlocks: envutil.GetEnvUint64("CONFIRMATION_BLOCKS", 0),
+			MaxBlockRange:      envutil.GetEnvUint64("MAX_BLOCK_RANGE", DefaultMaxBlockRange),
 		},
 		"Starknet": {
 			Name:               "Starknet",
-			RPCURL:             getConditionalEnv("STARKNET_RPC_URL", "http://localhost:5050"),
-			ChainID:            getEnvUint64("STARKNET_CHAIN_ID", StarknetSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(getEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")),
-			HyperlaneDomain:    getEnvUint64("STARKNET_DOMAIN_ID", StarknetSepoliaChainID),
-			ForkStartBlock:     getConditionalUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock, StarknetLocalStartBlock),
-			SolverStartBlock:   getConditionalUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock, StarknetLocalStartBlock),
-			PollInterval:       getEnvInt("STARKNET_POLL_INTERVAL_MS", getEnvInt("POLL_INTERVAL_MS", StarknetDefaultPollIntervalMs)),
-			ConfirmationBlocks: getEnvUint64("STARKNET_CONFIRMATION_BLOCKS", 0),
-			MaxBlockRange:      getEnvUint64("STARKNET_MAX_BLOCK_RANGE", getEnvUint64("MAX_BLOCK_RANGE", StarknetDefaultMaxBlockRange)),
+			RPCURL:             envutil.GetConditionalEnv("STARKNET_RPC_URL", "http://localhost:5050"),
+			ChainID:            envutil.GetEnvUint64("STARKNET_CHAIN_ID", StarknetSepoliaChainID),
+			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")),
+			HyperlaneDomain:    envutil.GetEnvUint64("STARKNET_DOMAIN_ID", StarknetSepoliaChainID),
+			ForkStartBlock:     envutil.GetConditionalUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock, StarknetLocalStartBlock),
+			SolverStartBlock:   envutil.GetConditionalUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock, StarknetLocalStartBlock),
+			PollInterval:       envutil.GetEnvInt("STARKNET_POLL_INTERVAL_MS", envutil.GetEnvInt("POLL_INTERVAL_MS", StarknetDefaultPollIntervalMs)),
+			ConfirmationBlocks: envutil.GetEnvUint64("STARKNET_CONFIRMATION_BLOCKS", 0),
+			MaxBlockRange:      envutil.GetEnvUint64("STARKNET_MAX_BLOCK_RANGE", envutil.GetEnvUint64("MAX_BLOCK_RANGE", StarknetDefaultMaxBlockRange)),
 		},
 	}
 	networksInitialized = true

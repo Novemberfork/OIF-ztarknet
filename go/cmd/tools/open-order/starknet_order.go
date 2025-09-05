@@ -20,9 +20,29 @@ import (
 	"github.com/NethermindEth/starknet.go/utils"
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 )
+
+// getAliceAddressForNetwork gets Alice's address for a specific network using FORKING logic
+func getAliceAddressForNetwork(networkName string) (string, error) {
+	if strings.Contains(strings.ToLower(networkName), "starknet") {
+		// Use conditional environment variable for Starknet
+		address := envutil.GetStarknetAliceAddress()
+		if address == "" {
+			return "", fmt.Errorf("Starknet Alice address not set")
+		}
+		return address, nil
+	} else {
+		// Use conditional environment variable for EVM networks
+		address := envutil.GetAlicePublicKey()
+		if address == "" {
+			return "", fmt.Errorf("Alice public key not set")
+		}
+		return address, nil
+	}
+}
 
 // NetworkConfig represents a single network configuration for Starknet
 type StarknetNetworkConfig struct {
@@ -80,33 +100,19 @@ var starknetTestUsers []struct {
 
 // initializeStarknetTestUsers initializes the test user configuration after .env is loaded
 func initializeStarknetTestUsers() {
-	// Use conditional environment variable logic based on FORKING
-	useLocalForks := os.Getenv("FORKING") == "true"
+	// Use envutil for conditional environment variable access
+	aliceAddr := envutil.GetStarknetAliceAddress()
+	solverAddr := envutil.GetStarknetSolverAddress()
+	alicePrivateKeyVar := envutil.GetConditionalAccountEnv("STARKNET_ALICE_PRIVATE_KEY")
+	solverPrivateKeyVar := envutil.GetConditionalAccountEnv("STARKNET_SOLVER_PRIVATE_KEY")
 	
-	if useLocalForks {
-		// Use local fork addresses
-		aliceAddr := getEnvWithDefault("LOCAL_STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-		solverAddr := getEnvWithDefault("LOCAL_STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")
-		starknetTestUsers = []struct {
-			name       string
-			privateKey string
-			address    string
-		}{
-			{"Alice", "LOCAL_STARKNET_ALICE_PRIVATE_KEY", aliceAddr},
-			{"Solver", "LOCAL_STARKNET_SOLVER_PRIVATE_KEY", solverAddr},
-		}
-	} else {
-		// Use live network addresses
-		aliceAddr := getEnvWithDefault("STARKNET_ALICE_ADDRESS", "0x13d9ee239f33fea4f8785b9e3870ade909e20a9599ae7cd62c1c292b73af1b7")
-		solverAddr := getEnvWithDefault("STARKNET_SOLVER_ADDRESS", "0x2af9427c5a277474c079a1283c880ee8a6f0f8fbf73ce969c08d88befec1bba")
-		starknetTestUsers = []struct {
-			name       string
-			privateKey string
-			address    string
-		}{
-			{"Alice", "STARKNET_ALICE_PRIVATE_KEY", aliceAddr},
-			{"Solver", "STARKNET_SOLVER_PRIVATE_KEY", solverAddr},
-		}
+	starknetTestUsers = []struct {
+		name       string
+		privateKey string
+		address    string
+	}{
+		{"Alice", alicePrivateKeyVar, aliceAddr},
+		{"Solver", solverPrivateKeyVar, solverAddr},
 	}
 }
 
@@ -185,12 +191,15 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 	// Get available destination networks from config
 	destinationChain := getRandomDestinationChain(originChain)
 
-	// Always use Alice for orders
-	user := "Alice"
+	// Get Alice's address for the destination chain
+	user, err := getAliceAddressForNetwork(destinationChain)
+	if err != nil {
+		log.Fatalf("Failed to get Alice address for %s: %v", destinationChain, err)
+	}
 
 	// Random amounts
 	inputAmount := CreateTokenAmount(int64(rand.Intn(9901)+100), 18) // 100-10000 tokens
-	delta := big.NewInt(int64(rand.Intn(90) + 1))                    // 1-90
+	delta := CreateTokenAmount(int64(rand.Intn(10)+1), 18)           // 1-10 tokens
 	outputAmount := new(big.Int).Sub(inputAmount, delta)             // slightly less to ensure it's fillable
 
 	order := StarknetOrderConfig{
@@ -200,7 +209,7 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 		OutputToken:      "DogCoin",
 		InputAmount:      inputAmount,
 		OutputAmount:     outputAmount,
-		User:             user,
+		User:             user, // Recipient address on destination chain
 		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
 		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}
@@ -215,6 +224,12 @@ func openDefaultStarknetToEvm(networks []StarknetNetworkConfig) {
 	originChain := getEnvWithDefault("STARKNET_NETWORK_NAME", "Starknet")
 	destinationChain := getEnvWithDefault("DEFAULT_EVM_DESTINATION", "Ethereum")
 
+	// Get Alice's address for the destination chain
+	aliceAddress, err := getAliceAddressForNetwork(destinationChain)
+	if err != nil {
+		log.Fatalf("Failed to get Alice address for %s: %v", destinationChain, err)
+	}
+
 	order := StarknetOrderConfig{
 		OriginChain:      originChain,
 		DestinationChain: destinationChain,
@@ -222,7 +237,7 @@ func openDefaultStarknetToEvm(networks []StarknetNetworkConfig) {
 		OutputToken:      "DogCoin",
 		InputAmount:      CreateTokenAmount(1000, 18), // 1000 tokens
 		OutputAmount:     CreateTokenAmount(999, 18),  // 999 tokens
-		User:             "Alice",
+		User:             aliceAddress,                // Recipient address on destination chain
 		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
 		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}
@@ -254,30 +269,25 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 		os.Exit(1)
 	}
 
-	// Get user private key and public key using conditional environment variable logic
-	var userKey, userPublicKey string
-	useLocalForks := os.Getenv("FORKING") == "true"
-	if useLocalForks {
-		userKey = os.Getenv(fmt.Sprintf("LOCAL_STARKNET_%s_PRIVATE_KEY", strings.ToUpper(order.User)))
-		userPublicKey = os.Getenv(fmt.Sprintf("LOCAL_STARKNET_%s_PUBLIC_KEY", strings.ToUpper(order.User)))
-	} else {
-		userKey = os.Getenv(fmt.Sprintf("STARKNET_%s_PRIVATE_KEY", strings.ToUpper(order.User)))
-		userPublicKey = os.Getenv(fmt.Sprintf("STARKNET_%s_PUBLIC_KEY", strings.ToUpper(order.User)))
-	}
+	// Always use Alice's Starknet credentials for signing orders on Starknet
+	// The order.User field contains the recipient address (destination chain), not the signer
+	userKey := envutil.GetStarknetAlicePrivateKey()
+	userPublicKey := envutil.GetStarknetAlicePublicKey()
+	
 	if userKey == "" || userPublicKey == "" {
-		fmt.Printf("❌ Missing credentials for user: %s (FORKING=%s)\n", order.User, os.Getenv("FORKING"))
-		if useLocalForks {
-			fmt.Printf("   Required: LOCAL_STARKNET_%s_PRIVATE_KEY and LOCAL_STARKNET_%s_PUBLIC_KEY\n", strings.ToUpper(order.User), strings.ToUpper(order.User))
+		fmt.Printf("❌ Missing Alice's Starknet credentials (FORKING=%v)\n", envutil.IsForking())
+		if envutil.IsForking() {
+			fmt.Printf("   Required: LOCAL_STARKNET_ALICE_PRIVATE_KEY and LOCAL_STARKNET_ALICE_PUBLIC_KEY\n")
 		} else {
-			fmt.Printf("   Required: STARKNET_%s_PRIVATE_KEY and STARKNET_%s_PUBLIC_KEY\n", strings.ToUpper(order.User), strings.ToUpper(order.User))
+			fmt.Printf("   Required: STARKNET_ALICE_PRIVATE_KEY and STARKNET_ALICE_PUBLIC_KEY\n")
 		}
 		os.Exit(1)
 	}
 
-	// Get user address
+	// Always use Alice's Starknet address for signing (order signer)
 	var userAddr string
 	for _, user := range starknetTestUsers {
-		if user.name == order.User {
+		if user.name == "Alice" {
 			userAddr = user.address
 			break
 		}
@@ -315,7 +325,7 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 	// Check if Alice has sufficient tokens for the order
 	requiredAmount := order.InputAmount
 	if initialUserBalance == nil || initialUserBalance.Cmp(requiredAmount) < 0 {
-		fmt.Printf("   ⚠️  Insufficient balance! Alice needs %s tokens but has %s\n", 
+		fmt.Printf("   ⚠️  Insufficient balance! Alice needs %s tokens but has %s\n",
 			starknetutil.FormatTokenAmount(requiredAmount, 18),
 			starknetutil.FormatTokenAmount(initialUserBalance, 18))
 		fmt.Printf("   💡 Please mint tokens manually using the MockERC20 contract's mint() function\n")
@@ -364,31 +374,31 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 	requiredAmount = order.InputAmount
 	if allowance == nil || allowance.Cmp(requiredAmount) < 0 {
 		fmt.Printf("   🔄 Insufficient allowance, approving %s tokens...\n", starknetutil.FormatTokenAmount(requiredAmount, 18))
-		
+
 		// Create approval transaction
 		approveCall, err := starknetutil.ERC20Approve(inputToken, spender, requiredAmount)
 		if err != nil {
 			fmt.Printf("❌ Failed to create approve transaction: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		// Send approval transaction
 		approveTx, err := userAccnt.BuildAndSendInvokeTxn(context.Background(), []rpc.InvokeFunctionCall{*approveCall}, nil)
 		if err != nil {
 			fmt.Printf("❌ Failed to send approval transaction: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		fmt.Printf("   🚀 Approval transaction sent: %s\n", approveTx.Hash.String())
 		fmt.Printf("   ⏳ Waiting for approval confirmation...\n")
-		
+
 		// Wait for approval transaction to be mined
 		_, err = userAccnt.WaitForTransactionReceipt(context.Background(), approveTx.Hash, 2*time.Second)
 		if err != nil {
 			fmt.Printf("❌ Failed to wait for approval transaction: %v\n", err)
 			os.Exit(1)
 		}
-		
+
 		fmt.Printf("   ✅ Approval confirmed!\n")
 	} else {
 		fmt.Printf("   ✅ Sufficient allowance already exists\n")
@@ -465,6 +475,12 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 	}
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
+	fmt.Printf("📊 Order Summary:\n")
+	fmt.Printf("   Input Amount: %s\n", order.InputAmount.String())
+	fmt.Printf("   Output Amount: %s\n", order.OutputAmount.String())
+	fmt.Printf("   Origin Chain: %s\n", order.OriginChain)
+	fmt.Printf("   Destination Chain: %s\n", order.DestinationChain)
+
 }
 
 func buildStarknetOrderData(order StarknetOrderConfig, originNetwork *StarknetNetworkConfig, originDomain uint32, destinationDomain uint32, senderNonce *big.Int, destChainName string) StarknetOrderData {
@@ -481,22 +497,14 @@ func buildStarknetOrderData(order StarknetOrderConfig, originNetwork *StarknetNe
 	userAddrFelt, _ := utils.HexToFelt(userAddr)
 	inputTokenFelt, _ := utils.HexToFelt(originNetwork.dogCoinAddress)
 
-	// For recipient, since this is a Starknet order opener, destination is always EVM
-	// We need to map the Starknet user to their corresponding EVM address
-	var recipientFelt *felt.Felt
-	var evmUserAddr string
-
-	// Map Starknet users to their EVM addresses
-	switch order.User {
-	case "Alice":
-		evmUserAddr = getEnvWithDefault("ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-	case "Solver":
-		evmUserAddr = getEnvWithDefault("SOLVER_PUB_KEY", "0x90F79bf6EB2c4f870365E785982E1f101E93b906")
-	default:
-		// Fallback to Alice address if unknown user (should only be Alice now)
-		evmUserAddr = getEnvWithDefault("ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-		fmt.Printf("   ⚠️  Warning: Unknown user %s, using Alice EVM address as recipient\n", order.User)
+	// For Starknet→EVM orders, recipient is always Alice's EVM address
+	// Use conditional environment variable based on FORKING
+	evmUserAddr := envutil.GetAlicePublicKey()
+	if evmUserAddr == "" {
+		log.Fatalf("Alice public key not set")
 	}
+
+	var recipientFelt *felt.Felt
 
 	// Pad EVM address to 32 bytes for Cairo ContractAddress
 	evmAddr := common.HexToAddress(evmUserAddr)
@@ -762,4 +770,10 @@ func getRandomDestinationChain(originChain string) string {
 func isStarknetNetwork(networkName string) bool {
 	// Check if network name contains "starknet" (case insensitive)
 	return strings.Contains(strings.ToLower(networkName), "starknet")
+}
+
+// getEnvWithDefault gets an environment variable with a default fallback
+// TODO: Remove this once all usages are migrated to envutil
+func getEnvWithDefault(key, defaultValue string) string {
+	return envutil.GetEnvWithDefault(key, defaultValue)
 }

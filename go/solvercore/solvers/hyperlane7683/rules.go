@@ -8,8 +8,8 @@ package hyperlane7683
 import (
 	"context"
 	"fmt"
-	"os"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
 	"github.com/NethermindEth/oif-starknet/go/pkg/starknetutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
@@ -98,14 +98,14 @@ func (br *BalanceRule) Evaluate(ctx context.Context, args types.ParsedArgs) Rule
 }
 
 func (br *BalanceRule) checkStarknetBalance(ctx context.Context, args types.ParsedArgs) RuleResult {
-	// Get solver's Starknet address from environment
-	solverAddrHex := os.Getenv("STARKNET_SOLVER_ADDRESS")
+	// Get solver's Starknet address from environment (conditional based on FORKING)
+	solverAddrHex := envutil.GetStarknetSolverAddress()
 	if solverAddrHex == "" {
-		return RuleResult{Passed: false, Reason: "STARKNET_SOLVER_ADDRESS not set"}
+		return RuleResult{Passed: false, Reason: "Starknet solver address not set"}
 	}
 
-	// Get Starknet RPC URL
-	starknetRPC := os.Getenv("STARKNET_RPC_URL")
+	// Get Starknet RPC URL (conditional based on FORKING)
+	starknetRPC := envutil.GetStarknetRPCURL()
 	if starknetRPC == "" {
 		return RuleResult{Passed: false, Reason: "STARKNET_RPC_URL not set"}
 	}
@@ -138,10 +138,10 @@ func (br *BalanceRule) checkStarknetBalance(ctx context.Context, args types.Pars
 }
 
 func (br *BalanceRule) checkEVMBalance(ctx context.Context, args types.ParsedArgs) RuleResult {
-	// Get solver's EVM address from environment
-	solverAddrHex := os.Getenv("SOLVER_PUB_KEY")
+	// Get solver's EVM address from environment (conditional based on FORKING)
+	solverAddrHex := envutil.GetSolverPublicKey()
 	if solverAddrHex == "" {
-		return RuleResult{Passed: false, Reason: "SOLVER_PUB_KEY not set"}
+		return RuleResult{Passed: false, Reason: "Solver public key not set"}
 	}
 
 	solverAddr := common.HexToAddress(solverAddrHex)
@@ -316,5 +316,3 @@ func getStarknetChainID() uint64 {
 	}
 	return 0 // Default fallback
 }
-
-

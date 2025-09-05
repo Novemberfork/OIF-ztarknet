@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
+
 	"strings"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/base"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	contracts "github.com/NethermindEth/oif-starknet/go/solvercore/solvers/hyperlane7683"
@@ -185,7 +186,9 @@ func (sm *SolverManager) GetEVMClient(chainID uint64) (*ethclient.Client, error)
 func (sm *SolverManager) GetEVMSigner(chainID uint64) (*bind.TransactOpts, error) {
 	// For now, create a new signer for each chain
 	// In the future, this could be cached per chain
-	solverPrivateKey := os.Getenv("SOLVER_PRIVATE_KEY")
+	
+	// Use conditional environment variable based on FORKING
+	solverPrivateKey := envutil.GetConditionalAccountEnv("SOLVER_PRIVATE_KEY")
 	if solverPrivateKey == "" {
 		return nil, fmt.Errorf("SOLVER_PRIVATE_KEY environment variable not set")
 	}
@@ -212,9 +215,11 @@ func (sm *SolverManager) GetStarknetSigner() (*account.Account, error) {
 		return nil, fmt.Errorf("starknet client not initialized")
 	}
 
-	pub := os.Getenv("STARKNET_SOLVER_PUBLIC_KEY")
-	addrHex := os.Getenv("STARKNET_SOLVER_ADDRESS")
-	priv := os.Getenv("STARKNET_SOLVER_PRIVATE_KEY")
+	// Use conditional environment variables based on FORKING
+	pub := envutil.GetStarknetSolverPublicKey()
+	addrHex := envutil.GetStarknetSolverAddress()
+	priv := envutil.GetStarknetSolverPrivateKey()
+	
 	if pub == "" || addrHex == "" || priv == "" {
 		return nil, fmt.Errorf("missing STARKNET_SOLVER_* env vars for Starknet signer")
 	}
@@ -389,18 +394,9 @@ func (sm *SolverManager) GetSolverStatus() map[string]bool {
 	return status
 }
 
-// getStarknetHyperlaneAddress gets the correct Starknet Hyperlane address based on FORKING mode
-// Note: This is needed until there is a final hyperlane deployment address
+// getStarknetHyperlaneAddress gets the Starknet Hyperlane address from environment
 func getStarknetHyperlaneAddress(networkConfig config.NetworkConfig) (string, error) {
-	// forkingStr := strings.ToLower(os.Getenv("FORKING"))
-	// Check FORKING environment variable (default: true for local forks)
-	//if forkingStr == "" {
-	//	forkingStr = "true"
-	//}
-	//	isForking, _ := strconv.ParseBool(forkingStr)
-
-	// Live networks: Read full Starknet address directly from .env (bypass common.Address truncation)
-	envAddr := os.Getenv("STARKNET_HYPERLANE_ADDRESS")
+	envAddr := envutil.GetEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")
 	if envAddr != "" {
 		fmt.Printf("   🔄 Using Starknet Hyperlane address from .env: %s\n", envAddr)
 		return envAddr, nil

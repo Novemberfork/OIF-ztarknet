@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/NethermindEth/oif-starknet/go/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/go/pkg/ethutil"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -187,9 +188,9 @@ func getRecipients(useLocalForks bool) []Recipient {
 	// Alice
 	var aliceAddr string
 	if useLocalForks {
-		aliceAddr = getEnvWithDefault("LOCAL_ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
+		aliceAddr = envutil.GetEnvWithDefault("LOCAL_ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 	} else {
-		aliceAddr = getEnvWithDefault("ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
+		aliceAddr = envutil.GetEnvWithDefault("ALICE_PUB_KEY", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 	}
 	recipients = append(recipients, Recipient{
 		Name:    "Alice",
@@ -199,9 +200,9 @@ func getRecipients(useLocalForks bool) []Recipient {
 	// Solver
 	var solverAddr string
 	if useLocalForks {
-		solverAddr = getEnvWithDefault("LOCAL_SOLVER_PUB_KEY", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")
+		solverAddr = envutil.GetEnvWithDefault("LOCAL_SOLVER_PUB_KEY", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")
 	} else {
-		solverAddr = getEnvWithDefault("SOLVER_PUB_KEY", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")
+		solverAddr = envutil.GetEnvWithDefault("SOLVER_PUB_KEY", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")
 	}
 	recipients = append(recipients, Recipient{
 		Name:    "Solver",
@@ -209,13 +210,6 @@ func getRecipients(useLocalForks bool) []Recipient {
 	})
 
 	return recipients
-}
-
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 func createTokenAmount(tokens int64, decimals int) *big.Int {
