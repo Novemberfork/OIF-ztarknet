@@ -29,6 +29,13 @@ import (
 	"github.com/NethermindEth/starknet.go/utils"
 )
 
+const (
+	// Calldata constants
+	calldataBaseSize = 6
+	// EVM origin data size (bytes)
+	evmOriginDataSize = 448
+)
+
 // HyperlaneStarknet contains all Starknet-specific logic for the Hyperlane 7683 protocol
 type HyperlaneStarknet struct {
 	// Client
@@ -143,7 +150,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args types.ParsedArgs) (Or
 		return OrderActionError, fmt.Errorf("failed to convert solidity order ID for starknet: %w", err)
 	}
 
-	calldata := make([]*felt.Felt, 0, 6+len(words))
+	        calldata := make([]*felt.Felt, 0, calldataBaseSize+len(words))
 	calldata = append(calldata, orderIDLow, orderIDHigh)
 	calldata = append(calldata, utils.Uint64ToFelt(uint64(len(originData))))
 	calldata = append(calldata, utils.Uint64ToFelt(uint64(len(words))))

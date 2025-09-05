@@ -21,7 +21,11 @@ import (
 	"github.com/holiman/uint256"
 )
 
-const starknetNetworkName = "Starknet"
+const (
+	starknetNetworkName = "Starknet"
+	// Profit margin calculation (100 = 100%)
+	profitMarginMultiplier = 100
+)
 
 // RuleResult represents the result of a rule evaluation
 type RuleResult struct {
@@ -279,7 +283,7 @@ func (pr *ProfitabilityRule) Evaluate(ctx context.Context, args types.ParsedArgs
 	}
 
 	// Calculate profit margin for logging (based on gross profit vs MaxSpent)
-	profitMargin := new(uint256.Int).Mul(grossProfit, uint256.NewInt(100))
+	        profitMargin := new(uint256.Int).Mul(grossProfit, uint256.NewInt(profitMarginMultiplier))
 	profitMargin.Div(profitMargin, totalMaxSpent)
 
 	logutil.CrossChainOperation(fmt.Sprintf("Profitability check passed: NetProfit=%s, GrossProfit=%s (%.2f%% margin)",

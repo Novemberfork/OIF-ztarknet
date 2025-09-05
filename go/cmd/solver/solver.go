@@ -88,39 +88,21 @@ func TestConnection() {
 
 		logrus.Infof("   🔗 Testing %s (%s)...", networkName, networkConfig.RPCURL)
 
-		if strings.Contains(strings.ToLower(networkName), "starknet") {
-			// Test Starknet connection
-			client, err := ethclient.Dial(networkConfig.RPCURL)
-			if err != nil {
-				logrus.Errorf("   ❌ Failed to connect to %s: %v", networkName, err)
-				continue
-			}
-			defer client.Close()
-
-			chainID, err := client.ChainID(context.Background())
-			if err != nil {
-				logrus.Errorf("   ❌ Failed to get chain ID for %s: %v", networkName, err)
-				continue
-			}
-
-			logrus.Infof("   ✅ %s connected (Chain ID: %s)", networkName, chainID.String())
-		} else {
-			// Test EVM connection
-			client, err := ethclient.Dial(networkConfig.RPCURL)
-			if err != nil {
-				logrus.Errorf("   ❌ Failed to connect to %s: %v", networkName, err)
-				continue
-			}
-			defer client.Close()
-
-			chainID, err := client.ChainID(context.Background())
-			if err != nil {
-				logrus.Errorf("   ❌ Failed to get chain ID for %s: %v", networkName, err)
-				continue
-			}
-
-			logrus.Infof("   ✅ %s connected (Chain ID: %s)", networkName, chainID.String())
+		// Test connection (works for both EVM and Starknet)
+		client, err := ethclient.Dial(networkConfig.RPCURL)
+		if err != nil {
+			logrus.Errorf("   ❌ Failed to connect to %s: %v", networkName, err)
+			continue
 		}
+		defer client.Close()
+
+		chainID, err := client.ChainID(context.Background())
+		if err != nil {
+			logrus.Errorf("   ❌ Failed to get chain ID for %s: %v", networkName, err)
+			continue
+		}
+
+		logrus.Infof("   ✅ %s connected (Chain ID: %s)", networkName, chainID.String())
 	}
 
 	logrus.Info("🎉 Network connection test completed")

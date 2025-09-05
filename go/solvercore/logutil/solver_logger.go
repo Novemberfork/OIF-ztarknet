@@ -83,7 +83,7 @@ func LogFillOperation(networkName, orderID string, success bool) {
 }
 
 // LogSettleOperation logs a settlement operation with network context
-func LogSettleOperation(networkName string, orderID string, success bool) {
+func LogSettleOperation(networkName, orderID string, success bool) {
 	tag := Prefix(networkName)
 	if success {
 		fmt.Printf("%s✅ Settlement completed (Order: %s)\n", tag, orderID[:8]+"...")
@@ -104,7 +104,7 @@ func LogBlockProcessing(networkName string, fromBlock, toBlock uint64, eventCoun
 }
 
 // LogStatusCheck logs order status checks with retry information
-func LogStatusCheck(networkName string, attempt int, maxAttempts int, status string, expected string) {
+func LogStatusCheck(networkName string, attempt, maxAttempts int, status, expected string) {
 	tag := Prefix(networkName)
 	if attempt == 1 {
 		fmt.Printf("%s📊 Status: %s (expected: %s)\n", tag, status, expected)
@@ -114,7 +114,7 @@ func LogStatusCheck(networkName string, attempt int, maxAttempts int, status str
 }
 
 // LogRetryWait logs retry wait information
-func LogRetryWait(networkName string, attempt int, maxAttempts int, delay string) {
+func LogRetryWait(networkName string, attempt, maxAttempts int, delay string) {
 	tag := Prefix(networkName)
 	fmt.Printf("%s⏳ Waiting %s before retry %d/%d...\n", tag, delay, attempt+1, maxAttempts)
 }
@@ -152,7 +152,7 @@ func LogOperationComplete(args types.ParsedArgs, operation string, success bool)
 }
 
 // LogWithNetworkTag adds a network tag to any log message
-func LogWithNetworkTag(networkName string, format string, args ...interface{}) {
+func LogWithNetworkTag(networkName, format string, args ...interface{}) {
 	tag := Prefix(networkName)
 	fmt.Printf(tag+format, args...)
 }
