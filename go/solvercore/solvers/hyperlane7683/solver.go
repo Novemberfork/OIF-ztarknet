@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/NethermindEth/oif-starknet/go/solvercore/config"
 	"github.com/NethermindEth/oif-starknet/go/solvercore/logutil"
@@ -97,10 +98,16 @@ func (f *Hyperlane7683Solver) ProcessIntent(ctx context.Context, args types.Pars
 		return true, nil
 	}
 
-	// Always settle (regardless of whether we filled or skipped)
-	if err := f.SettleOrder(ctx, args); err != nil {
-		logutil.LogOperationComplete(args, "Order settlement", false)
-		return false, fmt.Errorf("order settlement failed: %w", err)
+	// If fill returned OrderActionSettle, we need to settle the order
+	if action == OrderActionSettle {
+		// Add a small delay to ensure fill transaction is processed before settling
+		time.Sleep(2 * time.Second)
+
+		// Settle the order
+		if err := f.SettleOrder(ctx, args); err != nil {
+			logutil.LogOperationComplete(args, "Order settlement", false)
+			return false, fmt.Errorf("order settlement failed: %w", err)
+		}
 	}
 
 	// Only return true when settle completes successfully
@@ -130,6 +137,12 @@ func (f *Hyperlane7683Solver) Fill(ctx context.Context, args types.ParsedArgs) (
 		// If any instruction fails or returns an error, return immediately
 		if action == OrderActionError {
 			return OrderActionError, fmt.Errorf("fill instruction %d returned error", i+1)
+		}
+		
+		// If this instruction needs settlement, return that action
+		if action == OrderActionSettle {
+			logutil.LogWithNetworkTag("", "Fill instruction %d completed, needs settlement", i+1)
+			return OrderActionSettle, nil
 		}
 		
 		// If this instruction completed successfully, continue to next

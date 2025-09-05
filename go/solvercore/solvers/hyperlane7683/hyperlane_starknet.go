@@ -348,6 +348,9 @@ func (h *HyperlaneStarknet) setupApprovals(ctx context.Context, args types.Parse
 
 	logutil.CrossChainOperation("Set token approvals", originChainID, destinationChainID, args.OrderID)
 
+	// Add a small delay to ensure blockchain state is updated after approvals
+	time.Sleep(1 * time.Second)
+
 	return nil
 }
 

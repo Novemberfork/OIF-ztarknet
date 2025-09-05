@@ -365,6 +365,9 @@ func (h *HyperlaneEVM) setupApprovals(ctx context.Context, args types.ParsedArgs
 	}
 	logutil.CrossChainOperation("EVM token approvals set", originChainID, destinationChainID, args.OrderID)
 
+	// Add a small delay to ensure blockchain state is updated after approvals
+	time.Sleep(1 * time.Second)
+
 	return nil
 }
 

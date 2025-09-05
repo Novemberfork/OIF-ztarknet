@@ -400,6 +400,9 @@ func executeStarknetOrder(order StarknetOrderConfig, networks []StarknetNetworkC
 		}
 
 		fmt.Printf("   ✅ Approval confirmed!\n")
+		
+		// Add a small delay to ensure blockchain state is updated after approval
+		time.Sleep(1 * time.Second)
 	} else {
 		fmt.Printf("   ✅ Sufficient allowance already exists\n")
 	}
