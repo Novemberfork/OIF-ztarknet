@@ -1,0 +1,63 @@
+package base
+
+import (
+	"context"
+	"math/big"
+
+	"github.com/NethermindEth/oif-starknet/solver/solvercore/types"
+)
+
+// EventHandler is a function that processes parsed event arguments
+// Returns (settled, error) where settled=true means the order was fully settled
+type EventHandler func(args types.ParsedArgs, originChainName string, blockNumber uint64) (bool, error)
+
+// ShutdownFunc is a function that stops the listener
+type ShutdownFunc func()
+
+// Listener defines the interface for event listeners
+type Listener interface {
+	// Start begins listening for events
+	Start(ctx context.Context, handler EventHandler) (ShutdownFunc, error)
+
+	// Stop gracefully stops the listener
+	Stop() error
+
+	// GetLastProcessedBlock returns the last processed block number
+	GetLastProcessedBlock() uint64
+}
+
+// ListenerConfig contains configuration for a listener
+type ListenerConfig struct {
+	ContractAddress    string
+	ChainName          string
+	InitialBlock       *big.Int
+	PollInterval       int // milliseconds
+	ConfirmationBlocks uint64
+	MaxBlockRange      uint64
+}
+
+// NewListenerConfig creates a new listener configuration
+func NewListenerConfig(
+	contractAddress string,
+	chainName string,
+	initialBlock *big.Int,
+	pollInterval int,
+	confirmationBlocks uint64,
+	maxBlockRange uint64,
+) *ListenerConfig {
+	if pollInterval == 0 {
+		pollInterval = 10000 // default 10 seconds
+	}
+	if maxBlockRange == 0 {
+		maxBlockRange = 9 // default 9 blocks
+	}
+
+	return &ListenerConfig{
+		ContractAddress:    contractAddress,
+		ChainName:          chainName,
+		InitialBlock:       initialBlock,
+		PollInterval:       pollInterval,
+		ConfirmationBlocks: confirmationBlocks,
+		MaxBlockRange:      maxBlockRange,
+	}
+}
