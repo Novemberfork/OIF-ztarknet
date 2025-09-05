@@ -18,6 +18,7 @@ help:
 	@echo "  build            - Build the solver binary"
 	@echo "  run              - Run the solver"
 	@echo "  clean            - Clean build artifacts"
+	@echo "  clean-solver     - Clean solver state (keep binaries)"
 	@echo "  lint             - Run linter"
 	@echo ""
 	@echo "🌐 Network Management:"
@@ -37,7 +38,7 @@ help:
 	@echo ""
 	@echo "📦 Build Commands:"
 	@echo "  build-all        - Build all common tools"
-	@echo "  build-full       - Build all tools (deployment, verification, etc.)"
+	@echo "  build-extra      - Build all tools (deployment, verification, etc.)"
 	@echo "  rebuild          - Clean and rebuild everything"
 
 
@@ -62,10 +63,10 @@ build:
 	go build -o bin/solver ./cmd/main.go
 
 # Build all necessary tools for common use and setup
-build-all: build build-fund-accounts build-register-evm-routers build-register-sn-routers
+build-all: build build-fund-accounts build-register-evm-routers
 
 # Build all tools including setup, deployment, verification, etc.
-build-full: build build-verify-hyperlane build-setup-evm-contracts build-deploy-hyperlane7683 build-declare-hyperlane7683 build-declare-mock-erc20 build-deploy-mock-erc20 build-deploy-forge-mock-erc20 build-setup-starknet-contracts build-register-evm-routers build-register-sn-routers
+build-extra: build-all build-verify-hyperlane build-deploy-hyperlane7683 build-declare-hyperlane7683 build-declare-mock-erc20 build-deploy-mock-erc20 build-deploy-forge-mock-erc20 build-setup-starknet-contracts build-register-sn-routers
 
 # Rebuild everything (clean + build)
 rebuild: clean build-all
@@ -74,13 +75,17 @@ rebuild: clean build-all
 clean:
 	@echo "🧹 Cleaning all binaries..."
 	@rm -rf bin/*
-	@echo "✅ Clean complete"
-
-# Clean only solver state (keep binaries)
-clean-state:
 	@echo "🧹 Cleaning solver state..."
 	@rm -f state/solver_state/solver-state.json solver-state.json
 	@echo "✅ Clean complete (solver will start from .env start blocks)"
+
+# Clean all built binaries
+clean-solver:
+	@echo "🧹 Cleaning solver state..."
+	@rm -f state/solver_state/solver-state.json solver-state.json
+	@echo "✅ Clean complete (solver will start from .env start blocks)"
+
+
 
 # Run linter
 lint:
@@ -148,10 +153,10 @@ build-fund-accounts:
 
 # Build helper tools
 build-register-evm-routers:
-	go build -o bin/register-evm-routers ./cmd/tools/setup-forks/evm/setup-contracts/register-routers
+	go build -o bin/register-evm-routers ./cmd/tools/additional-helpers/register-evm-routers
 
 build-register-sn-routers:
-	go build -o bin/register-sn-routers ./cmd/tools/setup-forks/starknet/setup-contracts/register_routers
+	go build -o bin/register-sn-routers ./cmd/tools/additional-helpers/register-sn-routers
 
 ### More Setup Commands (use as needed) ###
 
@@ -176,8 +181,6 @@ deploy-sn-mock-erc20: build-deploy-mock-erc20
 	./bin/deploy-sn-mock-erc20
 
 # Deploy ERC20 tokens to all forked EVM networks
-setup-evm-contracts: build-setup-evm-contracts
-	./bin/setup-evm-contracts
 
 # Setup Starknet contracts (fund users and set allowances)
 setup-starknet-contracts: build-setup-starknet-contracts
@@ -185,7 +188,7 @@ setup-starknet-contracts: build-setup-starknet-contracts
 
 # Build Hyperlane7683 verification tool
 build-verify-hyperlane:
-	go build -o bin/verify-hyperlane7683 ./cmd/tools/setup-forks/evm/verify-hyperlane7683-is-deployed
+	go build -o bin/verify-hyperlane7683 ./cmd/tools/additional-helpers/verify-hyperlane7683
 
 # Deploy MockERC20 with Forge (guarantees verification works)
 deploy-forge-mock-erc20: build-deploy-forge-mock-erc20
@@ -199,31 +202,30 @@ deploy-forge-mock-erc20: build-deploy-forge-mock-erc20
 
 # Build Hyperlane7683 deployment tool
 build-deploy-hyperlane7683:
-	go build -o bin/deploy-sn-hyperlane7683 ./cmd/tools/setup-forks/starknet/deploy/hyperlane7683
+	go build -o bin/deploy-sn-hyperlane7683 ./cmd/tools/additional-helpers/deploy-sn-hyperlane7683
 
 # Build Hyperlane7683 declaration tool
 build-declare-hyperlane7683:
-	go build -o bin/declare-sn-hyperlane7683 ./cmd/tools/setup-forks/starknet/declare/hyperlane7683
+	go build -o bin/declare-sn-hyperlane7683 ./cmd/tools/additional-helpers/declare-sn-hyperlane7683
 
 # Build MockERC20 declaration tool
 build-declare-mock-erc20:
-	go build -o bin/declare-sn-mock-erc20 ./cmd/tools/setup-forks/starknet/declare/mock-erc20
+	go build -o bin/declare-sn-mock-erc20 ./cmd/tools/additional-helpers/declare-sn-mock-erc20
 
 # Build MockERC20 deployment tool
 build-deploy-mock-erc20:
-	go build -o bin/deploy-sn-mock-erc20 ./cmd/tools/setup-forks/starknet/deploy/mock-erc20
+	go build -o bin/deploy-sn-mock-erc20 ./cmd/tools/additional-helpers/deploy-sn-mock-erc20
 
 # Build MockERC20 Forge deployment tool
 build-deploy-forge-mock-erc20:
 	go build -o bin/deploy-forge-mock-erc20 ./cmd/tools/deploy-forge-mock-erc20
 
 # Build token deployment tool
-build-setup-evm-contracts:
-	go build -o bin/setup-evm-contracts ./cmd/tools/setup-forks/evm/setup-contracts
+# Note: build-setup-evm-contracts target removed - no corresponding source file found
 
 # Build Starknet contract setup tool
 build-setup-starknet-contracts:
-	go build -o bin/setup-starknet-contracts ./cmd/tools/setup-forks/starknet/setup-contracts
+	go build -o bin/setup-starknet-contracts ./cmd/tools/additional-helpers/setup-starknet-contracts
 
 ### Order Management: ###
 
