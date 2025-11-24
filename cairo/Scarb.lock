@@ -63,6 +63,7 @@ checksum = "sha256:66df98d459d637273121baad2fe8615c29a7c5d3db2a34b4ce7c3555ebf24
 [[package]]
 name = "contracts"
 version = "0.0.6"
+source = "git+https://github.com/hyperlane-xyz/hyperlane-starknet.git#eb57b8d3017d9cbfe47ffbdb3b329b06b4356d1d"
 dependencies = [
  "alexandria_bytes",
  "alexandria_data_structures",
@@ -75,6 +76,7 @@ dependencies = [
 [[package]]
 name = "mocks"
 version = "0.0.6"
+source = "git+https://github.com/hyperlane-xyz/hyperlane-starknet.git#eb57b8d3017d9cbfe47ffbdb3b329b06b4356d1d"
 dependencies = [
  "alexandria_bytes",
  "alexandria_data_structures",
@@ -224,6 +226,7 @@ checksum = "sha256:44f32d242af1e43982decc49c563e613a9b67ade552f5c3d5cde504e92f74
 [[package]]
 name = "permit2"
 version = "0.1.0"
+source = "git+https://github.com/NethermindEth/permit2-starknet.git#476e152c4969037e6d0c62e66d2a8cc0ede56982"
 dependencies = [
  "openzeppelin_access",
  "openzeppelin_account",
@@ -250,6 +253,7 @@ dependencies = [
 [[package]]
 name = "token"
 version = "0.0.1"
+source = "git+https://github.com/hyperlane-xyz/hyperlane-starknet.git#eb57b8d3017d9cbfe47ffbdb3b329b06b4356d1d"
 dependencies = [
  "alexandria_bytes",
  "alexandria_storage",
