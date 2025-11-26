@@ -1,10 +1,10 @@
-# OIF-Starknet 🚀
+# OIF-Starknet
 
-Extension of BootNodeDev's [Open Intent Framework](https://github.com/BootNodeDev/intents-framework/tree/main) for adding Starknet support.
+A Starknet implementation of the [Open Intents Framework](https://github.com/BootNodeDev/intents-framework/tree/main).
 
 ## Overview
 
-This project extends the Open Intent Framework to support cross-chain order filling between EVM chains and Starknet using the Hyperlane protocol.
+This project extends the above repo to support cross-chain order filling between EVM chains and Starknet using the Hyperlane protocol (in Golang instead of Typescript).
 
 ## Project Structure
 
