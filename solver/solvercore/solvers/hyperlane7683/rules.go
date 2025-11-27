@@ -8,6 +8,7 @@ package hyperlane7683
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/NethermindEth/oif-starknet/solver/pkg/envutil"
 	"github.com/NethermindEth/oif-starknet/solver/pkg/ethutil"
@@ -93,30 +94,56 @@ func (br *BalanceRule) Evaluate(ctx context.Context, args *types.ParsedArgs) Rul
 	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
 
 	// Switch based on destination chain type
-	switch {
-	case isStarknetChain(destinationChainID):
+	isStarknet := isStarknetChain(destinationChainID)
+	if isStarknet {
 		return br.checkStarknetBalance(ctx, args)
-	default:
+	} else {
 		return br.checkEVMBalance(ctx, args)
 	}
 }
 
 func (br *BalanceRule) checkStarknetBalance(_ context.Context, args *types.ParsedArgs) RuleResult {
-	// Get solver's Starknet address from environment (conditional based on IS_DEVNET)
-	solverAddrHex := envutil.GetStarknetSolverAddress()
-	if solverAddrHex == "" {
-		return RuleResult{Passed: false, Reason: "Starknet solver address not set"}
+	// Get destination chain ID to determine which network we're checking
+	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
+	
+	// Determine if this is Ztarknet or Starknet
+	config.InitializeNetworks()
+	var networkName string
+	var solverAddrHex string
+	var rpcURL string
+	
+	for name, network := range config.Networks {
+		if network.ChainID == destinationChainID {
+			networkName = name
+			break
+		}
+	}
+	
+	if networkName == "Ztarknet" {
+		// Use Ztarknet credentials
+		solverAddrHex = envutil.GetZtarknetSolverAddress()
+		if solverAddrHex == "" {
+			return RuleResult{Passed: false, Reason: "Ztarknet solver address not set"}
+		}
+		rpcURL = envutil.GetZtarknetRPCURL()
+		if rpcURL == "" {
+			return RuleResult{Passed: false, Reason: "ZTARKNET_RPC_URL not set"}
+		}
+	} else {
+		// Use Starknet credentials (default)
+		solverAddrHex = envutil.GetStarknetSolverAddress()
+		if solverAddrHex == "" {
+			return RuleResult{Passed: false, Reason: "Starknet solver address not set"}
+		}
+		rpcURL = envutil.GetStarknetRPCURL()
+		if rpcURL == "" {
+			return RuleResult{Passed: false, Reason: "STARKNET_RPC_URL not set"}
+		}
 	}
 
-	// Get Starknet RPC URL (conditional based on IS_DEVNET)
-	starknetRPC := envutil.GetStarknetRPCURL()
-	if starknetRPC == "" {
-		return RuleResult{Passed: false, Reason: "STARKNET_RPC_URL not set"}
-	}
-
-	provider, err := rpc.NewProvider(starknetRPC)
+	provider, err := rpc.NewProvider(rpcURL)
 	if err != nil {
-		return RuleResult{Passed: false, Reason: fmt.Sprintf("Failed to create Starknet provider: %v", err)}
+		return RuleResult{Passed: false, Reason: fmt.Sprintf("Failed to create %s provider: %v", networkName, err)}
 	}
 
 	// Check balance for each token in MaxSpent (what solver needs to provide on Starknet)
@@ -126,7 +153,8 @@ func (br *BalanceRule) checkStarknetBalance(_ context.Context, args *types.Parse
 			continue
 		}
 
-		// Use starknetutil for balance check (assume valid input from order creation)
+		// Use starknetutil for balance check
+		// The token address should already be in the correct format (32-byte felt) from event decoding
 		balance, err := starknetutil.ERC20Balance(provider, maxSpent.Token, solverAddrHex)
 		if err != nil {
 			return RuleResult{Passed: false, Reason: fmt.Sprintf("Failed to check balance for token %s: %v", maxSpent.Token, err)}
@@ -293,11 +321,18 @@ func (pr *ProfitabilityRule) Evaluate(ctx context.Context, args *types.ParsedArg
 		netProfit.Dec(), grossProfit.Dec(), float64(profitMargin.Uint64()))}
 }
 
-// Helper function to determine if a chain ID is Starknet
+// Helper function to determine if a chain ID is Starknet or Ztarknet (Cairo-based chains)
 func isStarknetChain(chainID uint64) bool {
-	for _, network := range config.Networks {
-		if network.ChainID == chainID && network.Name == starknetNetworkName {
-			return true
+	config.InitializeNetworks()
+	for name, network := range config.Networks {
+		if network.ChainID == chainID {
+			// Check if network name contains "starknet" (case insensitive) - includes both Starknet and Ztarknet
+			// Check both the map key and the Name field
+			nameLower := strings.ToLower(name)
+			networkNameLower := strings.ToLower(network.Name)
+			if strings.Contains(nameLower, "starknet") || strings.Contains(networkNameLower, "starknet") {
+				return true
+			}
 		}
 	}
 	return false

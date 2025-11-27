@@ -424,6 +424,9 @@ func (d *feltDecoder) readFillInstructions() []types.FillInstruction {
 
 // domainToChainID maps a Hyperlane domain ID to its corresponding chain ID
 func domainToChainID(domain uint32) (*big.Int, error) {
+	// Ensure networks are initialized before searching
+	config.InitializeNetworks()
+	
 	// Search through all networks to find the one with matching HyperlaneDomain
 	for _, network := range config.Networks {
 		if network.HyperlaneDomain == uint64(domain) {

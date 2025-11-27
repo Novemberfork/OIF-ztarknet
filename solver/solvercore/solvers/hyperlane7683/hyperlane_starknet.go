@@ -50,6 +50,7 @@ type HyperlaneStarknet struct {
 }
 
 // NewHyperlaneStarknet creates a new Starknet handler for Hyperlane operations
+// Supports both Starknet and Ztarknet chains by using chain-appropriate credentials
 func NewHyperlaneStarknet(rpcURL string, chainID uint64) *HyperlaneStarknet {
 	provider, err := rpc.NewProvider(rpcURL)
 	if err != nil {
@@ -57,33 +58,46 @@ func NewHyperlaneStarknet(rpcURL string, chainID uint64) *HyperlaneStarknet {
 		return nil
 	}
 
-	// Use conditional environment variables based on IS_DEVNET
-	pub := envutil.GetStarknetSolverPublicKey()
-	addrHex := envutil.GetStarknetSolverAddress()
-	priv := envutil.GetStarknetSolverPrivateKey()
+	// Determine which credentials to use based on chain ID
+	var pub, addrHex, priv string
+	var chainName string
+	
+	// Check if this is Ztarknet (chain ID 10066329) or Starknet
+	if chainID == config.ZtarknetTestnetChainID {
+		chainName = "Ztarknet"
+		pub = envutil.GetZtarknetSolverPublicKey()
+		addrHex = envutil.GetZtarknetSolverAddress()
+		priv = envutil.GetZtarknetSolverPrivateKey()
+	} else {
+		// Default to Starknet (supports both mainnet and testnet via IS_DEVNET)
+		chainName = "Starknet"
+		pub = envutil.GetStarknetSolverPublicKey()
+		addrHex = envutil.GetStarknetSolverAddress()
+		priv = envutil.GetStarknetSolverPrivateKey()
+	}
 
 	if pub == "" || addrHex == "" || priv == "" {
-		fmt.Printf("missing STARKNET_SOLVER_* env vars for Starknet signer")
+		fmt.Printf("missing %s_SOLVER_* env vars for %s signer", chainName, chainName)
 		return nil
 	}
 
 	addrF, err := utils.HexToFelt(addrHex)
 	if err != nil {
-		fmt.Printf("invalid STARKNET_SOLVER_ADDRESS: %v", err)
+		fmt.Printf("invalid %s_SOLVER_ADDRESS: %v", chainName, err)
 		return nil
 	}
 
 	ks := account.NewMemKeystore()
 	privBI, ok := new(big.Int).SetString(priv, 0)
 	if !ok {
-		fmt.Printf("failed to parse STARKNET_SOLVER_PRIVATE_KEY")
+		fmt.Printf("failed to parse %s_SOLVER_PRIVATE_KEY", chainName)
 		return nil
 	}
 
 	ks.Put(pub, privBI)
 	acct, err := account.NewAccount(provider, addrF, pub, ks, account.CairoV2)
 	if err != nil {
-		fmt.Printf("failed to create Starknet account: %v", err)
+		fmt.Printf("failed to create %s account: %v", chainName, err)
 		return nil
 	}
 
@@ -219,6 +233,23 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args *types.ParsedArgs) 
 	// Get chain IDs for cross-chain logging
 	originChainID := args.ResolvedOrder.OriginChainID.Uint64()
 	destChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
+
+	// Check if origin is Ztarknet and we're on live networks (not forking)
+	// Starknet contracts are not aware of Ztarknet contracts on testnet
+	ztarknetDomain := uint32(config.Networks["Ztarknet"].HyperlaneDomain)
+	if originDomain == ztarknetDomain {
+		if !envutil.IsDevnet() {
+			// Live networks: Skip settlement until Ztarknet domain is registered on Starknet
+			fmt.Printf("   ⚠️  Skipping Starknet settlement for Ztarknet origin (domain %d) on live network\n", originDomain)
+			fmt.Printf("   ⏳ Ztarknet domain not yet registered on Starknet contracts - waiting for registration\n")
+			fmt.Printf("   📝 Order filled successfully, settlement will be available once domain is registered\n")
+			return nil // Skip settlement but don't treat as error
+		} else {
+			// Fork mode: Continue with settlement (domains are mocked/registered)
+			fmt.Printf("   🔧 Fork mode detected - proceeding with Ztarknet settlement (domain %d registered)\n", originDomain)
+		}
+	}
+
 	logutil.CrossChainOperation(fmt.Sprintf("Quoting gas payment for origin domain: %d", originDomain), originChainID, destChainID, args.OrderID)
 	gasPayment, err := h.quoteGasPayment(ctx, originDomain, destinationSettler)
 	if err != nil {

@@ -551,8 +551,23 @@ func buildStarknetOrderData(order *StarknetOrderConfig, originNetwork *StarknetN
 	// Output token should be from the destination network, not origin
 	var outputTokenFelt *felt.Felt
 	if isStarknetNetwork(destChainName) {
-		// If destination is Starknet, use Starknet's DogCoin
-		outputTokenFelt, _ = utils.HexToFelt(originNetwork.dogCoinAddress)
+		// If destination is Starknet or Ztarknet, get the destination's DogCoin address
+		if destChainName == "Starknet" {
+			starknetDogCoin := getEnvWithDefault("STARKNET_DOG_COIN_ADDRESS", "")
+			if starknetDogCoin == "" {
+				log.Fatalf("STARKNET_DOG_COIN_ADDRESS not set")
+			}
+			outputTokenFelt, _ = utils.HexToFelt(starknetDogCoin)
+		} else if destChainName == "Ztarknet" {
+			ztarknetDogCoin := getEnvWithDefault("ZTARKNET_DOG_COIN_ADDRESS", "")
+			if ztarknetDogCoin == "" {
+				log.Fatalf("ZTARKNET_DOG_COIN_ADDRESS not set")
+			}
+			outputTokenFelt, _ = utils.HexToFelt(ztarknetDogCoin)
+		} else {
+			// Fallback (shouldn't happen if isStarknetNetwork works correctly)
+			outputTokenFelt, _ = utils.HexToFelt(originNetwork.dogCoinAddress)
+		}
 	} else {
 		// If destination is EVM, get DogCoin address from destination network config (.env)
 		if _, exists := config.Networks[destChainName]; exists {
@@ -574,17 +589,31 @@ func buildStarknetOrderData(order *StarknetOrderConfig, originNetwork *StarknetN
 		}
 	}
 
-	// Destination settler must be the EVM Hyperlane address for the destination network
+	// Destination settler must be the Hyperlane address for the destination network
 	destSettlerHex := ""
-	if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
-		destSettlerHex = staticAddr.Hex()
-	} else if destNetwork, exists := config.Networks[destChainName]; exists {
-		destSettlerHex = destNetwork.HyperlaneAddress.Hex()
-	}
-	if destSettlerHex == "" {
-		// As a last resort, keep previous behavior (but this is likely wrong for cross-chain)
-		destSettlerHex = originNetwork.hyperlaneAddress
-		fmt.Printf("   ⚠️  Warning: Using origin Hyperlane address as destination settler (may be incorrect)\n")
+	if isStarknetNetwork(destChainName) {
+		// If destination is Starknet or Ztarknet, get the destination's Hyperlane address
+		if destChainName == "Starknet" {
+			destSettlerHex = getEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")
+			if destSettlerHex == "" {
+				log.Fatalf("STARKNET_HYPERLANE_ADDRESS not set")
+			}
+		} else if destChainName == "Ztarknet" {
+			destSettlerHex = getEnvWithDefault("ZTARKNET_HYPERLANE_ADDRESS", "")
+			if destSettlerHex == "" {
+				log.Fatalf("ZTARKNET_HYPERLANE_ADDRESS not set")
+			}
+		}
+	} else {
+		// If destination is EVM, get EVM Hyperlane address
+		if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
+			destSettlerHex = staticAddr.Hex()
+		} else if destNetwork, exists := config.Networks[destChainName]; exists {
+			destSettlerHex = destNetwork.HyperlaneAddress.Hex()
+		}
+		if destSettlerHex == "" {
+			log.Fatalf("Could not get destination settler address for %s", destChainName)
+		}
 	}
 
 	// Ensure destination settler is properly padded to 32 bytes for Cairo ContractAddress

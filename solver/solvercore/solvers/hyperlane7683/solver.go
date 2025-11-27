@@ -33,7 +33,8 @@ type Hyperlane7683Solver struct {
 	// Chain handlers implementing ChainHandler interface - now per-chain
 	evmHandlers       map[uint64]ChainHandler // Map of chainID -> handler
 	evmHandlersMux    sync.RWMutex            // Protects evmHandlers map
-	hyperlaneStarknet ChainHandler
+	starknetHandlers  map[uint64]ChainHandler // Map of chainID -> handler for Starknet-like chains
+	starknetHandlersMux sync.RWMutex          // Protects starknetHandlers map
 
 	// Allow/block lists for controlling which orders to process
 	allowBlockLists types.AllowBlockLists
@@ -56,15 +57,16 @@ func NewHyperlane7683Solver(
 	}
 
 	return &Hyperlane7683Solver{
-		getEVMClient:      getEVMClient,
-		getStarknetClient: getStarknetClient,
-		getEVMSigner:      getEVMSigner,
-		getStarknetSigner: getStarknetSigner,
-		evmHandlers:       make(map[uint64]ChainHandler),
-		evmHandlersMux:    sync.RWMutex{},
-		hyperlaneStarknet: nil, // Will be created when needed
-		allowBlockLists:   allowBlockLists,
-		metadata:          metadata,
+		getEVMClient:       getEVMClient,
+		getStarknetClient:  getStarknetClient,
+		getEVMSigner:       getEVMSigner,
+		getStarknetSigner:  getStarknetSigner,
+		evmHandlers:        make(map[uint64]ChainHandler),
+		evmHandlersMux:     sync.RWMutex{},
+		starknetHandlers:   make(map[uint64]ChainHandler),
+		starknetHandlersMux: sync.RWMutex{},
+		allowBlockLists:    allowBlockLists,
+		metadata:           metadata,
 	}
 }
 
@@ -264,19 +266,34 @@ func (f *Hyperlane7683Solver) getEVMHandler(chainID *big.Int) (ChainHandler, err
 
 // getStarknetHandler gets or creates a Starknet chain handler for the given chain ID
 func (f *Hyperlane7683Solver) getStarknetHandler(chainID *big.Int) (ChainHandler, error) {
-	// Reuse existing handler if available
-	if f.hyperlaneStarknet != nil {
-		return f.hyperlaneStarknet, nil
+	chainIDUint := chainID.Uint64()
+
+	// Check if handler already exists for this specific chain (read lock)
+	f.starknetHandlersMux.RLock()
+	if handler, exists := f.starknetHandlers[chainIDUint]; exists {
+		f.starknetHandlersMux.RUnlock()
+		return handler, nil
+	}
+	f.starknetHandlersMux.RUnlock()
+
+	// Create new handler for this specific chain (write lock)
+	f.starknetHandlersMux.Lock()
+	defer f.starknetHandlersMux.Unlock()
+
+	// Double-check in case another goroutine created it while we were waiting
+	if handler, exists := f.starknetHandlers[chainIDUint]; exists {
+		return handler, nil
 	}
 
-	// Create new Starknet handler
+	// Get network config for this chain
 	chainConfig, err := f.getNetworkConfigByChainID(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("starknet network not found for chain ID %s: %w", chainID.String(), err)
 	}
 
-	f.hyperlaneStarknet = NewHyperlaneStarknet(chainConfig.RPCURL, chainConfig.ChainID)
-	return f.hyperlaneStarknet, nil
+	handler := NewHyperlaneStarknet(chainConfig.RPCURL, chainConfig.ChainID)
+	f.starknetHandlers[chainIDUint] = handler
+	return handler, nil
 }
 
 // AddDefaultRules adds standard validation rules to the solver

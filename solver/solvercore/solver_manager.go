@@ -271,7 +271,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 	fmt.Printf("   📡 Starting network listeners...\n")
 	listenerCount := 0
 
-	for _, source := range []string{"Base", "Optimism", "Arbitrum", "Ethereum", "Starknet"} {
+	for _, source := range []string{"Base", "Optimism", "Arbitrum", "Ethereum", "Starknet", "Ztarknet"} {
 		networkConfig, exists := config.Networks[source]
 		if !exists {
 			fmt.Printf("     ⚠️  Network %s not found in config, skipping...\n", source)
@@ -305,6 +305,31 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			shutdown, err = starknetListener.Start(ctx, eventHandler)
 			if err != nil {
 				return fmt.Errorf("failed to start Starknet listener for %s: %w", source, err)
+			}
+		} else if source == "Ztarknet" {
+			hyperlaneAddr, err := getZtarknetHyperlaneAddress(&networkConfig)
+			if err != nil {
+				return fmt.Errorf("failed to get Ztarknet Hyperlane address: %w", err)
+			}
+
+			// Create Ztarknet listener config with original solver start block
+			// The listener will handle negative value resolution
+			listenerConfig := base.NewListenerConfig(
+				hyperlaneAddr,
+				source,
+				big.NewInt(networkConfig.SolverStartBlock), // pass original value (can be negative)
+				networkConfig.PollInterval,                 // poll interval from config
+				networkConfig.ConfirmationBlocks,   // confirmation blocks from config
+				networkConfig.MaxBlockRange,                // max block range from config
+			)
+
+			ztarknetListener, err := contracts.NewZtarknetListener(listenerConfig, networkConfig.RPCURL)
+			if err != nil {
+				return fmt.Errorf("failed to create Ztarknet listener: %w", err)
+			}
+			shutdown, err = ztarknetListener.Start(ctx, eventHandler)
+			if err != nil {
+				return fmt.Errorf("failed to start Ztarknet listener for %s: %w", source, err)
 			}
 		} else {
 			// Create EVM listener config with original solver start block
@@ -409,6 +434,17 @@ func getStarknetHyperlaneAddress(_ *config.NetworkConfig) (string, error) {
 		return envAddr, nil
 	} else {
 		return "", fmt.Errorf("no STARKNET_HYPERLANE_ADDRESS set in .env")
+	}
+}
+
+// getZtarknetHyperlaneAddress gets the Ztarknet Hyperlane address from environment
+func getZtarknetHyperlaneAddress(_ *config.NetworkConfig) (string, error) {
+	envAddr := envutil.GetEnvWithDefault("ZTARKNET_HYPERLANE_ADDRESS", "")
+	if envAddr != "" {
+		fmt.Printf("   🔄 Using Ztarknet Hyperlane address from .env: %s\n", envAddr)
+		return envAddr, nil
+	} else {
+		return "", fmt.Errorf("no ZTARKNET_HYPERLANE_ADDRESS set in .env")
 	}
 }
 

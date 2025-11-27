@@ -1,7 +1,7 @@
 // Package config manages solver state persistence across networks.
 //
 // SolverState tracks only the last processed blocks for solver listeners
-// across all networks (Ethereum, Optimism, Arbitrum, Base, Starknet).
+// across all networks (Ethereum, Optimism, Arbitrum, Base, Starknet, Ztarknet).
 // All contract addresses and network config come from .env files.
 //
 // Key Features:
@@ -73,6 +73,10 @@ func getDefaultSolverState() SolverState {
 			},
 			"Starknet": {
 				LastIndexedBlock: resolveSolverStartBlock(Networks["Starknet"].SolverStartBlock),
+				LastUpdated:      "",
+			},
+			"Ztarknet": {
+				LastIndexedBlock: resolveSolverStartBlock(Networks["Ztarknet"].SolverStartBlock),
 				LastUpdated:      "",
 			},
 		},
@@ -199,6 +203,28 @@ func readSolverStateLocked() (*SolverState, error) {
 			lastErr = fmt.Errorf("failed to parse solver state file: %w", err)
 			time.Sleep(retryDelayMs * time.Millisecond)
 			continue
+		}
+
+		// Merge missing networks from default state (for backward compatibility)
+		// This ensures new networks (like Ztarknet) are added to existing state files
+		if state.Networks == nil {
+			state.Networks = make(map[string]SolverNetworkState)
+		}
+		defaultState := getDefaultSolverState()
+		needsSave := false
+		for networkName, defaultNetworkState := range defaultState.Networks {
+			if _, exists := state.Networks[networkName]; !exists {
+				// Network is missing, add it from default
+				state.Networks[networkName] = defaultNetworkState
+				needsSave = true
+				fmt.Printf("📝 Added missing network %s to solver state\n", networkName)
+			}
+		}
+		if needsSave {
+			// Save the updated state with the new network
+			if err := saveSolverStateLocked(&state); err != nil {
+				fmt.Printf("⚠️  Failed to save updated solver state: %v\n", err)
+			}
 		}
 
 		return &state, nil
