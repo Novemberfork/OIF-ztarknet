@@ -7,7 +7,7 @@ use snforge_std::signature::stark_curve::{
     StarkCurveKeyPairImpl, StarkCurveSignerImpl, StarkCurveVerifierImpl,
 };
 use snforge_std::signature::{KeyPair, KeyPairTrait};
-use snforge_std::{ContractClassTrait, DeclareResultTrait, Event, declare};
+use snforge_std::{ContractClassTrait, DeclareResultTrait, Event, declare, replace_bytecode};
 use starknet::event::Event as _Event;
 use starknet::{ClassHash, ContractAddress};
 use crate::mocks::interfaces::{IMintableDispatcher, IMintableDispatcherTrait};
@@ -68,9 +68,8 @@ pub fn deploy_eth() -> IERC20Dispatcher {
     let symbol: ByteArray = "ETH";
     name.serialize(ref ctor_calldata);
     symbol.serialize(ref ctor_calldata);
-
-    let (erc20_address, _) = mock_erc20_contract.deploy_at(@ctor_calldata, ETH_ADDRESS()).unwrap();
-    IERC20Dispatcher { contract_address: erc20_address }
+    replace_bytecode(ETH_ADDRESS(), *mock_erc20_contract.class_hash);
+    IERC20Dispatcher { contract_address: ETH_ADDRESS() }
 }
 
 pub fn deploy_erc20(name: ByteArray, symbol: ByteArray) -> IERC20Dispatcher {
