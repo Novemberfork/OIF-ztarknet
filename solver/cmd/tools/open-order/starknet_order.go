@@ -233,7 +233,10 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 	originChain := "Starknet"
 
 	// Get available destination networks from config
-	destinationChain := getRandomDestinationChain(originChain)
+	destinationChain, err := GetRandomDestination(originChain)
+	if err != nil {
+		log.Fatalf("Failed to get random destination: %v", err)
+	}
 
 	// Get Alice's address for the destination chain
 	user, err := getAliceAddressForNetwork(destinationChain)

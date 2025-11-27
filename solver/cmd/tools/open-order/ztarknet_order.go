@@ -213,8 +213,11 @@ func openRandomZtarknetOrder(networks []ZtarknetNetworkConfig) {
 	// Use configured Ztarknet network as origin
 	originChain := "Ztarknet"
 
-	// For now, default to Starknet as destination (can be extended later)
-	destinationChain := "Starknet"
+	// Get random destination (can be EVM or Starknet)
+	destinationChain, err := GetRandomDestination(originChain)
+	if err != nil {
+		log.Fatalf("Failed to get random destination: %v", err)
+	}
 
 	// Get Alice's address for the destination chain
 	user, err := getAliceAddressForZtarknetNetwork(destinationChain)
