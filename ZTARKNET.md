@@ -16,4 +16,5 @@
 
 - Hyperlane7683: 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22
   - Class: 0x4d971a35627f8190c7bfba53ada5abadf00c8c287e780f61c281d2a5874d639
+  - Explorer: https://explorer-zstarknet.d.karnot.xyz/contract/0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22
 
