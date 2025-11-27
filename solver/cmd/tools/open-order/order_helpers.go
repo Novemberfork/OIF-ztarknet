@@ -70,3 +70,143 @@ func GetRandomDestination(originChain string) (string, error) {
 	return validDestinations[destIdx], nil
 }
 
+// GetDestinationFromArgs gets destination from args, or random if not provided
+func GetDestinationFromArgs(originChain string, args []string, argIndex int) (string, error) {
+	if len(args) > argIndex && args[argIndex] != "" {
+		destChain := args[argIndex]
+		destNormalized := normalizeChainName(destChain)
+		
+		// Handle "evm" as destination - pick a random EVM chain (different from origin)
+		if destNormalized == "evm" {
+			allNetworks := config.GetNetworkNames()
+			var evmNetworks []string
+			
+			for _, networkName := range allNetworks {
+				netType := GetNetworkType(networkName)
+				// Skip origin chain (compare actual names, not normalized)
+				if networkName == originChain {
+					continue
+				}
+				if netType == NetworkTypeEVM {
+					evmNetworks = append(evmNetworks, networkName)
+				}
+			}
+			
+			if len(evmNetworks) == 0 {
+				return "", fmt.Errorf("no EVM networks available as destination (all EVM chains are the same as origin)")
+			}
+			
+			idx := secureRandomInt(len(evmNetworks))
+			return evmNetworks[idx], nil
+		}
+		
+		// Map aliases to actual network names first
+		var actualDestChain string
+		if destNormalized == "starknet" || destNormalized == "strk" {
+			actualDestChain = "Starknet"
+		} else if destNormalized == "ztarknet" || destNormalized == "ztrk" {
+			actualDestChain = "Ztarknet"
+		} else {
+			// Validate destination exists in config and get actual name
+			allNetworks := config.GetNetworkNames()
+			found := false
+			for _, networkName := range allNetworks {
+				if strings.EqualFold(networkName, destChain) {
+					actualDestChain = networkName
+					found = true
+					break
+				}
+			}
+			if !found {
+				return "", fmt.Errorf("destination network not found: %s", destChain)
+			}
+		}
+		
+		// Check if origin and destination are the same (compare actual network names)
+		if originChain == actualDestChain {
+			return "", fmt.Errorf("origin and destination cannot be the same: %s", originChain)
+		}
+		
+		return actualDestChain, nil
+	}
+	
+	// No destination provided, get random
+	return GetRandomDestination(originChain)
+}
+
+// normalizeChainName normalizes chain names for comparison
+// evm -> any EVM chain name, strk/starknet -> Starknet, ztrk/ztarknet -> Ztarknet
+func normalizeChainName(chainName string) string {
+	lower := strings.ToLower(chainName)
+	
+	// Handle aliases
+	if lower == "strk" || lower == "starknet" {
+		return "starknet"
+	}
+	if lower == "ztrk" || lower == "ztarknet" {
+		return "ztarknet"
+	}
+	if lower == "evm" {
+		return "evm"
+	}
+	
+	// Check if it's an EVM chain
+	allNetworks := config.GetNetworkNames()
+	for _, networkName := range allNetworks {
+		if strings.EqualFold(networkName, chainName) {
+			netType := GetNetworkType(networkName)
+			if netType == NetworkTypeEVM {
+				return "evm"
+			}
+			return strings.ToLower(networkName)
+		}
+	}
+	
+	return strings.ToLower(chainName)
+}
+
+// GetOriginFromArgs gets origin chain from args
+func GetOriginFromArgs(args []string, argIndex int) (string, error) {
+	if len(args) <= argIndex {
+		return "", fmt.Errorf("origin chain not provided")
+	}
+	
+	originArg := args[argIndex]
+	originNormalized := normalizeChainName(originArg)
+	
+	// Handle special cases
+	if originNormalized == "evm" {
+		// For "evm", pick a random EVM chain
+		allNetworks := config.GetNetworkNames()
+		var evmNetworks []string
+		for _, networkName := range allNetworks {
+			if GetNetworkType(networkName) == NetworkTypeEVM {
+				evmNetworks = append(evmNetworks, networkName)
+			}
+		}
+		if len(evmNetworks) == 0 {
+			return "", fmt.Errorf("no EVM networks configured")
+		}
+		idx := secureRandomInt(len(evmNetworks))
+		return evmNetworks[idx], nil
+	}
+	
+	// Map aliases to actual network names
+	if originNormalized == "starknet" || originNormalized == "strk" {
+		return "Starknet", nil
+	}
+	if originNormalized == "ztarknet" || originNormalized == "ztrk" {
+		return "Ztarknet", nil
+	}
+	
+	// Validate origin exists in config
+	allNetworks := config.GetNetworkNames()
+	for _, networkName := range allNetworks {
+		if strings.EqualFold(networkName, originArg) {
+			return networkName, nil
+		}
+	}
+	
+	return "", fmt.Errorf("origin network not found: %s", originArg)
+}
+
