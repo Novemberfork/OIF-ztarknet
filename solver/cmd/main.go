@@ -87,44 +87,54 @@ func runTools() {
 
 func runOpenOrder() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: solver tools open-order <chain> [command]")
-		fmt.Println("Available chains: starknet, ztarknet, evm")
-		fmt.Println("Available EVM commands: random-to-evm, random-to-sn, default-evm-evm, default-evm-sn")
-		fmt.Println("Available Starknet commands: random, default")
-		fmt.Println("Available Ztarknet commands: to-starknet, default")
+		fmt.Println("Usage: solver tools open-order <origin> [destination]")
+		fmt.Println("Available origins: evm, starknet (strk), ztarknet (ztrk), or specific chain names")
+		fmt.Println("Available destinations: evm, starknet (strk), ztarknet (ztrk), or specific chain names")
+		fmt.Println("  - If destination is omitted, a random valid destination will be selected")
+		fmt.Println("  - 'evm' as origin/destination means any EVM chain (Ethereum, Optimism, Arbitrum, Base)")
+		fmt.Println("  - Origin and destination cannot be the same")
+		fmt.Println()
+		fmt.Println("Examples:")
+		fmt.Println("  solver tools open-order evm              # EVM → random destination")
+		fmt.Println("  solver tools open-order evm starknet    # EVM → Starknet")
+		fmt.Println("  solver tools open-order starknet evm    # Starknet → EVM")
+		fmt.Println("  solver tools open-order ztarknet starknet # Ztarknet → Starknet")
+		fmt.Println("  solver tools open-order ethereum base   # Ethereum → Base")
 		os.Exit(1)
 	}
 
-	chain := os.Args[3]
+	// Get origin chain
+	originChain, err := openorder.GetOriginFromArgs(os.Args, 3)
+	if err != nil {
+		fmt.Printf("❌ Error getting origin: %v\n", err)
+		os.Exit(1)
+	}
 
-	switch strings.ToLower(chain) {
-	case "starknet":
-		// Get the command (default to random if not provided)
-		command := "random"
-		if len(os.Args) > 4 {
-			command = os.Args[4]
-		}
-		// Run the real Starknet order creation logic
-		openorder.RunStarknetOrder(command)
-	case "ztarknet":
-		// Get the command (default to default if not provided)
-		command := "default"
-		if len(os.Args) > 4 {
-			command = os.Args[4]
-		}
-		// Run the real Ztarknet order creation logic
-		openorder.RunZtarknetOrder(command)
-	case "evm":
-		// Get the command (default to random-to-evm if not provided)
-		command := "random-to-evm"
-		if len(os.Args) > 4 {
-			command = os.Args[4]
-		}
-		// Run the real EVM order creation logic
-		openorder.RunEVMOrder(command)
+	// Get destination chain (optional)
+	destinationChain, err := openorder.GetDestinationFromArgs(originChain, os.Args, 4)
+	if err != nil {
+		fmt.Printf("❌ Error getting destination: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Determine network type and route to appropriate handler
+	originType := openorder.GetNetworkType(originChain)
+	
+	switch originType {
+	case openorder.NetworkTypeStarknet:
+		// For Starknet, we need to construct a command string
+		command := "custom"
+		openorder.RunStarknetOrderWithDest(command, originChain, destinationChain)
+	case openorder.NetworkTypeZtarknet:
+		// For Ztarknet, we need to construct a command string
+		command := "custom"
+		openorder.RunZtarknetOrderWithDest(command, originChain, destinationChain)
+	case openorder.NetworkTypeEVM:
+		// For EVM, we need to construct a command string
+		command := "custom"
+		openorder.RunEVMOrderWithDest(command, originChain, destinationChain)
 	default:
-		fmt.Printf("Unknown chain: %s\n", chain)
-		fmt.Println("Available chains: starknet, ztarknet, evm")
+		fmt.Printf("❌ Unknown origin network type: %s\n", originChain)
 		os.Exit(1)
 	}
 }
