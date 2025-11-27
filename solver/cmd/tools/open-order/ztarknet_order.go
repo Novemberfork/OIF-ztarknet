@@ -165,6 +165,48 @@ func RunZtarknetOrder(command string) {
 	}
 }
 
+// RunZtarknetOrderWithDest creates a Ztarknet order with specific origin and destination
+func RunZtarknetOrderWithDest(command, originChain, destinationChain string) {
+	fmt.Printf("🎯 Running Ztarknet order creation: %s → %s\n", originChain, destinationChain)
+
+	// Load configuration (this loads .env and initializes networks)
+	_, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Initialize test users after .env is loaded
+	initializeZtarknetTestUsers()
+
+	// Load network configuration
+	networks := loadZtarknetNetworks()
+
+	// Get Alice's address for the destination chain
+	user, err := getAliceAddressForZtarknetNetwork(destinationChain)
+	if err != nil {
+		log.Fatalf("Failed to get Alice address for %s: %v", destinationChain, err)
+	}
+
+	// Random amounts
+	inputAmount := CreateTokenAmount(int64(secureRandomInt(maxTokenAmount-minTokenAmount)+minTokenAmount), 18)
+	delta := CreateTokenAmount(int64(secureRandomInt(maxDeltaAmount-minDeltaAmount)+minDeltaAmount), 18)
+	outputAmount := new(big.Int).Sub(inputAmount, delta)
+
+	order := ZtarknetOrderConfig{
+		OriginChain:      originChain,
+		DestinationChain: destinationChain,
+		InputToken:       "DogCoin",
+		OutputToken:      "DogCoin",
+		InputAmount:      inputAmount,
+		OutputAmount:     outputAmount,
+		User:             user,
+		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
+		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
+	}
+
+	executeZtarknetOrder(&order, networks)
+}
+
 func openRandomZtarknetOrder(networks []ZtarknetNetworkConfig) {
 	fmt.Println("🎲 Opening Random Ztarknet Test Order...")
 

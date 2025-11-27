@@ -322,6 +322,42 @@ func RunEVMOrder(command string) {
 	}
 }
 
+// RunEVMOrderWithDest creates an EVM order with specific origin and destination
+func RunEVMOrderWithDest(command, originChain, destinationChain string) {
+	fmt.Printf("🎯 Running EVM order creation: %s → %s\n", originChain, destinationChain)
+
+	// Load configuration (this loads .env and initializes networks)
+	_, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Initialize test users after .env is loaded
+	initializeTestUsers()
+
+	// Load network configuration
+	networks := loadNetworks()
+
+	// Random amounts - ensure solver profitability
+	outputAmount := CreateTokenAmount(int64(secureRandomInt(maxTokenAmount-minTokenAmount+1)+minTokenAmount), tokenDecimals)
+	delta := CreateTokenAmount(int64(secureRandomInt(maxDeltaAmount-minDeltaAmount+1)+minDeltaAmount), tokenDecimals)
+	inputAmount := new(big.Int).Add(outputAmount, delta)
+
+	order := OrderConfig{
+		OriginChain:      originChain,
+		DestinationChain: destinationChain,
+		InputToken:       "DogCoin",
+		OutputToken:      "DogCoin",
+		InputAmount:      inputAmount,
+		OutputAmount:     outputAmount,
+		User:             AliceUserName,
+		OpenDeadline:     uint32(time.Now().Add(1 * time.Hour).Unix()),
+		FillDeadline:     uint32(time.Now().Add(orderDeadlineHours * time.Hour).Unix()),
+	}
+
+	executeOrder(&order, networks)
+}
+
 func openRandomToEvm(networks []NetworkConfig) {
 	fmt.Println("🎲 Opening Random Test Order...")
 
