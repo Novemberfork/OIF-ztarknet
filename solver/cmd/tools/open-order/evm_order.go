@@ -263,8 +263,12 @@ func loadNetworks() []NetworkConfig {
 			envVarName = "BASE_DOG_COIN_ADDRESS"
 		case starknetNetworkName:
 			envVarName = "STARKNET_DOG_COIN_ADDRESS"
+		case "Ztarknet":
+			// Ztarknet is included for EVM→Ztarknet orders (similar to Starknet)
+			envVarName = "ZTARKNET_DOG_COIN_ADDRESS"
 		default:
-			fmt.Printf("   ⚠️  Unknown network: %s\n", networkName)
+			// Only warn for truly unknown networks
+			fmt.Printf("   ⚠️  Unknown network: %s (skipping)\n", networkName)
 			continue
 		}
 
@@ -543,7 +547,7 @@ func executeOrder(order *OrderConfig, networks []NetworkConfig) {
 		}
 	}
 
-	// If not found in EVM networks, check if it's Starknet
+	// If not found in EVM networks, check if it's Starknet or Ztarknet
 	if destinationNetwork == nil && order.DestinationChain == starknetNetworkName {
 		// Create NetworkConfig for Starknet destination
 		starknetConfig := config.Networks[starknetNetworkName]
@@ -553,6 +557,18 @@ func executeOrder(order *OrderConfig, networks []NetworkConfig) {
 			chainID:          starknetConfig.ChainID,
 			hyperlaneAddress: starknetConfig.HyperlaneAddress,
 			dogCoinAddress:   common.HexToAddress(os.Getenv("STARKNET_DOG_COIN_ADDRESS")), // From env
+		}
+	}
+
+	if destinationNetwork == nil && order.DestinationChain == "Ztarknet" {
+		// Create NetworkConfig for Ztarknet destination
+		ztarknetConfig := config.Networks["Ztarknet"]
+		destinationNetwork = &NetworkConfig{
+			name:             "Ztarknet",
+			url:              ztarknetConfig.RPCURL,
+			chainID:          ztarknetConfig.ChainID,
+			hyperlaneAddress: ztarknetConfig.HyperlaneAddress,
+			dogCoinAddress:   common.HexToAddress(os.Getenv("ZTARKNET_DOG_COIN_ADDRESS")), // From env
 		}
 	}
 
@@ -740,6 +756,19 @@ func buildOrderData(order *OrderConfig, originNetwork, destinationNetwork *Netwo
 		}
 		if destSettlerBytes == ([32]byte{}) {
 			log.Printf("⚠️  Starknet Hyperlane address not found in config; destinationSettler will be zero")
+		}
+	} else if destinationNetwork.name == "Ztarknet" {
+		// Use Ztarknet Hyperlane address from config (.env) as raw 32 bytes (felt)
+		if ztarknetNetwork, exists := config.Networks["Ztarknet"]; exists {
+			ztarknetHyperlaneAddr := os.Getenv("ZTARKNET_HYPERLANE_ADDRESS")
+			if ztarknetHyperlaneAddr != "" {
+				destSettlerBytes = hexToBytes32(ztarknetHyperlaneAddr)
+			} else if ztarknetNetwork.HyperlaneAddress.Hex() != "" {
+				destSettlerBytes = hexToBytes32(ztarknetNetwork.HyperlaneAddress.Hex())
+			}
+		}
+		if destSettlerBytes == ([32]byte{}) {
+			log.Printf("⚠️  Ztarknet Hyperlane address not found in config; destinationSettler will be zero")
 		}
 	} else {
 		// EVM router is 20-byte address left-padded to 32
@@ -968,7 +997,7 @@ func convertToABIOrderData(orderData *OrderData, senderNonce *big.Int, networks 
 	if userAddr != (common.Address{}) {
 		copy(senderBytes[12:], userAddr.Bytes()) // Left-pad to 32 bytes
 
-		// For EVM→Starknet orders, recipient should be the Starknet user address
+		// For EVM→Starknet/Ztarknet orders, recipient should be the Starknet/Ztarknet user address
 		// For EVM→EVM orders, recipient can be the same as sender
 		if orderData.DestinationChainID.Uint64() == config.StarknetSepoliaChainID { // Starknet
 			// Get Starknet user address using conditional environment variable logic
@@ -977,6 +1006,16 @@ func convertToABIOrderData(orderData *OrderData, senderNonce *big.Int, networks 
 				// Convert Starknet address to bytes32 (it's already 32 bytes)
 				starknetBytes := hexToBytes32(starknetUserAddr)
 				copy(recipientBytes[:], starknetBytes[:])
+			} else {
+				copy(recipientBytes[12:], userAddr.Bytes()) // Fallback to EVM address
+			}
+		} else if orderData.DestinationChainID.Uint64() == 10066329 { // Ztarknet (0x999999 = 10066329 in decimal)
+			// Get Ztarknet user address
+			ztarknetUserAddr := envutil.GetZtarknetAliceAddress()
+			if ztarknetUserAddr != "" {
+				// Convert Ztarknet address to bytes32 (it's already 32 bytes)
+				ztarknetBytes := hexToBytes32(ztarknetUserAddr)
+				copy(recipientBytes[:], ztarknetBytes[:])
 			} else {
 				copy(recipientBytes[12:], userAddr.Bytes()) // Fallback to EVM address
 			}
@@ -1024,11 +1063,16 @@ func convertToABIOrderData(orderData *OrderData, senderNonce *big.Int, networks 
 		}
 	}
 
-	// Special handling for Starknet destinations - need to get from environment
+	// Special handling for Starknet/Ztarknet destinations - need to get from environment
 	if destinationChainID == config.StarknetSepoliaChainID { // Starknet
 		starknetDogCoin := os.Getenv("STARKNET_DOG_COIN_ADDRESS")
 		if starknetDogCoin != "" {
 			destinationTokenAddr = common.HexToAddress(starknetDogCoin)
+		}
+		} else if destinationChainID == config.ZtarknetTestnetChainID { // Ztarknet (0x999999 = 10066329 in decimal)
+		ztarknetDogCoin := os.Getenv("ZTARKNET_DOG_COIN_ADDRESS")
+		if ztarknetDogCoin != "" {
+			destinationTokenAddr = common.HexToAddress(ztarknetDogCoin)
 		}
 	}
 
@@ -1044,6 +1088,12 @@ func convertToABIOrderData(orderData *OrderData, senderNonce *big.Int, networks 
 		if starknetDogCoin != "" {
 			outputTokenBytes = hexToBytes32(starknetDogCoin)
 		}
+		} else if destinationChainID == config.ZtarknetTestnetChainID { // Ztarknet (0x999999 = 10066329 in decimal) destination
+		// For Ztarknet, use the full address without padding
+		ztarknetDogCoin := os.Getenv("ZTARKNET_DOG_COIN_ADDRESS")
+		if ztarknetDogCoin != "" {
+			outputTokenBytes = hexToBytes32(ztarknetDogCoin)
+		}
 	} else if destinationTokenAddr != (common.Address{}) {
 		// For EVM destinations, left-pad the 20-byte address
 		copy(outputTokenBytes[12:], destinationTokenAddr.Bytes()) // Left-pad to 32 bytes
@@ -1057,6 +1107,16 @@ func convertToABIOrderData(orderData *OrderData, senderNonce *big.Int, networks 
 		if starknetHyperlaneAddr != "" {
 			starknetBytes := hexToBytes32(starknetHyperlaneAddr)
 			copy(destinationSettlerBytes[:], starknetBytes[:])
+		} else {
+			// Fallback to zero address
+			copy(destinationSettlerBytes[:], make([]byte, 32))
+		}
+		} else if orderData.DestinationChainID.Uint64() == config.ZtarknetTestnetChainID { // Ztarknet (0x999999 = 10066329 in decimal)
+		// Use Ztarknet Hyperlane address from environment
+		ztarknetHyperlaneAddr := os.Getenv("ZTARKNET_HYPERLANE_ADDRESS")
+		if ztarknetHyperlaneAddr != "" {
+			ztarknetBytes := hexToBytes32(ztarknetHyperlaneAddr)
+			copy(destinationSettlerBytes[:], ztarknetBytes[:])
 		} else {
 			// Fallback to zero address
 			copy(destinationSettlerBytes[:], make([]byte, 32))
