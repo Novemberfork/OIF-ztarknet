@@ -1,6 +1,6 @@
 # OIF-Ztarknet
 
-This project forks Nethermind's [OIF-Starknet](https://github.com/NethermindEth/OIF-starknet) repo to add support for Ztarknet. 
+This project forks Nethermind's [OIF-starknet](https://github.com/NethermindEth/OIF-starknet) to add support for Ztarknet. 
 
 ## Todos
 
