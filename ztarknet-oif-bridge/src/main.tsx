@@ -26,7 +26,7 @@ const zstarknet = {
   testnet: true,
 }
 
-function Root() {
+export function Root() {
   // Modern approach: auto-discover injected wallets
   const { connectors } = useInjectedConnectors({
     // Show these as recommended if user has no wallets installed
