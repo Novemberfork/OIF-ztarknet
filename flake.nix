@@ -17,6 +17,7 @@
             go
             gopls
             nodejs_22
+            yarn
             foundry
             solc
             typescript-language-server
