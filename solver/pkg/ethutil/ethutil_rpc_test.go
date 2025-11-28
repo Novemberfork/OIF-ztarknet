@@ -119,7 +119,7 @@ func testERC20Functions(t *testing.T, client *ethclient.Client, networkName stri
 		networkConfig, err := config.GetNetworkConfig(networkName)
 		require.NoError(t, err)
 
-		allowance, err := ERC20Allowance(client, common.HexToAddress(tokenAddress), common.HexToAddress(aliceAddress), networkConfig.HyperlaneAddress)
+		allowance, err := ERC20Allowance(client, common.HexToAddress(tokenAddress), common.HexToAddress(aliceAddress), common.HexToAddress(networkConfig.HyperlaneAddress))
 		require.NoError(t, err)
 		assert.True(t, allowance.Cmp(big.NewInt(0)) >= 0, "Allowance should be non-negative")
 	})

@@ -569,9 +569,9 @@ func buildZtarknetOrderData(order *ZtarknetOrderConfig, originNetwork *ZtarknetN
 	// Destination settler must be the Hyperlane address for the destination network
 	destSettlerHex := ""
 	if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
-		destSettlerHex = staticAddr.Hex()
+		destSettlerHex = staticAddr
 	} else if destNetwork, exists := config.Networks[destChainName]; exists {
-		destSettlerHex = destNetwork.HyperlaneAddress.Hex()
+		destSettlerHex = destNetwork.HyperlaneAddress
 	}
 	if destSettlerHex == "" {
 		log.Fatalf("Could not get destination settler address for %s", destChainName)

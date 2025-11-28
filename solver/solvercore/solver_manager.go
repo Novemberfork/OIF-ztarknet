@@ -124,7 +124,9 @@ func (sm *SolverManager) initializeEVMClients() error {
 	evmCount := 0
 	for networkName, networkConfig := range config.Networks {
 		// Check if this is NOT a Starknet network (i.e., it's an EVM network)
-		if strings.Contains(strings.ToLower(networkName), "starknet") {
+		// Explicitly check for both "starknet" and "ztarknet" to avoid any confusion
+		name := strings.ToLower(networkName)
+		if strings.Contains(name, "starknet") || strings.Contains(name, "ztarknet") {
 			continue
 		}
 		
@@ -150,7 +152,8 @@ func (sm *SolverManager) initializeStarknetClients() error {
 
 	for networkName, networkConfig := range config.Networks {
 		// Check if this is a Starknet network
-		if !strings.Contains(strings.ToLower(networkName), "starknet") {
+		name := strings.ToLower(networkName)
+		if !strings.Contains(name, "starknet") && !strings.Contains(name, "ztarknet") {
 			continue
 		}
 		
@@ -158,12 +161,20 @@ func (sm *SolverManager) initializeStarknetClients() error {
 
 		provider, err := rpc.NewProvider(networkConfig.RPCURL)
 		if err != nil {
-			return fmt.Errorf("failed to create Starknet provider for %s: %w", networkName, err)
+			// Don't error out, just skip this one (unless it's critical)
+			fmt.Printf("⚠️  Failed to create Starknet provider for %s: %v\n", networkName, err)
+			continue
 		}
 
+		// Store the last initialized client as the default one
+		// This is a limitation of the current architecture which expects a single Starknet client
+		// However, individual solvers create their own clients, so this is mostly for listeners
 		sm.starknetClient = provider
-		fmt.Printf("✅ Starknet client initialized successfully\n")
-		return nil // Only need one Starknet client
+		fmt.Printf("✅ Starknet client initialized successfully for %s\n", networkName)
+	}
+	
+	if sm.starknetClient != nil {
+		return nil
 	}
 
 	fmt.Printf("⚠️  No Starknet networks found in config\n")
@@ -335,7 +346,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			// Create EVM listener config with original solver start block
 			// The listener will handle negative value resolution
 			listenerConfig := base.NewListenerConfig(
-				networkConfig.HyperlaneAddress.Hex(),
+				networkConfig.HyperlaneAddress,
 				source,
 				big.NewInt(networkConfig.SolverStartBlock), // pass original value (can be negative)
 				networkConfig.PollInterval,                 // poll interval from config
