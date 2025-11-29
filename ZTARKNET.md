@@ -22,7 +22,7 @@ This project forks Nethermind's [OIF-starknet](https://github.com/NethermindEth/
 
 OIF (Open Intent Framework) allows Alice to open an intent on an origin chain, and have it filled on the destination chain. An example intent is bridging a token or bridge-swapping a token. 
 
-Intent-based bridges usually allows for faster bridging (for end users) compared to traditional bridges. In a traditional bridge Alice will lock tokens into a contract on the origin chain, then she waits for the origin chain to send a message to the destination chain, then finally, the tokens are sent to her on the destination chain. This process can sometimes take up to several minutes to a few hours depending on the inter-chain messaging setup. 
+Intent-based bridges usually allow for faster bridging (for end users) compared to traditional bridges. In a traditional bridge Alice will lock tokens into a contract on the origin chain, then she waits for the origin chain to send a message to the destination chain, then finally, the tokens are sent to her on the destination chain. This process can sometimes take up to several minutes to a few hours depending on the inter-chain messaging setup. 
 
 Instead of waiting for the inter-chain message, Alice could receive her tokens almost immediately using intents. Another party, say Bob (the solver/anyone) could send Alice her desired tokens on the destination chain right after she locks the input tokens into the origin chain contract. He can then collect his profits after the fact. Hyperlane7683 manages the logic of opening, filling, and settling bridge and bridge swap intents ([eip-7683](https://eips.ethereum.org/EIPS/eip-7683))
 
