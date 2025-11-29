@@ -337,8 +337,8 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 
 	if order.DestinationChain == "Ztarknet" {
 		// Ztarknet domain is 0x999999 = 10066329 in decimal
-		destinationDomain = 10066329	
-		} else if destConfig, err := config.GetHyperlaneDomain(order.DestinationChain); err == nil {
+		destinationDomain = 10066329
+	} else if destConfig, err := config.GetHyperlaneDomain(order.DestinationChain); err == nil {
 		destinationDomain = uint32(destConfig)
 	} else {
 		fmt.Printf("   ⚠️  Warning: Could not get destination domain from config\n")
@@ -499,7 +499,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 	fmt.Printf("   ✅ Order opened successfully!\n")
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
-	fmt.Printf("📊 Order Summary:\n")
+	fmt.Printf("   Order Summary:\n")
 	fmt.Printf("   Input Amount: %s\n", order.InputAmount.String())
 	fmt.Printf("   Output Amount: %s\n", order.OutputAmount.String())
 	fmt.Printf("   Origin Chain: %s\n", order.OriginChain)
@@ -605,4 +605,3 @@ func buildZtarknetOrderData(order *ZtarknetOrderConfig, originNetwork *ZtarknetN
 		Data:               []*felt.Felt{},
 	}
 }
-

@@ -87,7 +87,7 @@ run-local: build
 
 # Run the solver with live networks (sets IS_DEVNET=false)
 run-live: build
-	@echo "🤖 Starting solver with live networks (IS_DEVNET=false)..."
+	@echo "Starting solver with live networks (IS_DEVNET=false)..."
 	@echo "Make sure you have live network access and proper environment variables set"
 	IS_DEVNET=false ./bin/solver solver
 

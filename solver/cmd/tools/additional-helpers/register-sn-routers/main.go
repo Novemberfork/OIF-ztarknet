@@ -92,7 +92,7 @@ func main() {
 				b32:    evmAddrToBytes32(cfg.HyperlaneAddress.Bytes()),
 				name:   name,
 			})
-			fmt.Printf("   🔗 EVM %s: domain %d -> router %s\n", name, cfg.HyperlaneDomain, cfg.HyperlaneAddress.Hex())
+			fmt.Printf("   EVM %s: domain %d -> router %s\n", name, cfg.HyperlaneDomain, cfg.HyperlaneAddress.Hex())
 		}
 	}
 

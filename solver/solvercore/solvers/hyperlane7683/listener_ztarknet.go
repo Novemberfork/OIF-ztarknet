@@ -53,7 +53,7 @@ func NewZtarknetListener(listenerConfig *base.ListenerConfig, rpcURL string) (ba
 
 	baseListener := NewBaseListener(*listenerConfig, provider, "Ztarknet")
 	baseListener.SetLastProcessedBlock(commonConfig.LastProcessedBlock)
-	
+
 	return &ztarknetListener{
 		config:             listenerConfig,
 		provider:           provider,
@@ -99,7 +99,7 @@ func (l *ztarknetListener) startEventLoop(ctx context.Context, handler base.Even
 	if err := l.catchUpHistoricalBlocks(ctx, handler); err != nil {
 		fmt.Printf("%s❌ backfill failed: %v\n", p, err)
 	}
-	fmt.Printf("%s🔄 backfill complete\n", p)
+	fmt.Printf("%s backfill complete\n", p)
 	l.startPolling(ctx, handler)
 }
 
@@ -108,7 +108,7 @@ func (l *ztarknetListener) catchUpHistoricalBlocks(ctx context.Context, handler 
 }
 
 func (l *ztarknetListener) startPolling(ctx context.Context, handler base.EventHandler) {
-	fmt.Printf("%s📭 Starting event polling...\n", logutil.Prefix(l.config.ChainName))
+	fmt.Printf("%s Starting event polling...\n", logutil.Prefix(l.config.ChainName))
 	for {
 		select {
 		case <-ctx.Done():
@@ -165,7 +165,7 @@ func (l *ztarknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 		return l.lastProcessedBlock, fmt.Errorf("failed to filter events: %w", err)
 	}
 
-	logutil.LogWithNetworkTagf(l.config.ChainName, "📩 events found: %d\n", len(logs.Events))
+	//	logutil.LogWithNetworkTagf(l.config.ChainName, "📩 events found: %d\n", len(logs.Events))
 	if len(logs.Events) > 0 {
 		fmt.Printf("📩 Found %d Open events on %s\n", len(logs.Events), l.config.ChainName)
 	}
@@ -223,4 +223,3 @@ func (l *ztarknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 
 	return newLast, nil
 }
-

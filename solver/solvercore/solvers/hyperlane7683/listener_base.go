@@ -107,8 +107,8 @@ func ProcessCurrentBlockRangeCommon(
 			end = toBlock
 		}
 
-		logutil.LogWithNetworkTagf(listenerConfig.ChainName, "🧭 %s range: from=%d to=%d (current=%d, conf=%d)\n",
-			networkType, start, end, currentBlock, listenerConfig.ConfirmationBlocks)
+		//logutil.LogWithNetworkTagf(listenerConfig.ChainName, "🧭 %s range: from=%d to=%d (current=%d, conf=%d)\n",
+		//	networkType, start, end, currentBlock, listenerConfig.ConfirmationBlocks)
 
 		chunkLast, err := processBlockRange(ctx, start, end, handler)
 		if err != nil {
@@ -148,7 +148,7 @@ func (bl *BaseListener) CatchUpHistoricalBlocks(
 	processBlockRange func(context.Context, uint64, uint64, base.EventHandler) (uint64, error),
 ) error {
 	p := logutil.Prefix(bl.config.ChainName)
-	fmt.Printf("%s🔄 Catching up on historical blocks...\n", p)
+	fmt.Printf("%s Catching up on historical blocks...\n", p)
 
 	currentBlock, err := bl.blockProvider.BlockNumber(ctx)
 	if err != nil {
@@ -165,7 +165,7 @@ func (bl *BaseListener) CatchUpHistoricalBlocks(
 	fromBlock := bl.lastProcessedBlock + 1
 	toBlock := safeBlock
 	if fromBlock >= toBlock {
-		fmt.Printf("%s✅ Already up to date, no historical blocks to process\n", p)
+		fmt.Printf("%s Already up to date, no historical blocks to process\n", p)
 		return nil
 	}
 
@@ -187,13 +187,13 @@ func (bl *BaseListener) CatchUpHistoricalBlocks(
 		}
 	}
 
-	fmt.Printf("%s✅ Historical block processing complete\n", p)
+	fmt.Printf("%s Historical block processing complete\n", p)
 	return nil
 }
 
 // CommonListenerConfig holds common configuration for both EVM and Starknet listeners
 type CommonListenerConfig struct {
-	ListenerConfig *base.ListenerConfig
+	ListenerConfig     *base.ListenerConfig
 	LastProcessedBlock uint64
 }
 
@@ -219,7 +219,7 @@ func ResolveCommonListenerConfig(
 		if configStartBlock == 0 {
 			// Zero - start at current block (live)
 			resolvedStartBlock = currentBlock
-			fmt.Printf("%s📚 Start block was 0, using current block %d\n",
+			fmt.Printf("%s Start block was 0, using current block %d\n",
 				logutil.Prefix(listenerConfig.ChainName), currentBlock)
 		} else {
 			// Negative number - start N blocks before current block
@@ -231,7 +231,7 @@ func ResolveCommonListenerConfig(
 				resolvedStartBlock = 0
 			}
 
-			fmt.Printf("%s📚 Start block was %d, using current block %d - %d = %d\n",
+			fmt.Printf("%s Start block was %d, using current block %d - %d = %d\n",
 				logutil.Prefix(listenerConfig.ChainName), configStartBlock, currentBlock, -configStartBlock, resolvedStartBlock)
 		}
 	}
@@ -246,11 +246,11 @@ func ResolveCommonListenerConfig(
 		deploymentStateBlock := networkState.LastIndexedBlock
 		if deploymentStateBlock > resolvedStartBlock {
 			lastProcessedBlock = deploymentStateBlock
-			fmt.Printf("%s📚 Using deployment state block %d (higher than config start block %d)\n",
+			fmt.Printf("%s Using deployment state block %d (higher than config start block %d)\n",
 				logutil.Prefix(listenerConfig.ChainName), deploymentStateBlock, resolvedStartBlock)
 		} else {
 			lastProcessedBlock = resolvedStartBlock
-			fmt.Printf("%s📚 Using config start block %d (deployment state block %d is lower)\n",
+			fmt.Printf("%s Using config start block %d (deployment state block %d is lower)\n",
 				logutil.Prefix(listenerConfig.ChainName), resolvedStartBlock, deploymentStateBlock)
 		}
 	} else {

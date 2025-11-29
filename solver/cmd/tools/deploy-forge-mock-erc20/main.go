@@ -81,9 +81,9 @@ func main() {
 			continue
 		}
 
-		fmt.Printf("   ✅ Deployed at: %s\n", address)
-		fmt.Printf("   🔗 Explorer: %s\n", getExplorerURL(network.ChainID, address))
-		fmt.Printf("   📝 Update .env: %s=%s\n\n", network.EnvVar, address)
+		fmt.Printf("   Deployed at: %s\n", address)
+		fmt.Printf("   Explorer: %s\n", getExplorerURL(network.ChainID, address))
+		fmt.Printf("   Update .env: %s=%s\n\n", network.EnvVar, address)
 
 		deployedAddresses = append(deployedAddresses, fmt.Sprintf("%s=%s", network.EnvVar, address))
 		successCount++

@@ -524,7 +524,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 	fmt.Printf("   ✅ Order opened successfully!\n")
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
-	fmt.Printf("📊 Order Summary:\n")
+	fmt.Printf("   Order Summary:\n")
 	fmt.Printf("   Input Amount: %s\n", order.InputAmount.String())
 	fmt.Printf("   Output Amount: %s\n", order.OutputAmount.String())
 	fmt.Printf("   Origin Chain: %s\n", order.OriginChain)

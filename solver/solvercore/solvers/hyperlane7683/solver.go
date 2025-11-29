@@ -112,7 +112,7 @@ func (f *Hyperlane7683Solver) ProcessIntent(ctx context.Context, args *types.Par
 		// - Starknet -> Ztarknet
 		// - Starknet -> EVM
 		// - Ztarknet -> * (Any destination)
-		
+
 		originChainID := args.ResolvedOrder.OriginChainID
 		// Get destination chain ID from first instruction (assuming single destination for now)
 		var destChainID *big.Int
@@ -122,7 +122,7 @@ func (f *Hyperlane7683Solver) ProcessIntent(ctx context.Context, args *types.Par
 
 		if originChainID != nil && destChainID != nil {
 			isOriginEVM := f.isEVMChain(originChainID)
-			
+
 			// Check if destination is Ztarknet
 			isDestZtarknet := false
 			if destChainID.Uint64() == config.ZtarknetTestnetChainID {
@@ -142,7 +142,7 @@ func (f *Hyperlane7683Solver) ProcessIntent(ctx context.Context, args *types.Par
 			shouldSettle := isOriginEVM && !isDestZtarknet
 
 			if !shouldSettle {
-				logutil.LogWithNetworkTagf("", "⚠️  Skipping settlement for order from chain %s to %s (Policy: Only EVM->EVM and EVM->Starknet are settled)", originChainID.String(), destChainID.String())
+				logutil.LogWithNetworkTagf("", "⚠️ Skipping settlement for order from chain %s to %s (Policy: Only EVM->EVM and EVM->Starknet are settled)\n", originChainID.String(), destChainID.String())
 				logutil.LogOperationComplete(args, "Order processing (Settlement Skipped)", true)
 				return true, nil
 			}
@@ -171,7 +171,6 @@ func (f *Hyperlane7683Solver) Fill(ctx context.Context, args *types.ParsedArgs) 
 	}
 
 	// Process all fill instructions (supports both single and multiple instructions)
-	fmt.Printf("DEBUG: {%x}", args)
 	for i, instruction := range args.ResolvedOrder.FillInstructions {
 		logutil.LogWithNetworkTagf("", "Processing fill instruction %d/%d for chain %s",
 			i+1, len(args.ResolvedOrder.FillInstructions), instruction.DestinationChainID.String())
@@ -190,7 +189,7 @@ func (f *Hyperlane7683Solver) Fill(ctx context.Context, args *types.ParsedArgs) 
 
 		// If this instruction needs settlement, return that action
 		if action == OrderActionSettle {
-			logutil.LogWithNetworkTagf("", "Fill instruction %d completed, needs settlement", i+1)
+			logutil.LogWithNetworkTagf("", "Fill instruction %d completed, needs settlement\n", i+1)
 			return OrderActionSettle, nil
 		}
 
