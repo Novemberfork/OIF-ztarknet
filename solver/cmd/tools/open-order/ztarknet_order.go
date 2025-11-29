@@ -138,7 +138,7 @@ func loadZtarknetNetworks() []ZtarknetNetworkConfig {
 
 // RunZtarknetOrder creates a Ztarknet order based on the command
 func RunZtarknetOrder(command string) {
-	fmt.Println("🎯 Running Ztarknet order creation...")
+	//fmt.Println("🎯 Opening Ztarknet order...")
 
 	// Load configuration (this loads .env and initializes networks)
 	_, err := config.LoadConfig()
@@ -167,7 +167,7 @@ func RunZtarknetOrder(command string) {
 
 // RunZtarknetOrderWithDest creates a Ztarknet order with specific origin and destination
 func RunZtarknetOrderWithDest(command, originChain, destinationChain string) {
-	fmt.Printf("🎯 Running Ztarknet order creation: %s → %s\n", originChain, destinationChain)
+	//fmt.Printf("🎯 Running Ztarknet order creation: %s → %s\n", originChain, destinationChain)
 
 	// Load configuration (this loads .env and initializes networks)
 	_, err := config.LoadConfig()
@@ -208,7 +208,7 @@ func RunZtarknetOrderWithDest(command, originChain, destinationChain string) {
 }
 
 func openRandomZtarknetOrder(networks []ZtarknetNetworkConfig) {
-	fmt.Println("🎲 Opening Random Ztarknet Test Order...")
+	fmt.Println("Opening Random Ztarknet Test Order...")
 
 	// Use configured Ztarknet network as origin
 	originChain := "Ztarknet"
@@ -279,7 +279,7 @@ func openZtarknetToStarknet(networks []ZtarknetNetworkConfig) {
 }
 
 func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetworkConfig) {
-	fmt.Printf("\n📋 Executing Order: %s → %s\n", order.OriginChain, order.DestinationChain)
+	fmt.Printf("\nOpening Order: %s → %s\n", order.OriginChain, order.DestinationChain)
 
 	// Find origin network (should be Ztarknet)
 	var originNetwork *ZtarknetNetworkConfig
@@ -337,8 +337,8 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 
 	if order.DestinationChain == "Ztarknet" {
 		// Ztarknet domain is 0x999999 = 10066329 in decimal
-		destinationDomain = 10066329	
-		} else if destConfig, err := config.GetHyperlaneDomain(order.DestinationChain); err == nil {
+		destinationDomain = 10066329
+	} else if destConfig, err := config.GetHyperlaneDomain(order.DestinationChain); err == nil {
 		destinationDomain = uint32(destConfig)
 	} else {
 		fmt.Printf("   ⚠️  Warning: Could not get destination domain from config\n")
@@ -353,7 +353,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 	// Get initial balances
 	initialUserBalance, err := starknetutil.ERC20Balance(client, inputToken, owner)
 	if err == nil {
-		fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
+		fmt.Printf("   Initial InputToken balance(owner): %s\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
 	} else {
 		fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
 	}
@@ -364,8 +364,8 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 		fmt.Printf("   ⚠️  Insufficient balance! Alice needs %s tokens but has %s\n",
 			starknetutil.FormatTokenAmount(requiredAmount, 18),
 			starknetutil.FormatTokenAmount(initialUserBalance, 18))
-		fmt.Printf("   💡 Please mint tokens manually using the MockERC20 contract's mint() function\n")
-		fmt.Printf("   📝 Contract address: %s\n", inputToken)
+		fmt.Printf("   ⚠️  Please mint tokens manually using the MockERC20 contract's mint() function\n")
+		fmt.Printf("   ⚠️  Contract address: %s\n", inputToken)
 		fmt.Printf("❌ Insufficient token balance for order creation\n")
 		os.Exit(1)
 	} else {
@@ -398,7 +398,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 	// Check allowance
 	allowance, err := starknetutil.ERC20Allowance(client, inputToken, owner, spender)
 	if err == nil {
-		fmt.Printf("   🔍 Current allowance(owner->hyperlane): %s\n", starknetutil.FormatTokenAmount(allowance, 18))
+		fmt.Printf("   Current allowance(owner->hyperlane): %s\n", starknetutil.FormatTokenAmount(allowance, 18))
 	} else {
 		fmt.Printf("   ⚠️  Could not read allowance: %v\n", err)
 	}
@@ -422,7 +422,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 			os.Exit(1)
 		}
 
-		fmt.Printf("   🚀 Approval transaction sent: %s\n", approveTx.Hash.String())
+		fmt.Printf("   Approval transaction sent: %s\n", approveTx.Hash.String())
 		fmt.Printf("   ⏳ Waiting for approval confirmation...\n")
 
 		// Wait for approval transaction to be mined
@@ -432,9 +432,9 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 			os.Exit(1)
 		}
 
-		fmt.Printf("   ✅ Approval confirmed!\n")
+		fmt.Printf("   Approval confirmed!\n")
 	} else {
-		fmt.Printf("   ✅ Sufficient allowance already exists\n")
+		fmt.Printf("   Sufficient allowance already exists\n")
 	}
 
 	// Generate a random nonce for the order
@@ -453,7 +453,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 	}
 
 	// Use generated bindings for open()
-	fmt.Printf("   📝 Calling open() function...\n")
+	fmt.Printf("   Calling open() function...\n")
 
 	// Get Hyperlane7683 contract address
 	hyperlaneAddrFelt, err := utils.HexToFelt(originNetwork.hyperlaneAddress)
@@ -462,7 +462,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 		os.Exit(1)
 	}
 
-	fmt.Printf("   📝 Sending open transaction...\n")
+	fmt.Printf("   Sending open transaction...\n")
 
 	// Build the transaction calldata for open(fill_deadline: u64, order_data_type: u256, order_data: Bytes)
 	calldata := []*felt.Felt{
@@ -486,7 +486,7 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 		os.Exit(1)
 	}
 
-	fmt.Printf("   🚀 Transaction sent: %s\n", tx.Hash.String())
+	fmt.Printf("   Transaction sent: %s\n", tx.Hash.String())
 	fmt.Printf("   ⏳ Waiting for confirmation...\n")
 
 	// Wait for transaction receipt
@@ -496,10 +496,10 @@ func executeZtarknetOrder(order *ZtarknetOrderConfig, networks []ZtarknetNetwork
 		os.Exit(1)
 	}
 
-	fmt.Printf("   ✅ Order opened successfully!\n")
+	fmt.Printf("   Order opened successfully!\n")
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
-	fmt.Printf("📊 Order Summary:\n")
+	fmt.Printf("   Order Summary:\n")
 	fmt.Printf("   Input Amount: %s\n", order.InputAmount.String())
 	fmt.Printf("   Output Amount: %s\n", order.OutputAmount.String())
 	fmt.Printf("   Origin Chain: %s\n", order.OriginChain)
@@ -605,4 +605,3 @@ func buildZtarknetOrderData(order *ZtarknetOrderConfig, originNetwork *ZtarknetN
 		Data:               []*felt.Felt{},
 	}
 }
-

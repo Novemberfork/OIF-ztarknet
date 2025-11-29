@@ -14,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
@@ -63,15 +62,14 @@ func NewHyperlaneStarknet(rpcURL string, chainID uint64) *HyperlaneStarknet {
 	// Determine which credentials to use based on chain ID
 	var pub, addrHex, priv string
 	var chainName string
-	
+
 	// Check if this is Ztarknet (chain ID 10066329) or Starknet
 	if chainID == config.ZtarknetTestnetChainID {
 		chainName = "Ztarknet"
 		pub = envutil.GetZtarknetSolverPublicKey()
 		addrHex = envutil.GetZtarknetSolverAddress()
 		priv = envutil.GetZtarknetSolverPrivateKey()
-		fmt.Printf("🔧 Initializing Ztarknet Handler (ChainID: %d)\n", chainID)
-		fmt.Printf("   Solver Address: %s\n", addrHex)
+		fmt.Printf("Initializing Ztarknet Handler (ChainID: %d)\n", chainID)
 	} else {
 		// Default to Starknet (supports both mainnet and testnet via IS_DEVNET)
 		chainName = "Starknet"
@@ -138,7 +136,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args *types.ParsedArgs) (O
 	// Pre-check: skip if order is already filled or settled
 	status, err := h.GetOrderStatus(ctx, args)
 	if err != nil {
-		fmt.Printf("   ⚠️  Status check failed: %v\n", err)
+		fmt.Printf("⚠️  Status check failed: %v\n", err)
 		return OrderActionError, err
 	}
 	networkName := logutil.NetworkNameByChainID(h.chainID)
@@ -171,7 +169,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args *types.ParsedArgs) (O
 	}
 
 	calldata := make([]*felt.Felt, 0, calldataBaseSize+len(words))
-	calldata = append(calldata, 
+	calldata = append(calldata,
 		orderIDLow, orderIDHigh,
 		utils.Uint64ToFelt(uint64(len(originData))),
 		utils.Uint64ToFelt(uint64(len(words))),
@@ -181,17 +179,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args *types.ParsedArgs) (O
 
 	// Execute the fill transaction
 	invoke := rpc.InvokeFunctionCall{ContractAddress: destinationSettlerAddr, FunctionName: "fill", CallData: calldata}
-	
-	// Enhanced logging for Ztarknet debugging
-	if logutil.NetworkNameByChainID(h.chainID) == "Ztarknet" || h.chainID == config.ZtarknetTestnetChainID {
-		fmt.Printf("\n🔍 [Ztarknet Debug] Sending Fill Transaction:\n")
-		fmt.Printf("   Chain ID: %d\n", h.chainID)
-		fmt.Printf("   Contract: %s\n", destinationSettlerAddr.String())
-		fmt.Printf("   Method: fill\n")
-		// fmt.Printf("   Origin Chain: %d\n", instruction.OriginDomain) // OriginDomain not directly available in FillInstruction
-		fmt.Printf("   RPC URL: %s\n\n", envutil.GetZtarknetRPCURL())
-	}
-	
+
 	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
 		return OrderActionError, fmt.Errorf("starknet fill send failed: %w", err)
@@ -258,7 +246,7 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args *types.ParsedArgs) 
 			// Live networks: Skip settlement until Ztarknet domain is registered on Starknet
 			fmt.Printf("   ⚠️  Skipping Starknet settlement for Ztarknet origin (domain %d) on live network\n", originDomain)
 			fmt.Printf("   ⏳ Ztarknet domain not yet registered on Starknet contracts - waiting for registration\n")
-			fmt.Printf("   📝 Order filled successfully, settlement will be available once domain is registered\n")
+			fmt.Printf("   Order filled successfully, settlement will be available once domain is registered\n")
 			return nil // Skip settlement but don't treat as error
 		} else {
 			// Fork mode: Continue with settlement (domains are mocked/registered)
@@ -302,16 +290,6 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args *types.ParsedArgs) 
 		CallData:        calldata,
 	}
 
-	// Enhanced logging for Ztarknet debugging
-	if logutil.NetworkNameByChainID(h.chainID) == "Ztarknet" || h.chainID == config.ZtarknetTestnetChainID {
-		fmt.Printf("\n🔍 [Ztarknet Debug] Sending Settle Transaction:\n")
-		fmt.Printf("   Chain ID: %d\n", h.chainID)
-		fmt.Printf("   Contract: %s\n", destinationSettler.String())
-		fmt.Printf("   Method: settle\n")
-		fmt.Printf("   Gas Payment: %s\n", gasPayment.String())
-		fmt.Printf("   RPC URL: %s\n\n", envutil.GetZtarknetRPCURL())
-	}
-
 	// Wait for confirmation
 	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
@@ -349,27 +327,12 @@ func (h *HyperlaneStarknet) GetOrderStatus(ctx context.Context, args *types.Pars
 	}
 
 	call := rpc.FunctionCall{
-		ContractAddress:      destinationSettlerAddr,
-		EntryPointSelector:   utils.GetSelectorFromNameFelt("order_status"),
-		Calldata:             []*felt.Felt{orderIDLow, orderIDHigh},
+		ContractAddress:    destinationSettlerAddr,
+		EntryPointSelector: utils.GetSelectorFromNameFelt("order_status"),
+		Calldata:           []*felt.Felt{orderIDLow, orderIDHigh},
 	}
 	resp, err := h.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
 	if err != nil || len(resp) == 0 {
-		// Enhanced logging for debugging Ztarknet issues
-		networkName := logutil.NetworkNameByChainID(h.chainID)
-		if networkName == "Ztarknet" || h.chainID == config.ZtarknetTestnetChainID {
-			fmt.Printf("\n🔍 [Ztarknet Debug] orderStatus Call Failed:\n")
-			fmt.Printf("   Chain ID: %d\n", h.chainID)
-			fmt.Printf("   Contract: %s\n", destinationSettlerAddr.String())
-			fmt.Printf("   Selector: %s (order_status)\n", call.EntryPointSelector.String())
-			fmt.Printf("   Calldata (OrderID): %s%s\n", orderIDHigh.String(), strings.TrimPrefix(orderIDLow.String(), "0x"))
-			if h.chainID == config.ZtarknetTestnetChainID {
-				fmt.Printf("   RPC URL: %s\n", envutil.GetZtarknetRPCURL())
-			} else {
-				fmt.Printf("   RPC URL: %s\n", envutil.GetStarknetRPCURL())
-			}
-			fmt.Printf("   Error: %v\n\n", err)
-		}
 		return orderStatusUnknown, err
 	}
 	status := resp[0].String()
@@ -547,13 +510,13 @@ func (h *HyperlaneStarknet) ensureETHApproval(ctx context.Context, amount *big.I
 		return fmt.Errorf("starknet ETH approve send failed: %w", err)
 	}
 
-	fmt.Printf("   🔄 Starknet ETH approve tx sent: %s\n", tx.Hash.String())
+	fmt.Printf("   Starknet ETH approve tx sent: %s\n", tx.Hash.String())
 	_, waitErr := h.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
 	if waitErr != nil {
 		return fmt.Errorf("starknet ETH approve wait failed: %w", waitErr)
 	}
 
-	fmt.Printf("   ✅ Starknet ETH approval confirmed\n")
+	fmt.Printf("   Starknet ETH approval confirmed\n")
 	return nil
 }
 
@@ -562,17 +525,6 @@ func (h *HyperlaneStarknet) ensureTokenApproval(ctx context.Context, tokenHex st
 	tokenFelt, err := utils.HexToFelt(tokenHex)
 	if err != nil {
 		return fmt.Errorf("invalid Starknet token address: %w", err)
-	}
-
-	// Enhanced logging for Ztarknet debugging
-	if logutil.NetworkNameByChainID(h.chainID) == "Ztarknet" || h.chainID == config.ZtarknetTestnetChainID {
-		fmt.Printf("\n🔍 [Ztarknet Debug] Ensuring Token Approval:\n")
-		fmt.Printf("   Token: %s\n", tokenHex)
-		fmt.Printf("   Spender (Hyperlane): %s\n", hyperlaneAddress.String())
-		fmt.Printf("   Amount: %s\n", amount.String())
-		fmt.Printf("   ChainID: %d\n", h.chainID)
-		fmt.Printf("   RPC URL: %s\n", h.rpcURL)
-		fmt.Printf("   Solver Address (Owner): %s\n", h.solverAddr.String())
 	}
 
 	// allowance(owner=solverAddr, spender=hyperlaneAddr) -> (low, high)
@@ -635,7 +587,7 @@ func (h *HyperlaneStarknet) waitForOrderStatus(
 		if err != nil {
 			fmt.Printf("   ⚠️  Status check attempt %d failed: %v\n", attempt, err)
 		} else {
-			fmt.Printf("   📊 Status check attempt %d: %s (expected: %s)\n", attempt, status, expectedStatus)
+			fmt.Printf("   Status check attempt %d: %s (expected: %s)\n", attempt, status, expectedStatus)
 			if status == expectedStatus {
 				return status, nil
 			}

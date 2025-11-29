@@ -18,6 +18,8 @@ const (
 	royalBlue = "\033[38;5;27m"
 	orange    = "\033[38;5;208m"
 	cyan      = "\033[36m"
+	limeGreen = "\033[38;5;46m"
+	lightGrey = "\033[38;5;252m"
 )
 
 var (
@@ -33,9 +35,10 @@ func initMapping() {
 	// 1) Bind colors/tags by env-configured chain IDs (arbitrary networks supported)
 	bindEnvChain("ETHEREUM_CHAIN_ID", "[ETH]", green)
 	bindEnvChain("OPTIMISM_CHAIN_ID", "[OPT]", pastelRed)
-	bindEnvChain("ARBITRUM_CHAIN_ID", "[ARB]", purple)
+	bindEnvChain("ARBITRUM_CHAIN_ID", "[ARB]", cyan)
 	bindEnvChain("BASE_CHAIN_ID", "[BASE]", royalBlue)
 	bindEnvChain("STARKNET_CHAIN_ID", "[STRK]", orange)
+	bindEnvChain("ZTARKNET_CHAIN_ID", "[ZTRK]", limeGreen)
 
 	// 2) Also bind any known configured networks by their current names
 	for name, cfg := range config.Networks {
@@ -48,14 +51,17 @@ func initMapping() {
 			colorByChainID[cfg.ChainID] = pastelRed
 			tagByChainID[cfg.ChainID] = "[OPT]"
 		case strings.Contains(lower, "arbitrum") || strings.Contains(lower, "arb"):
-			colorByChainID[cfg.ChainID] = purple
+			colorByChainID[cfg.ChainID] = cyan
 			tagByChainID[cfg.ChainID] = "[ARB]"
 		case strings.Contains(lower, "base"):
 			colorByChainID[cfg.ChainID] = royalBlue
 			tagByChainID[cfg.ChainID] = "[BASE]"
-		case strings.Contains(lower, "starknet") || strings.Contains(lower, "strk"):
+		case strings.Contains(lower, "starknet") && !strings.Contains(lower, "ztarknet"):
 			colorByChainID[cfg.ChainID] = orange
 			tagByChainID[cfg.ChainID] = "[STRK]"
+		case strings.Contains(lower, "ztarknet") || strings.Contains(lower, "ztrk"):
+			colorByChainID[cfg.ChainID] = limeGreen
+			tagByChainID[cfg.ChainID] = "[ZTRK]"
 		}
 	}
 }
@@ -85,7 +91,7 @@ func Prefix(networkName string) string {
 	}
 	// Generic fallback
 	tag := deriveTag(networkName)
-	return fmt.Sprintf("%s%s%s ", cyan, tag, reset)
+	return fmt.Sprintf("%s%s%s ", lightGrey, tag, reset)
 }
 
 func tagColorByName(name string) (string, string) {
@@ -96,11 +102,13 @@ func tagColorByName(name string) (string, string) {
 	case strings.Contains(lower, "optimism") || strings.Contains(lower, "opt"):
 		return "[OPT]", pastelRed
 	case strings.Contains(lower, "arbitrum") || strings.Contains(lower, "arb"):
-		return "[ARB]", purple
+		return "[ARB]", cyan
 	case strings.Contains(lower, "base"):
 		return "[BASE]", royalBlue
-	case strings.Contains(lower, "starknet") || strings.Contains(lower, "strk"):
+	case strings.Contains(lower, "starknet") && !strings.Contains(lower, "ztarknet"):
 		return "[STRK]", orange
+	case strings.Contains(lower, "ztarknet") || strings.Contains(lower, "ztrk"):
+		return "[ZTRK]", limeGreen
 	default:
 		return "", ""
 	}
@@ -109,7 +117,8 @@ func tagColorByName(name string) (string, string) {
 func deriveTag(name string) string {
 	parts := strings.Fields(name)
 	if len(parts) == 0 {
-		return "[NET]"
+		// here here here
+		return ""
 	}
 	if len(parts) == 1 {
 		n := parts[0]

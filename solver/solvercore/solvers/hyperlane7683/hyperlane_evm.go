@@ -246,7 +246,6 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args *types.ParsedArgs) error
 	h.signer.Value = new(big.Int).Set(gasPayment)
 	defer func() { h.signer.Value = originalValue }()
 
-
 	tx, err := contract.Settle(h.signer, orderIDs)
 	if err != nil {
 		return fmt.Errorf("settle tx failed on %s: %w", destinationSettler, err)
@@ -282,7 +281,6 @@ func (h *HyperlaneEVM) GetOrderStatus(ctx context.Context, args *types.ParsedArg
 	orderIDBytes := common.FromHex(args.OrderID)
 	copy(orderIDArr[:], orderIDBytes)
 
-
 	// Check order status
 	orderStatusABI := `[{
 		"type": "function",
@@ -309,17 +307,17 @@ func (h *HyperlaneEVM) GetOrderStatus(ctx context.Context, args *types.ParsedArg
 
 	dummyFrom := common.HexToAddress("0x1000000000000000000000000000000000000000")
 	res, err := h.client.CallContract(ctx, ethereum.CallMsg{
-		From:            dummyFrom,
-		To:              &destinationSettlerAddr,
-		Gas:             0,
-		GasPrice:        nil,
-		GasFeeCap:       nil,
-		GasTipCap:       nil,
-		Value:           nil,
-		Data:            callData,
-		AccessList:      nil,
-		BlobGasFeeCap:   nil,
-		BlobHashes:      nil,
+		From:              dummyFrom,
+		To:                &destinationSettlerAddr,
+		Gas:               0,
+		GasPrice:          nil,
+		GasFeeCap:         nil,
+		GasTipCap:         nil,
+		Value:             nil,
+		Data:              callData,
+		AccessList:        nil,
+		BlobGasFeeCap:     nil,
+		BlobHashes:        nil,
 		AuthorizationList: nil,
 	}, nil)
 	if err != nil {
@@ -366,7 +364,7 @@ func (h *HyperlaneEVM) setupApprovals(ctx context.Context, args *types.ParsedArg
 	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
 
 	// Get origin chain ID for cross-chain logging
-	originChainID := args.ResolvedOrder.OriginChainID.Uint64()
+	//originChainID := args.ResolvedOrder.OriginChainID.Uint64()
 
 	for _, maxSpent := range args.ResolvedOrder.MaxSpent {
 		// Skip native ETH (empty string)
@@ -391,7 +389,7 @@ func (h *HyperlaneEVM) setupApprovals(ctx context.Context, args *types.ParsedArg
 			return fmt.Errorf("approval failed for token %s: %w", maxSpent.Token, err)
 		}
 	}
-	logutil.CrossChainOperation("EVM token approvals set", originChainID, destinationChainID, args.OrderID)
+	//logutil.CrossChainOperation("EVM token approvals set", originChainID, destinationChainID, args.OrderID)
 
 	// Add a small delay to ensure blockchain state is updated after approvals
 	time.Sleep(1 * time.Second)
@@ -445,17 +443,17 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 	}
 
 	result, err := h.client.CallContract(ctx, ethereum.CallMsg{
-		From:            common.Address{},
-		To:              &tokenAddr,
-		Gas:             0,
-		GasPrice:        nil,
-		GasFeeCap:       nil,
-		GasTipCap:       nil,
-		Value:           nil,
-		Data:            callData,
-		AccessList:      nil,
-		BlobGasFeeCap:   nil,
-		BlobHashes:      nil,
+		From:              common.Address{},
+		To:                &tokenAddr,
+		Gas:               0,
+		GasPrice:          nil,
+		GasFeeCap:         nil,
+		GasTipCap:         nil,
+		Value:             nil,
+		Data:              callData,
+		AccessList:        nil,
+		BlobGasFeeCap:     nil,
+		BlobHashes:        nil,
 		AuthorizationList: nil,
 	}, nil)
 	if err != nil {
@@ -483,18 +481,14 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return nil
 	}
 
-	// Approve a slightly larger amount (110% of required) to account for any rounding issues
-	// This ensures we have enough allowance even if there are minor calculation differences
-	approvalAmount := new(big.Int).Mul(amount, big.NewInt(110))
+	approvalAmount := new(big.Int).Mul(amount, big.NewInt(101))
 	approvalAmount.Div(approvalAmount, big.NewInt(100))
-	
+
 	// Ensure we approve at least the required amount (in case of rounding down)
 	if approvalAmount.Cmp(amount) < 0 {
 		approvalAmount.Set(amount)
 	}
-	
-	fmt.Printf("   💰 Approval amount: %s (required: %s, 110%% buffer)\n", approvalAmount.String(), amount.String())
-	
+
 	// Approve the calculated amount
 	approveABI := `[{
 		"type": "function",
@@ -549,7 +543,7 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return fmt.Errorf("failed to send approve transaction: %w", err)
 	}
 
-	fmt.Printf("   🚀 Approve transaction sent: %s\n", signedTx.Hash().Hex())
+	fmt.Printf("Approve transaction sent: %s\n", signedTx.Hash().Hex())
 
 	// Wait for confirmation
 	receipt, err := bind.WaitMined(ctx, h.client, signedTx)
@@ -561,37 +555,7 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return fmt.Errorf("approve transaction failed with status: %d", receipt.Status)
 	}
 
-	fmt.Printf("   ✅ Approval confirmed! Gas used: %d\n", receipt.GasUsed)
-
-	// Re-check allowance after approval to ensure it was set correctly
-	// Wait for state to propagate (some networks need more time)
-	time.Sleep(15 * time.Second)
-	
-	result, err = h.client.CallContract(ctx, ethereum.CallMsg{
-		From:            common.Address{},
-		To:              &tokenAddr,
-		Gas:             0,
-		GasPrice:        nil,
-		GasFeeCap:       nil,
-		GasTipCap:       nil,
-		Value:           nil,
-		Data:            callData,
-		AccessList:      nil,
-		BlobGasFeeCap:   nil,
-		BlobHashes:      nil,
-		AuthorizationList: nil,
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("failed to re-check allowance after approval: %w", err)
-	}
-
-	if len(result) >= 32 {
-		newAllowance := new(big.Int).SetBytes(result)
-		if newAllowance.Cmp(amount) < 0 {
-			return fmt.Errorf("allowance still insufficient after approval: have %s, need %s", newAllowance.String(), amount.String())
-		}
-		fmt.Printf("   ✅ Allowance verified: %s (required: %s, approved: %s)\n", newAllowance.String(), amount.String(), approvalAmount.String())
-	}
+	fmt.Printf("Approval confirmed! Gas used: %d\n", receipt.GasUsed)
 
 	return nil
 }
@@ -611,7 +575,7 @@ func (h *HyperlaneEVM) waitForOrderStatus(
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		status, err := h.GetOrderStatus(ctx, args)
 		if err != nil {
-			fmt.Printf("   ⚠️  Status check attempt %d failed: %v\n", attempt, err)
+			fmt.Printf("⚠️  Status check attempt %d failed: %v\n", attempt, err)
 		} else {
 			logutil.LogStatusCheck(networkName, attempt, maxRetries, status, expectedStatus)
 			if status == expectedStatus {

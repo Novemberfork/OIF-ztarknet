@@ -167,7 +167,7 @@ func loadStarknetNetworks() []StarknetNetworkConfig {
 
 // RunStarknetOrder creates a Starknet order based on the command
 func RunStarknetOrder(command string) {
-	fmt.Println("🎯 Running Starknet order creation...")
+	//fmt.Println("🎯 Opening Starknet order...")
 
 	// Load configuration (this loads .env and initializes networks)
 	_, err := config.LoadConfig()
@@ -194,7 +194,7 @@ func RunStarknetOrder(command string) {
 
 // RunStarknetOrderWithDest creates a Starknet order with specific origin and destination
 func RunStarknetOrderWithDest(command, originChain, destinationChain string) {
-	fmt.Printf("🎯 Running Starknet order creation: %s → %s\n", originChain, destinationChain)
+	//fmt.Printf("🎯 Running Starknet order creation: %s → %s\n", originChain, destinationChain)
 
 	// Load configuration (this loads .env and initializes networks)
 	_, err := config.LoadConfig()
@@ -275,7 +275,7 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 }
 
 func openDefaultStarknetToEvm(networks []StarknetNetworkConfig) {
-	fmt.Println("🎯 Opening Default Starknet → EVM Test Order...")
+	//fmt.Println("🎯 Opening Default Starknet → EVM Test Order...")
 
 	// Use configured networks instead of hardcoded names
 	originChain := "Starknet"
@@ -304,7 +304,7 @@ func openDefaultStarknetToEvm(networks []StarknetNetworkConfig) {
 }
 
 func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetworkConfig) {
-	fmt.Printf("\n📋 Executing Order: %s → %s\n", order.OriginChain, order.DestinationChain)
+	fmt.Printf("\nOpening Order: %s → %s\n", order.OriginChain, order.DestinationChain)
 
 	// Find origin network (should be Starknet)
 	var originNetwork *StarknetNetworkConfig
@@ -375,7 +375,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 	// Get initial balances
 	initialUserBalance, err := starknetutil.ERC20Balance(client, inputToken, owner)
 	if err == nil {
-		fmt.Printf("   🔍 Initial InputToken balance(owner): %s\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
+		fmt.Printf("   Initial InputToken balance(owner): %s\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
 	} else {
 		fmt.Printf("   ⚠️  Could not read initial balance: %v\n", err)
 	}
@@ -386,12 +386,12 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 		fmt.Printf("   ⚠️  Insufficient balance! Alice needs %s tokens but has %s\n",
 			starknetutil.FormatTokenAmount(requiredAmount, 18),
 			starknetutil.FormatTokenAmount(initialUserBalance, 18))
-		fmt.Printf("   💡 Please mint tokens manually using the MockERC20 contract's mint() function\n")
-		fmt.Printf("   📝 Contract address: %s\n", inputToken)
+		fmt.Printf("   ⚠️  Please mint tokens manually using the MockERC20 contract's mint() function\n")
+		fmt.Printf("   ⚠️  Contract address: %s\n", inputToken)
 		fmt.Printf("❌ Insufficient token balance for order creation\n")
 		os.Exit(1)
 	} else {
-		fmt.Printf("   ✅ Alice has sufficient tokens (%s)\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
+		fmt.Printf("   Alice has sufficient tokens (%s)\n", starknetutil.FormatTokenAmount(initialUserBalance, 18))
 	}
 
 	// Create user account for transaction signing (needed for approval)
@@ -420,7 +420,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 	// Check allowance
 	allowance, err := starknetutil.ERC20Allowance(client, inputToken, owner, spender)
 	if err == nil {
-		fmt.Printf("   🔍 Current allowance(owner->hyperlane): %s\n", starknetutil.FormatTokenAmount(allowance, 18))
+		fmt.Printf("   Current allowance(owner->hyperlane): %s\n", starknetutil.FormatTokenAmount(allowance, 18))
 	} else {
 		fmt.Printf("   ⚠️  Could not read allowance: %v\n", err)
 	}
@@ -447,7 +447,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 			os.Exit(1)
 		}
 
-		fmt.Printf("   🚀 Approval transaction sent: %s\n", approveTx.Hash.String())
+		fmt.Printf("   Approval transaction sent: %s\n", approveTx.Hash.String())
 		fmt.Printf("   ⏳ Waiting for approval confirmation...\n")
 
 		// Wait for approval transaction to be mined
@@ -457,9 +457,9 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 			os.Exit(1)
 		}
 
-		fmt.Printf("   ✅ Approval confirmed!\n")
+		fmt.Printf("   Approval confirmed!\n")
 	} else {
-		fmt.Printf("   ✅ Sufficient allowance already exists\n")
+		fmt.Printf("   Sufficient allowance already exists\n")
 	}
 
 	// Generate a random nonce for the order
@@ -478,7 +478,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 	}
 
 	// Use generated bindings for open()
-	fmt.Printf("   📝 Calling open() function...\n")
+	fmt.Printf("   Calling open() function...\n")
 
 	// Get Hyperlane7683 contract address
 	hyperlaneAddrFelt, err := utils.HexToFelt(originNetwork.hyperlaneAddress)
@@ -487,7 +487,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 		os.Exit(1)
 	}
 
-	fmt.Printf("   📝 Sending open transaction...\n")
+	fmt.Printf("   Sending open transaction...\n")
 
 	// Build the transaction calldata for open(fill_deadline: u64, order_data_type: u256, order_data: Bytes)
 	calldata := []*felt.Felt{
@@ -511,7 +511,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 		os.Exit(1)
 	}
 
-	fmt.Printf("   🚀 Transaction sent: %s\n", tx.Hash.String())
+	fmt.Printf("   Transaction sent: %s\n", tx.Hash.String())
 	fmt.Printf("   ⏳ Waiting for confirmation...\n")
 
 	// Wait for transaction receipt
@@ -521,10 +521,10 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 		os.Exit(1)
 	}
 
-	fmt.Printf("   ✅ Order opened successfully!\n")
+	fmt.Printf("   Order opened successfully!\n")
 
 	fmt.Printf("\n🎉 Order execution completed!\n")
-	fmt.Printf("📊 Order Summary:\n")
+	fmt.Printf("   Order Summary:\n")
 	fmt.Printf("   Input Amount: %s\n", order.InputAmount.String())
 	fmt.Printf("   Output Amount: %s\n", order.OutputAmount.String())
 	fmt.Printf("   Origin Chain: %s\n", order.OriginChain)

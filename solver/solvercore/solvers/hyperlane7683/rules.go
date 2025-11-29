@@ -95,7 +95,7 @@ func (br *BalanceRule) Evaluate(ctx context.Context, args *types.ParsedArgs) Rul
 
 	// Skip for Ztarknet as requested (ChainID 10066329)
 	if destinationChainID == config.ZtarknetTestnetChainID {
-		logutil.CrossChainOperation("Skipping BalanceCheck for Ztarknet as requested", args.ResolvedOrder.OriginChainID.Uint64(), destinationChainID, args.OrderID)
+		logutil.CrossChainOperation("Skipping BalanceCheck for Ztarknet", args.ResolvedOrder.OriginChainID.Uint64(), destinationChainID, args.OrderID)
 		return RuleResult{Passed: true, Reason: "Skipping Ztarknet balance check"}
 	}
 
@@ -111,20 +111,20 @@ func (br *BalanceRule) Evaluate(ctx context.Context, args *types.ParsedArgs) Rul
 func (br *BalanceRule) checkStarknetBalance(_ context.Context, args *types.ParsedArgs) RuleResult {
 	// Get destination chain ID to determine which network we're checking
 	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
-	
+
 	// Determine if this is Ztarknet or Starknet
 	config.InitializeNetworks()
 	var networkName string
 	var solverAddrHex string
 	var rpcURL string
-	
+
 	for name, network := range config.Networks {
 		if network.ChainID == destinationChainID {
 			networkName = name
 			break
 		}
 	}
-	
+
 	// If network not found in config, try to guess based on ID or fallback
 	if networkName == "" {
 		if destinationChainID == config.ZtarknetTestnetChainID {
@@ -135,7 +135,7 @@ func (br *BalanceRule) checkStarknetBalance(_ context.Context, args *types.Parse
 			return RuleResult{Passed: false, Reason: fmt.Sprintf("Network config not found for chain ID %d", destinationChainID)}
 		}
 	}
-	
+
 	if networkName == "Ztarknet" {
 		// Use Ztarknet credentials
 		solverAddrHex = envutil.GetZtarknetSolverAddress()
@@ -177,9 +177,9 @@ func (br *BalanceRule) checkStarknetBalance(_ context.Context, args *types.Parse
 			// HACK: Skip balance check failure for Ztarknet as requested to avoid blocking orders on RPC issues
 			// Check network name OR if the error message contains "Method not found" which is common with Madara/Ztarknet issues
 			isZtarknetError := networkName == "Ztarknet" || strings.Contains(err.Error(), "Method not found")
-			
+
 			if isZtarknetError {
-				fmt.Printf("   ⚠️  Warning: Balance check failed for Ztarknet (skipping as requested): %v\n", err)
+				fmt.Printf("   ⚠️  Warning: Balance check failed for Ztarknet: %v\n", err)
 				continue
 			}
 			return RuleResult{Passed: false, Reason: fmt.Sprintf("Failed to check balance for token %s: %v", maxSpent.Token, err)}

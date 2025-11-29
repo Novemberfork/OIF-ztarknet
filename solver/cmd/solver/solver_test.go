@@ -278,7 +278,7 @@ func TestLoggingOutput(t *testing.T) {
 	t.Run("Logging messages format correctly", func(t *testing.T) {
 		// Test the logging messages used in the solver
 		messages := []string{
-			"🚀 Starting OIF Starknet Solver...",
+			"Starting OIF Starknet Solver...",
 			"🔄 Shutdown signal received, stopping solver...",
 			"✅ Solver stopped gracefully",
 			"🔍 Testing network connections...",

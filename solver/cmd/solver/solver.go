@@ -56,8 +56,8 @@ func RunSolver() {
 	solverManager := solvercore.NewSolverManager(cfg)
 
 	// Start the solver
-	logrus.Info("🚀 Starting OIF Starknet Solver...")
-	logrus.Info("   📊 Monitoring networks:", strings.Join(config.GetNetworkNames(), ", "))
+	logrus.Info("Starting OIF Solver...")
+	logrus.Info("   Monitoring networks:", strings.Join(config.GetNetworkNames(), ", "))
 	logrus.Info("   ⏰ Poll interval: 1000ms (default)")
 	logrus.Info("   🛑 Press Ctrl+C to stop")
 
@@ -86,7 +86,7 @@ func TestConnection() {
 			continue
 		}
 
-		logrus.Infof("   🔗 Testing %s (%s)...", networkName, networkConfig.RPCURL)
+		logrus.Infof("   Testing %s (%s)...", networkName, networkConfig.RPCURL)
 
 		// Test connection (works for both EVM and Starknet)
 		client, err := ethclient.Dial(networkConfig.RPCURL)

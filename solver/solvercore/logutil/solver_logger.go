@@ -39,7 +39,7 @@ func CrossChainOperation(operation string, originChainID, destChainID uint64, or
 	originClean := strings.TrimSpace(originTag)
 	destClean := strings.TrimSpace(destTag)
 
-	fmt.Printf("%s → %s 🔄 %s (Order: %s)\n", originClean, destClean, operation, orderID[:8]+"...")
+	fmt.Printf("%s → %s %s (Order: %s)\n", originClean, destClean, operation, orderID[:8]+"...")
 }
 
 // removeColorCodes removes ANSI color codes from a string
@@ -94,22 +94,22 @@ func LogSettleOperation(networkName, orderID string, success bool) {
 
 // LogBlockProcessing logs block processing with reduced verbosity
 func LogBlockProcessing(networkName string, fromBlock, toBlock uint64, eventCount int) {
-	tag := Prefix(networkName)
-	if eventCount > 0 {
-		fmt.Printf("%s📦 Processed blocks %d-%d: %d events\n", tag, fromBlock, toBlock, eventCount)
-	} else if toBlock-fromBlock > 0 {
-		// Only log if processing multiple blocks to reduce noise
-		fmt.Printf("%s📦 Processed blocks %d-%d\n", tag, fromBlock, toBlock)
-	}
+	//tag := Prefix(networkName)
+	// if eventCount > 0 {
+	// 	fmt.Printf("%s📦 Processed blocks %d-%d: %d events\n", tag, fromBlock, toBlock, eventCount)
+	// } else if toBlock-fromBlock > 0 {
+	// 	// Only log if processing multiple blocks to reduce noise
+	// 	fmt.Printf("%s📦 Processed blocks %d-%d\n", tag, fromBlock, toBlock)
+	// }
 }
 
 // LogStatusCheck logs order status checks with retry information
 func LogStatusCheck(networkName string, attempt, maxAttempts int, status, expected string) {
 	tag := Prefix(networkName)
 	if attempt == 1 {
-		fmt.Printf("%s📊 Status: %s (expected: %s)\n", tag, status, expected)
+		fmt.Printf("%s Status: %s (expected: %s)\n", tag, status, expected)
 	} else {
-		fmt.Printf("%s📊 Retry %d/%d: %s (expected: %s)\n", tag, attempt, maxAttempts, status, expected)
+		fmt.Printf("%s Retry %d/%d: %s (expected: %s)\n", tag, attempt, maxAttempts, status, expected)
 	}
 }
 
@@ -131,13 +131,13 @@ func LogOperationComplete(args *types.ParsedArgs, operation string, success bool
 			destClean := strings.TrimSpace(destTag)
 
 			if success {
-				fmt.Printf("%s → %s ✅ %s completed (Order: %s)\n", originClean, destClean, operation, args.OrderID[:8]+"...")
+				fmt.Printf("%s → %s 🎉 %s completed (Order: %s)\n", originClean, destClean, operation, args.OrderID[:8]+"...")
 			} else {
 				fmt.Printf("%s → %s ❌ %s failed (Order: %s)\n", originClean, destClean, operation, args.OrderID[:8]+"...")
 			}
 		} else {
 			if success {
-				fmt.Printf("✅ %s completed (Order: %s)\n", operation, args.OrderID[:8]+"...")
+				fmt.Printf("🎉 %s completed (Order: %s)\n", operation, args.OrderID[:8]+"...")
 			} else {
 				fmt.Printf("❌ %s failed (Order: %s)\n", operation, args.OrderID[:8]+"...")
 			}

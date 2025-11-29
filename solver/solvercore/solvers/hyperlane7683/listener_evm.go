@@ -57,7 +57,7 @@ func NewEVMListener(listenerConfig *base.ListenerConfig, rpcURL string) (base.Li
 
 	baseListener := NewBaseListener(*listenerConfig, client, "EVM")
 	baseListener.SetLastProcessedBlock(commonConfig.LastProcessedBlock)
-	
+
 	return &evmListener{
 		config:             listenerConfig,
 		client:             client,
@@ -103,7 +103,7 @@ func (l *evmListener) startEventLoop(ctx context.Context, handler base.EventHand
 	if err := l.catchUpHistoricalBlocks(ctx, handler); err != nil {
 		fmt.Printf("%s❌ backfill failed: %v\n", p, err)
 	}
-	fmt.Printf("%s🔄 backfill complete\n", p)
+	fmt.Printf("%s backfill complete\n", p)
 	l.startPolling(ctx, handler)
 }
 
@@ -112,7 +112,7 @@ func (l *evmListener) catchUpHistoricalBlocks(ctx context.Context, handler base.
 }
 
 func (l *evmListener) startPolling(ctx context.Context, handler base.EventHandler) {
-	fmt.Printf("%s📭 Starting event polling...\n", logutil.Prefix(l.config.ChainName))
+	fmt.Printf("%s Starting event polling...\n", logutil.Prefix(l.config.ChainName))
 
 	for {
 		select {
@@ -146,11 +146,11 @@ func (l *evmListener) processBlockRange(ctx context.Context, fromBlock, toBlock 
 
 	// Fetch events for the block range
 	query := ethereum.FilterQuery{
-		FromBlock:  big.NewInt(int64(fromBlock)),
-		ToBlock:    big.NewInt(int64(toBlock)),
-		Addresses:  []common.Address{l.contractAddress},
-		Topics:     [][]common.Hash{{openEventTopic}},
-		BlockHash:  nil,
+		FromBlock: big.NewInt(int64(fromBlock)),
+		ToBlock:   big.NewInt(int64(toBlock)),
+		Addresses: []common.Address{l.contractAddress},
+		Topics:    [][]common.Hash{{openEventTopic}},
+		BlockHash: nil,
 	}
 
 	logs, err := l.client.FilterLogs(ctx, query)
@@ -260,8 +260,8 @@ func (l *evmListener) handleParsedOpenEvent(ev *contracts.Hyperlane7683Open, han
 		ResolvedOrder: ro,
 	}
 
-	fmt.Printf("%s📜 Open order: OrderID=%s\n", p, parsedArgs.OrderID)
-	fmt.Printf("%s📊 Order details: User=%s\n", p, ro.User)
+	fmt.Printf("%s Order detected: OrderID=%s\n", p, parsedArgs.OrderID)
+	//fmt.Printf("%s📊 Order details: User=%s\n", p, ro.User)
 
 	// Just pass to handler, let the solver decide what to do
 	return handler(parsedArgs, l.config.ChainName, ev.Raw.BlockNumber)
