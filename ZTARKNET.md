@@ -16,7 +16,7 @@ This project forks Nethermind's [OIF-starknet](https://github.com/NethermindEth/
 
 ## What is not supported?
 
-- Bob (the solver) is not able to collect his profits in this PoC. In order for him to do so, the hyperlane protocol/stack (not the Hyperlane7683 contract) needs to be deployed onto Ztarknet.
+- Bob (the solver) is not able to collect his profits in this PoC. In order for him to do so, the hyperlane protocol/stack (not just the Hyperlane7683 contract) needs to be deployed onto Ztarknet.
 
 ## OIF Overview 
 
