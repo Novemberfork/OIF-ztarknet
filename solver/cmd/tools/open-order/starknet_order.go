@@ -38,6 +38,13 @@ func getAliceAddressForNetwork(networkName string) (string, error) {
 			return "", fmt.Errorf("starknet Alice address not set")
 		}
 		return address, nil
+	} else if strings.Contains(strings.ToLower(networkName), "ztarknet") {
+		// Use conditional environment variable for Starknet
+		address := envutil.GetZtarknetAliceAddress()
+		if address == "" {
+			return "", fmt.Errorf("ztarknet Alice address not set")
+		}
+		return address, nil
 	} else {
 		// Use conditional environment variable for EVM networks
 		address := envutil.GetAlicePublicKey()
@@ -66,6 +73,7 @@ type StarknetOrderConfig struct {
 	InputAmount      *big.Int
 	OutputAmount     *big.Int
 	User             string
+	Recipient        string
 	OpenDeadline     uint64
 	FillDeadline     uint64
 }
@@ -184,6 +192,49 @@ func RunStarknetOrder(command string) {
 	}
 }
 
+// RunStarknetOrderWithDest creates a Starknet order with specific origin and destination
+func RunStarknetOrderWithDest(command, originChain, destinationChain string) {
+	fmt.Printf("🎯 Running Starknet order creation: %s → %s\n", originChain, destinationChain)
+
+	// Load configuration (this loads .env and initializes networks)
+	_, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Initialize test users after .env is loaded
+	initializeStarknetTestUsers()
+
+	// Load network configuration
+	networks := loadStarknetNetworks()
+
+	// Get Alice's address for the destination chain
+	user, err := getAliceAddressForNetwork(destinationChain)
+	if err != nil {
+		log.Fatalf("Failed to get Alice address for %s: %v", destinationChain, err)
+	}
+
+	// Random amounts
+	inputAmount := CreateTokenAmount(int64(secureRandomInt(maxTokenAmount-minTokenAmount)+minTokenAmount), 18)
+	delta := CreateTokenAmount(int64(secureRandomInt(maxDeltaAmount-minDeltaAmount)+minDeltaAmount), 18)
+	outputAmount := new(big.Int).Sub(inputAmount, delta)
+
+	order := StarknetOrderConfig{
+		OriginChain:      originChain,
+		DestinationChain: destinationChain,
+		InputToken:       "DogCoin",
+		OutputToken:      "DogCoin",
+		InputAmount:      inputAmount,
+		OutputAmount:     outputAmount,
+		User:             "Alice",
+		Recipient:        user,
+		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
+		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
+	}
+
+	executeStarknetOrder(&order, networks)
+}
+
 func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 	fmt.Println("🎲 Opening Random Starknet Test Order...")
 
@@ -191,7 +242,10 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 	originChain := "Starknet"
 
 	// Get available destination networks from config
-	destinationChain := getRandomDestinationChain(originChain)
+	destinationChain, err := GetRandomDestination(originChain)
+	if err != nil {
+		log.Fatalf("Failed to get random destination: %v", err)
+	}
 
 	// Get Alice's address for the destination chain
 	user, err := getAliceAddressForNetwork(destinationChain)
@@ -211,7 +265,8 @@ func openRandomStarknetOrder(networks []StarknetNetworkConfig) {
 		OutputToken:      "DogCoin",
 		InputAmount:      inputAmount,
 		OutputAmount:     outputAmount,
-		User:             user, // Recipient address on destination chain
+		User:             "Alice", // Sender name
+		Recipient:        user,    // Recipient address on destination chain
 		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
 		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}
@@ -239,7 +294,8 @@ func openDefaultStarknetToEvm(networks []StarknetNetworkConfig) {
 		OutputToken:      "DogCoin",
 		InputAmount:      CreateTokenAmount(1000, 18),                                // 1000 tokens
 		OutputAmount:     CreateTokenAmount(testOutputAmountStarknet, tokenDecimals), // 999 tokens
-		User:             aliceAddress,                                               // Recipient address on destination chain
+		User:             "Alice",                                                    // Sender
+		Recipient:        aliceAddress,                                               // Recipient address on destination chain
 		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
 		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}
@@ -476,7 +532,7 @@ func executeStarknetOrder(order *StarknetOrderConfig, networks []StarknetNetwork
 }
 
 func buildStarknetOrderData(order *StarknetOrderConfig, originNetwork *StarknetNetworkConfig, originDomain, destinationDomain uint32, senderNonce *big.Int, destChainName string) StarknetOrderData {
-	// Get the actual user address for the specified user
+	// Get the actual user address for the specified user (Sender)
 	var userAddr string
 	for _, user := range starknetTestUsers {
 		if user.name == order.User {
@@ -484,30 +540,60 @@ func buildStarknetOrderData(order *StarknetOrderConfig, originNetwork *StarknetN
 			break
 		}
 	}
+	// Fallback if User is already an address (shouldn't happen with "Alice")
+	if userAddr == "" {
+		userAddr = order.User
+	}
 
 	// Convert addresses to felt
 	userAddrFelt, _ := utils.HexToFelt(userAddr)
 	inputTokenFelt, _ := utils.HexToFelt(originNetwork.dogCoinAddress)
 
-	// For Starknet→EVM orders, recipient is always Alice's EVM address
-	// Use conditional environment variable based on IS_DEVNET
-	evmUserAddr := envutil.GetAlicePublicKey()
-	if evmUserAddr == "" {
-		log.Fatalf("Alice public key not set")
-	}
-
+	// Process Recipient based on destination network type
 	var recipientFelt *felt.Felt
 
-	// Pad EVM address to 32 bytes for Cairo ContractAddress
-	evmAddr := common.HexToAddress(evmUserAddr)
-	paddedAddr := common.LeftPadBytes(evmAddr.Bytes(), 32)
-	recipientFelt, _ = utils.HexToFelt(hex.EncodeToString(paddedAddr))
+	if isStarknetNetwork(destChainName) {
+		// Starknet/Ztarknet destination: use recipient address directly (32 bytes)
+		if order.Recipient == "" {
+			log.Fatalf("Recipient address not set for Starknet/Ztarknet order")
+		}
+		recipientFelt, _ = utils.HexToFelt(order.Recipient)
+	} else {
+		// EVM destination: use Recipient if set, otherwise default to EVM Alice
+		recipientAddr := order.Recipient
+		if recipientAddr == "" {
+			recipientAddr = envutil.GetAlicePublicKey()
+			if recipientAddr == "" {
+				log.Fatalf("Alice public key not set")
+			}
+		}
+
+		// Pad EVM address to 32 bytes for Cairo ContractAddress
+		evmAddr := common.HexToAddress(recipientAddr)
+		paddedAddr := common.LeftPadBytes(evmAddr.Bytes(), 32)
+		recipientFelt, _ = utils.HexToFelt(hex.EncodeToString(paddedAddr))
+	}
 
 	// Output token should be from the destination network, not origin
 	var outputTokenFelt *felt.Felt
 	if isStarknetNetwork(destChainName) {
-		// If destination is Starknet, use Starknet's DogCoin
-		outputTokenFelt, _ = utils.HexToFelt(originNetwork.dogCoinAddress)
+		// If destination is Starknet or Ztarknet, get the destination's DogCoin address
+		if destChainName == "Starknet" {
+			starknetDogCoin := getEnvWithDefault("STARKNET_DOG_COIN_ADDRESS", "")
+			if starknetDogCoin == "" {
+				log.Fatalf("STARKNET_DOG_COIN_ADDRESS not set")
+			}
+			outputTokenFelt, _ = utils.HexToFelt(starknetDogCoin)
+		} else if destChainName == "Ztarknet" {
+			ztarknetDogCoin := getEnvWithDefault("ZTARKNET_DOG_COIN_ADDRESS", "")
+			if ztarknetDogCoin == "" {
+				log.Fatalf("ZTARKNET_DOG_COIN_ADDRESS not set")
+			}
+			outputTokenFelt, _ = utils.HexToFelt(ztarknetDogCoin)
+		} else {
+			// Fallback (shouldn't happen if isStarknetNetwork works correctly)
+			outputTokenFelt, _ = utils.HexToFelt(originNetwork.dogCoinAddress)
+		}
 	} else {
 		// If destination is EVM, get DogCoin address from destination network config (.env)
 		if _, exists := config.Networks[destChainName]; exists {
@@ -529,17 +615,31 @@ func buildStarknetOrderData(order *StarknetOrderConfig, originNetwork *StarknetN
 		}
 	}
 
-	// Destination settler must be the EVM Hyperlane address for the destination network
+	// Destination settler must be the Hyperlane address for the destination network
 	destSettlerHex := ""
-	if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
-		destSettlerHex = staticAddr.Hex()
-	} else if destNetwork, exists := config.Networks[destChainName]; exists {
-		destSettlerHex = destNetwork.HyperlaneAddress.Hex()
-	}
-	if destSettlerHex == "" {
-		// As a last resort, keep previous behavior (but this is likely wrong for cross-chain)
-		destSettlerHex = originNetwork.hyperlaneAddress
-		fmt.Printf("   ⚠️  Warning: Using origin Hyperlane address as destination settler (may be incorrect)\n")
+	if isStarknetNetwork(destChainName) {
+		// If destination is Starknet or Ztarknet, get the destination's Hyperlane address
+		if destChainName == "Starknet" {
+			destSettlerHex = getEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")
+			if destSettlerHex == "" {
+				log.Fatalf("STARKNET_HYPERLANE_ADDRESS not set")
+			}
+		} else if destChainName == "Ztarknet" {
+			destSettlerHex = getEnvWithDefault("ZTARKNET_HYPERLANE_ADDRESS", "")
+			if destSettlerHex == "" {
+				log.Fatalf("ZTARKNET_HYPERLANE_ADDRESS not set")
+			}
+		}
+	} else {
+		// If destination is EVM, get EVM Hyperlane address
+		if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
+			destSettlerHex = staticAddr
+		} else if destNetwork, exists := config.Networks[destChainName]; exists {
+			destSettlerHex = destNetwork.HyperlaneAddress
+		}
+		if destSettlerHex == "" {
+			log.Fatalf("Could not get destination settler address for %s", destChainName)
+		}
 	}
 
 	// Ensure destination settler is properly padded to 32 bytes for Cairo ContractAddress
@@ -716,8 +816,9 @@ func getRandomDestinationChain(originChain string) string {
 
 // isStarknetNetwork checks if a network name represents a Starknet network
 func isStarknetNetwork(networkName string) bool {
-	// Check if network name contains "starknet" (case insensitive)
-	return strings.Contains(strings.ToLower(networkName), "starknet")
+	// Check if network name contains "starknet" or "ztarknet" (case insensitive)
+	lowerName := strings.ToLower(networkName)
+	return strings.Contains(lowerName, "starknet") || strings.Contains(lowerName, "ztarknet")
 }
 
 // getEnvWithDefault gets an environment variable with a default fallback

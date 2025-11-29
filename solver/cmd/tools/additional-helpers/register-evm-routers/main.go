@@ -76,7 +76,7 @@ func main() {
 				fmt.Printf("   🌉 Starknet domain %d -> router %s (0x%s)\n", dom, starknetHyperlaneAddr, hex.EncodeToString(rb[:]))
 			} else {
 				// EVM router is 20-byte address left-padded to 32
-				evmAddr := config.Networks[otherName].HyperlaneAddress
+				evmAddr := common.HexToAddress(config.Networks[otherName].HyperlaneAddress)
 				var b32 [32]byte
 				copy(b32[12:], evmAddr.Bytes())
 				routerBytes = append(routerBytes, b32)
@@ -172,7 +172,7 @@ func main() {
 		}
 
 		// Send transactions via eth_sendTransaction
-		hlAddr := netCfg.HyperlaneAddress
+		hlAddr := common.HexToAddress(netCfg.HyperlaneAddress)
 		if err := sendImpersonatedTx(rpcClient, owner, hlAddr, enrollData); err != nil {
 			log.Fatalf("enrollRemoteRouters failed: %v", err)
 		}

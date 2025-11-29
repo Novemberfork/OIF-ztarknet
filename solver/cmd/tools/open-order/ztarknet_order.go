@@ -165,14 +165,59 @@ func RunZtarknetOrder(command string) {
 	}
 }
 
+// RunZtarknetOrderWithDest creates a Ztarknet order with specific origin and destination
+func RunZtarknetOrderWithDest(command, originChain, destinationChain string) {
+	fmt.Printf("🎯 Running Ztarknet order creation: %s → %s\n", originChain, destinationChain)
+
+	// Load configuration (this loads .env and initializes networks)
+	_, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Initialize test users after .env is loaded
+	initializeZtarknetTestUsers()
+
+	// Load network configuration
+	networks := loadZtarknetNetworks()
+
+	// Get Alice's address for the destination chain
+	user, err := getAliceAddressForZtarknetNetwork(destinationChain)
+	if err != nil {
+		log.Fatalf("Failed to get Alice address for %s: %v", destinationChain, err)
+	}
+
+	// Random amounts
+	inputAmount := CreateTokenAmount(int64(secureRandomInt(maxTokenAmount-minTokenAmount)+minTokenAmount), 18)
+	delta := CreateTokenAmount(int64(secureRandomInt(maxDeltaAmount-minDeltaAmount)+minDeltaAmount), 18)
+	outputAmount := new(big.Int).Sub(inputAmount, delta)
+
+	order := ZtarknetOrderConfig{
+		OriginChain:      originChain,
+		DestinationChain: destinationChain,
+		InputToken:       "DogCoin",
+		OutputToken:      "DogCoin",
+		InputAmount:      inputAmount,
+		OutputAmount:     outputAmount,
+		User:             user,
+		OpenDeadline:     uint64(time.Now().Add(1 * time.Hour).Unix()),
+		FillDeadline:     uint64(time.Now().Add(24 * time.Hour).Unix()),
+	}
+
+	executeZtarknetOrder(&order, networks)
+}
+
 func openRandomZtarknetOrder(networks []ZtarknetNetworkConfig) {
 	fmt.Println("🎲 Opening Random Ztarknet Test Order...")
 
 	// Use configured Ztarknet network as origin
 	originChain := "Ztarknet"
 
-	// For now, default to Starknet as destination (can be extended later)
-	destinationChain := "Starknet"
+	// Get random destination (can be EVM or Starknet)
+	destinationChain, err := GetRandomDestination(originChain)
+	if err != nil {
+		log.Fatalf("Failed to get random destination: %v", err)
+	}
 
 	// Get Alice's address for the destination chain
 	user, err := getAliceAddressForZtarknetNetwork(destinationChain)
@@ -524,9 +569,9 @@ func buildZtarknetOrderData(order *ZtarknetOrderConfig, originNetwork *ZtarknetN
 	// Destination settler must be the Hyperlane address for the destination network
 	destSettlerHex := ""
 	if staticAddr, err := config.GetHyperlaneAddress(destChainName); err == nil {
-		destSettlerHex = staticAddr.Hex()
+		destSettlerHex = staticAddr
 	} else if destNetwork, exists := config.Networks[destChainName]; exists {
-		destSettlerHex = destNetwork.HyperlaneAddress.Hex()
+		destSettlerHex = destNetwork.HyperlaneAddress
 	}
 	if destSettlerHex == "" {
 		log.Fatalf("Could not get destination settler address for %s", destChainName)

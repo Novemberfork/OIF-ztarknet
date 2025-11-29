@@ -1,3 +1,15 @@
+# OIF-Ztarknet
+
+This project forks Nethermind's [OIF-starknet](https://github.com/NethermindEth/OIF-starknet) to add support for Ztarknet. 
+
+## Todos
+
+- [x] targets to create all order types 
+
+- [ ] UI
+
+- [ ] project description/disclaimer
+
 ### Deployment
 
 ```bash
@@ -18,7 +30,7 @@
   - Class: 0x4d971a35627f8190c7bfba53ada5abadf00c8c287e780f61c281d2a5874d639
   - Explorer: https://explorer-zstarknet.d.karnot.xyz/contract/0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22
 
-### Enrole Routers:
+### Enrole Routers (on Ztarknet):
 
 ```bash
   "0x14a34",
@@ -29,4 +41,3 @@ sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde
 sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0x165cc0f 0x84e3a74f4c444b5c4e6192a12e49a349 0x2369427e2142db4dfac3a61f5ea7f0
 sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0x999999 0x146743cfaedde9afaa2931c18a335f22 0x06508892543f6dd254cab6f166e16b4e
 ```
-

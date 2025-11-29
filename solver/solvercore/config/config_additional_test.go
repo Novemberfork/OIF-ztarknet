@@ -338,7 +338,7 @@ func TestGetHyperlaneAddress(t *testing.T) {
 
 		address, err := GetHyperlaneAddress("Base")
 		require.NoError(t, err)
-		assert.Equal(t, "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3", address.String())
+		assert.Equal(t, "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3", address)
 	})
 
 	t.Run("Get Hyperlane address for non-existing network", func(t *testing.T) {
@@ -588,7 +588,7 @@ func TestGetHyperlaneAddressByChainID(t *testing.T) {
 
 		address, err := GetHyperlaneAddressByChainID(84532)
 		require.NoError(t, err)
-		assert.Equal(t, "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3", address.String())
+		assert.Equal(t, "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3", address)
 	})
 
 	t.Run("Get Hyperlane address by chain ID for non-existing network", func(t *testing.T) {

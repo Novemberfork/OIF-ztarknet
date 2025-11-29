@@ -31,9 +31,10 @@ type Hyperlane7683Solver struct {
 	getStarknetSigner func() (*account.Account, error)
 
 	// Chain handlers implementing ChainHandler interface - now per-chain
-	evmHandlers       map[uint64]ChainHandler // Map of chainID -> handler
-	evmHandlersMux    sync.RWMutex            // Protects evmHandlers map
-	hyperlaneStarknet ChainHandler
+	evmHandlers         map[uint64]ChainHandler // Map of chainID -> handler
+	evmHandlersMux      sync.RWMutex            // Protects evmHandlers map
+	starknetHandlers    map[uint64]ChainHandler // Map of chainID -> handler for Starknet-like chains
+	starknetHandlersMux sync.RWMutex            // Protects starknetHandlers map
 
 	// Allow/block lists for controlling which orders to process
 	allowBlockLists types.AllowBlockLists
@@ -56,15 +57,16 @@ func NewHyperlane7683Solver(
 	}
 
 	return &Hyperlane7683Solver{
-		getEVMClient:      getEVMClient,
-		getStarknetClient: getStarknetClient,
-		getEVMSigner:      getEVMSigner,
-		getStarknetSigner: getStarknetSigner,
-		evmHandlers:       make(map[uint64]ChainHandler),
-		evmHandlersMux:    sync.RWMutex{},
-		hyperlaneStarknet: nil, // Will be created when needed
-		allowBlockLists:   allowBlockLists,
-		metadata:          metadata,
+		getEVMClient:        getEVMClient,
+		getStarknetClient:   getStarknetClient,
+		getEVMSigner:        getEVMSigner,
+		getStarknetSigner:   getStarknetSigner,
+		evmHandlers:         make(map[uint64]ChainHandler),
+		evmHandlersMux:      sync.RWMutex{},
+		starknetHandlers:    make(map[uint64]ChainHandler),
+		starknetHandlersMux: sync.RWMutex{},
+		allowBlockLists:     allowBlockLists,
+		metadata:            metadata,
 	}
 }
 
@@ -100,6 +102,52 @@ func (f *Hyperlane7683Solver) ProcessIntent(ctx context.Context, args *types.Par
 
 	// If fill returned OrderActionSettle, we need to settle the order
 	if action == OrderActionSettle {
+		// Business Rule: Skip settlement for specific cross-chain scenarios
+		// Allowed Settlement:
+		// - EVM -> EVM
+		// - EVM -> Starknet
+		//
+		// Skipped Settlement:
+		// - EVM -> Ztarknet
+		// - Starknet -> Ztarknet
+		// - Starknet -> EVM
+		// - Ztarknet -> * (Any destination)
+		
+		originChainID := args.ResolvedOrder.OriginChainID
+		// Get destination chain ID from first instruction (assuming single destination for now)
+		var destChainID *big.Int
+		if len(args.ResolvedOrder.FillInstructions) > 0 {
+			destChainID = args.ResolvedOrder.FillInstructions[0].DestinationChainID
+		}
+
+		if originChainID != nil && destChainID != nil {
+			isOriginEVM := f.isEVMChain(originChainID)
+			
+			// Check if destination is Ztarknet
+			isDestZtarknet := false
+			if destChainID.Uint64() == config.ZtarknetTestnetChainID {
+				isDestZtarknet = true
+			} else {
+				// Fallback: check config name
+				config.InitializeNetworks()
+				for name, net := range config.Networks {
+					if net.ChainID == destChainID.Uint64() && strings.Contains(strings.ToLower(name), "ztarknet") {
+						isDestZtarknet = true
+						break
+					}
+				}
+			}
+
+			// Condition: Settle ONLY if (Origin is EVM) AND (Destination is NOT Ztarknet)
+			shouldSettle := isOriginEVM && !isDestZtarknet
+
+			if !shouldSettle {
+				logutil.LogWithNetworkTagf("", "⚠️  Skipping settlement for order from chain %s to %s (Policy: Only EVM->EVM and EVM->Starknet are settled)", originChainID.String(), destChainID.String())
+				logutil.LogOperationComplete(args, "Order processing (Settlement Skipped)", true)
+				return true, nil
+			}
+		}
+
 		// Add a small delay to ensure fill transaction is processed before settling
 		time.Sleep(2 * time.Second)
 
@@ -123,6 +171,7 @@ func (f *Hyperlane7683Solver) Fill(ctx context.Context, args *types.ParsedArgs) 
 	}
 
 	// Process all fill instructions (supports both single and multiple instructions)
+	fmt.Printf("DEBUG: {%x}", args)
 	for i, instruction := range args.ResolvedOrder.FillInstructions {
 		logutil.LogWithNetworkTagf("", "Processing fill instruction %d/%d for chain %s",
 			i+1, len(args.ResolvedOrder.FillInstructions), instruction.DestinationChainID.String())
@@ -264,19 +313,34 @@ func (f *Hyperlane7683Solver) getEVMHandler(chainID *big.Int) (ChainHandler, err
 
 // getStarknetHandler gets or creates a Starknet chain handler for the given chain ID
 func (f *Hyperlane7683Solver) getStarknetHandler(chainID *big.Int) (ChainHandler, error) {
-	// Reuse existing handler if available
-	if f.hyperlaneStarknet != nil {
-		return f.hyperlaneStarknet, nil
+	chainIDUint := chainID.Uint64()
+
+	// Check if handler already exists for this specific chain (read lock)
+	f.starknetHandlersMux.RLock()
+	if handler, exists := f.starknetHandlers[chainIDUint]; exists {
+		f.starknetHandlersMux.RUnlock()
+		return handler, nil
+	}
+	f.starknetHandlersMux.RUnlock()
+
+	// Create new handler for this specific chain (write lock)
+	f.starknetHandlersMux.Lock()
+	defer f.starknetHandlersMux.Unlock()
+
+	// Double-check in case another goroutine created it while we were waiting
+	if handler, exists := f.starknetHandlers[chainIDUint]; exists {
+		return handler, nil
 	}
 
-	// Create new Starknet handler
+	// Get network config for this chain
 	chainConfig, err := f.getNetworkConfigByChainID(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("starknet network not found for chain ID %s: %w", chainID.String(), err)
 	}
 
-	f.hyperlaneStarknet = NewHyperlaneStarknet(chainConfig.RPCURL, chainConfig.ChainID)
-	return f.hyperlaneStarknet, nil
+	handler := NewHyperlaneStarknet(chainConfig.RPCURL, chainConfig.ChainID)
+	f.starknetHandlers[chainIDUint] = handler
+	return handler, nil
 }
 
 // AddDefaultRules adds standard validation rules to the solver
@@ -290,25 +354,35 @@ func (f *Hyperlane7683Solver) isStarknetChain(chainID *big.Int) bool {
 	// Ensure config is initialized to prevent segfault
 	config.InitializeNetworks()
 
+	// Explicitly check for Ztarknet chain ID
+	if chainID.Uint64() == config.ZtarknetTestnetChainID {
+		return true
+	}
+
 	// Find any network with "Starknet" in the name that matches this chain ID
 	for networkName, network := range config.Networks {
 		if network.ChainID == chainID.Uint64() {
-			// Check if network name contains "Starknet" (case insensitive)
-			return strings.Contains(strings.ToLower(networkName), "starknet")
+			// Check if network name contains "Starknet" or "Ztarknet" (case insensitive)
+			name := strings.ToLower(networkName)
+			return strings.Contains(name, "starknet") || strings.Contains(name, "ztarknet")
 		}
 	}
 	return false
 }
 
 func (f *Hyperlane7683Solver) isEVMChain(chainID *big.Int) bool {
+	// If it's a Starknet/Ztarknet chain, it's not EVM
+	if f.isStarknetChain(chainID) {
+		return false
+	}
+
 	// Ensure config is initialized to prevent segfault
 	config.InitializeNetworks()
 
-	// Find any network that matches this chain ID and is NOT a Starknet chain
-	for networkName, network := range config.Networks {
+	// Find any network that matches this chain ID
+	for _, network := range config.Networks {
 		if network.ChainID == chainID.Uint64() {
-			// If it's not Starknet, it's EVM
-			return !strings.Contains(strings.ToLower(networkName), "starknet")
+			return true
 		}
 	}
 	return false
@@ -377,4 +451,3 @@ func (f *Hyperlane7683Solver) getNetworkConfigByChainID(chainID *big.Int) (confi
 	}
 	return config.NetworkConfig{}, fmt.Errorf("network config not found for chain ID %d", chainIDUint)
 }
-

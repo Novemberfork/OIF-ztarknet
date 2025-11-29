@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/NethermindEth/oif-starknet/solver/pkg/envutil"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // Network configuration constants
@@ -44,7 +43,7 @@ type NetworkConfig struct {
 	Name             string
 	RPCURL           string
 	ChainID          uint64
-	HyperlaneAddress common.Address
+	HyperlaneAddress string
 	HyperlaneDomain  uint64 // Changed to uint64 to match new_code
 	ForkStartBlock   uint64
 	SolverStartBlock int64 // Block number where solver should start listening (fork block + 1)
@@ -95,7 +94,7 @@ func initializeNetworks() {
 			Name:               "Ethereum",
 			RPCURL:             envutil.GetConditionalEnv("ETHEREUM_RPC_URL", "http://localhost:8545"),
 			ChainID:            envutil.GetEnvUint64Any([]string{"ETHEREUM_CHAIN_ID", "SEPOLIA_CHAIN_ID"}, EthereumSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneAddress:   envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
 			HyperlaneDomain:    envutil.GetEnvUint64Any([]string{"ETHEREUM_DOMAIN_ID", "SEPOLIA_DOMAIN_ID"}, EthereumSepoliaChainID),
 			ForkStartBlock:     envutil.GetConditionalUint64("ETHEREUM_SOLVER_START_BLOCK", EthereumDefaultStartBlock, EthereumLocalStartBlock),
 			SolverStartBlock:   envutil.GetConditionalInt64("ETHEREUM_SOLVER_START_BLOCK", int64(EthereumDefaultStartBlock), int64(EthereumLocalStartBlock)),
@@ -107,7 +106,7 @@ func initializeNetworks() {
 			Name:               "Optimism",
 			RPCURL:             envutil.GetConditionalEnv("OPTIMISM_RPC_URL", "http://localhost:8546"),
 			ChainID:            envutil.GetEnvUint64("OPTIMISM_CHAIN_ID", OptimismSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneAddress:   envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
 			HyperlaneDomain:    envutil.GetEnvUint64("OPTIMISM_DOMAIN_ID", OptimismSepoliaChainID),
 			ForkStartBlock:     envutil.GetConditionalUint64("OPTIMISM_SOLVER_START_BLOCK", OptimismDefaultStartBlock, OptimismLocalStartBlock),
 			SolverStartBlock:   envutil.GetConditionalInt64("OPTIMISM_SOLVER_START_BLOCK", int64(OptimismDefaultStartBlock), int64(OptimismLocalStartBlock)),
@@ -119,7 +118,7 @@ func initializeNetworks() {
 			Name:               "Arbitrum",
 			RPCURL:             envutil.GetConditionalEnv("ARBITRUM_RPC_URL", "http://localhost:8547"),
 			ChainID:            envutil.GetEnvUint64("ARBITRUM_CHAIN_ID", ArbitrumSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneAddress:   envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
 			HyperlaneDomain:    envutil.GetEnvUint64("ARBITRUM_DOMAIN_ID", ArbitrumSepoliaChainID),
 			ForkStartBlock:     envutil.GetConditionalUint64("ARBITRUM_SOLVER_START_BLOCK", ArbitrumDefaultStartBlock, ArbitrumLocalStartBlock),
 			SolverStartBlock:   envutil.GetConditionalInt64("ARBITRUM_SOLVER_START_BLOCK", int64(ArbitrumDefaultStartBlock), int64(ArbitrumLocalStartBlock)),
@@ -131,7 +130,7 @@ func initializeNetworks() {
 			Name:               "Base",
 			RPCURL:             envutil.GetConditionalEnv("BASE_RPC_URL", "http://localhost:8548"),
 			ChainID:            envutil.GetEnvUint64("BASE_CHAIN_ID", BaseSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3")),
+			HyperlaneAddress:   envutil.GetEnvWithDefault("EVM_HYPERLANE_ADDRESS", "0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3"),
 			HyperlaneDomain:    envutil.GetEnvUint64("BASE_DOMAIN_ID", BaseSepoliaChainID),
 			ForkStartBlock:     envutil.GetConditionalUint64("BASE_SOLVER_START_BLOCK", BaseDefaultStartBlock, BaseLocalStartBlock),
 			SolverStartBlock:   envutil.GetConditionalInt64("BASE_SOLVER_START_BLOCK", int64(BaseDefaultStartBlock), int64(BaseLocalStartBlock)),
@@ -143,7 +142,7 @@ func initializeNetworks() {
 			Name:               "Starknet",
 			RPCURL:             envutil.GetConditionalEnv("STARKNET_RPC_URL", "http://localhost:5050"),
 			ChainID:            envutil.GetEnvUint64("STARKNET_CHAIN_ID", StarknetSepoliaChainID),
-			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")),
+			HyperlaneAddress:   envutil.GetEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", ""),
 			HyperlaneDomain:    envutil.GetEnvUint64("STARKNET_DOMAIN_ID", StarknetSepoliaChainID),
 			ForkStartBlock:     envutil.GetConditionalUint64("STARKNET_SOLVER_START_BLOCK", StarknetDefaultStartBlock, StarknetLocalStartBlock),
 			SolverStartBlock:   envutil.GetConditionalInt64("STARKNET_SOLVER_START_BLOCK", int64(StarknetDefaultStartBlock), int64(StarknetLocalStartBlock)),
@@ -156,7 +155,7 @@ func initializeNetworks() {
 			Name:               "Ztarknet",
 			RPCURL:             envutil.GetEnvWithDefault("ZTARKNET_RPC_URL", "https://ztarknet-madara.d.karnot.xyz"),
 			ChainID:            envutil.GetEnvUint64("ZTARKNET_CHAIN_ID", ZtarknetTestnetChainID),
-			HyperlaneAddress:   common.HexToAddress(envutil.GetEnvWithDefault("ZTARKNET_HYPERLANE_ADDRESS", "")),
+			HyperlaneAddress:   envutil.GetEnvWithDefault("ZTARKNET_HYPERLANE_ADDRESS", ""),
 			HyperlaneDomain:    envutil.GetEnvUint64("ZTARKNET_DOMAIN_ID", ZtarknetTestnetChainID),
 			ForkStartBlock:     envutil.GetEnvUint64("ZTARKNET_SOLVER_START_BLOCK", ZtarknetDefaultStartBlock),
 			SolverStartBlock:   int64(envutil.GetEnvUint64("ZTARKNET_SOLVER_START_BLOCK", ZtarknetDefaultStartBlock)),
@@ -196,10 +195,10 @@ func GetChainID(networkName string) (uint64, error) {
 }
 
 // GetHyperlaneAddress returns the Hyperlane contract address for a given network name
-func GetHyperlaneAddress(networkName string) (common.Address, error) {
+func GetHyperlaneAddress(networkName string) (string, error) {
 	config, err := GetNetworkConfig(networkName)
 	if err != nil {
-		return common.Address{}, err
+		return "", err
 	}
 	return config.HyperlaneAddress, nil
 }
@@ -251,13 +250,13 @@ func GetRPCURLByChainID(chainID uint64) (string, error) {
 }
 
 // GetHyperlaneAddressByChainID returns the Hyperlane address for a given chain ID
-func GetHyperlaneAddressByChainID(chainID uint64) (common.Address, error) {
+func GetHyperlaneAddressByChainID(chainID uint64) (string, error) {
 	for _, network := range Networks {
 		if network.ChainID == chainID {
 			return network.HyperlaneAddress, nil
 		}
 	}
-	return common.Address{}, fmt.Errorf("network not found for chain ID: %d", chainID)
+	return "", fmt.Errorf("network not found for chain ID: %d", chainID)
 }
 
 // GetNetworkNames returns all available network names

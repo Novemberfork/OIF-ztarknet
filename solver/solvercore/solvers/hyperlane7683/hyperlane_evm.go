@@ -192,8 +192,9 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args *types.ParsedArgs) error
 		return fmt.Errorf("failed to get origin domain: %w", err)
 	}
 
-	// Check if origin is Starknet and we're on live networks (not forking)
+	// Check if origin is Starknet or Ztarknet and we're on live networks (not forking)
 	starknetDomain := uint32(config.Networks["Starknet"].HyperlaneDomain)
+	ztarknetDomain := uint32(config.Networks["Ztarknet"].HyperlaneDomain)
 	if originDomain == starknetDomain {
 		if !envutil.IsDevnet() {
 			// Live networks: Skip settlement until Starknet domain is registered
@@ -204,6 +205,18 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args *types.ParsedArgs) error
 		} else {
 			// Fork mode: Continue with settlement (domains are mocked/registered)
 			fmt.Printf("   🔧 Fork mode detected - proceeding with Starknet settlement (domain %d registered)\n", originDomain)
+		}
+	}
+	if originDomain == ztarknetDomain {
+		if !envutil.IsDevnet() {
+			// Live networks: Skip settlement until Ztarknet domain is registered
+			fmt.Printf("   ⚠️  Skipping EVM settlement for Ztarknet origin (domain %d) on live network\n", originDomain)
+			fmt.Printf("   ⏳ Ztarknet domain not yet registered on EVM contracts - waiting for Hyperlane team\n")
+			fmt.Printf("   📝 Order filled successfully, settlement will be available once domain is registered\n")
+			return nil // Skip settlement but don't treat as error
+		} else {
+			// Fork mode: Continue with settlement (domains are mocked/registered)
+			fmt.Printf("   🔧 Fork mode detected - proceeding with Ztarknet settlement (domain %d registered)\n", originDomain)
 		}
 	}
 
@@ -470,7 +483,19 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return nil
 	}
 
-	// Approve exact amount needed
+	// Approve a slightly larger amount (110% of required) to account for any rounding issues
+	// This ensures we have enough allowance even if there are minor calculation differences
+	approvalAmount := new(big.Int).Mul(amount, big.NewInt(110))
+	approvalAmount.Div(approvalAmount, big.NewInt(100))
+	
+	// Ensure we approve at least the required amount (in case of rounding down)
+	if approvalAmount.Cmp(amount) < 0 {
+		approvalAmount.Set(amount)
+	}
+	
+	fmt.Printf("   💰 Approval amount: %s (required: %s, 110%% buffer)\n", approvalAmount.String(), amount.String())
+	
+	// Approve the calculated amount
 	approveABI := `[{
 		"type": "function",
 		"name": "approve",
@@ -486,7 +511,7 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return fmt.Errorf("failed to parse approve ABI: %w", err)
 	}
 
-	approveData, err := parsedApproveABI.Pack("approve", spender, amount)
+	approveData, err := parsedApproveABI.Pack("approve", spender, approvalAmount)
 	if err != nil {
 		return fmt.Errorf("failed to pack approve call: %w", err)
 	}
@@ -537,6 +562,37 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 	}
 
 	fmt.Printf("   ✅ Approval confirmed! Gas used: %d\n", receipt.GasUsed)
+
+	// Re-check allowance after approval to ensure it was set correctly
+	// Wait for state to propagate (some networks need more time)
+	time.Sleep(15 * time.Second)
+	
+	result, err = h.client.CallContract(ctx, ethereum.CallMsg{
+		From:            common.Address{},
+		To:              &tokenAddr,
+		Gas:             0,
+		GasPrice:        nil,
+		GasFeeCap:       nil,
+		GasTipCap:       nil,
+		Value:           nil,
+		Data:            callData,
+		AccessList:      nil,
+		BlobGasFeeCap:   nil,
+		BlobHashes:      nil,
+		AuthorizationList: nil,
+	}, nil)
+	if err != nil {
+		return fmt.Errorf("failed to re-check allowance after approval: %w", err)
+	}
+
+	if len(result) >= 32 {
+		newAllowance := new(big.Int).SetBytes(result)
+		if newAllowance.Cmp(amount) < 0 {
+			return fmt.Errorf("allowance still insufficient after approval: have %s, need %s", newAllowance.String(), amount.String())
+		}
+		fmt.Printf("   ✅ Allowance verified: %s (required: %s, approved: %s)\n", newAllowance.String(), amount.String(), approvalAmount.String())
+	}
+
 	return nil
 }
 
