@@ -13,13 +13,11 @@ import {
   keccak256,
   toHex,
   pad,
-  numberToHex,
 } from 'viem'
 import Hyperlane7683Abi from '@/abis/Hyperlane7683.json'
 import {
   EVM_CONTRACTS,
   OPEN_EVENT_TOPIC,
-  HYPERLANE_DOMAINS,
   contracts,
 } from '@/config/contracts'
 import type { OnchainCrossChainOrder } from '@/types/orders'
