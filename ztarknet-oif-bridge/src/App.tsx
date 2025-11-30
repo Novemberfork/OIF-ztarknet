@@ -21,7 +21,7 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Powered by Hyperlane & Starknet</p>
+        <p>Powered by Hyperlane</p>
       </footer>
     </div>
   )

@@ -672,6 +672,13 @@
   dependencies:
     "@tanstack/query-core" "5.90.11"
 
+"@tanstack/react-query@^5.90.11":
+  version "5.90.11"
+  resolved "https://registry.yarnpkg.com/@tanstack/react-query/-/react-query-5.90.11.tgz#9e7669cda649ed119f70b6432b3932f19cbe1cb5"
+  integrity sha512-3uyzz01D1fkTLXuxF3JfoJoHQMU2fxsfJwE+6N5hHy0dVNoZOvwKP8Z2k7k1KDeD54N20apcJnG75TBAStIrBA==
+  dependencies:
+    "@tanstack/query-core" "5.90.11"
+
 "@types/babel__core@^7.20.5":
   version "7.20.5"
   resolved "https://registry.npmjs.org/@types/babel__core/-/babel__core-7.20.5.tgz"
@@ -848,6 +855,20 @@
     "@rolldown/pluginutils" "1.0.0-beta.47"
     "@types/babel__core" "^7.20.5"
     react-refresh "^0.18.0"
+
+"@wagmi/connectors@7.0.2":
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/@wagmi/connectors/-/connectors-7.0.2.tgz#e29b67bf64b2f7bae50919bd7955fd787a7012b6"
+  integrity sha512-JQmFNZR/EmeAkIWgEfAsS8lrnqMjVHFEpnPgVl6wIDU58LhrWe0D1/lHxzdCyFiX3gu/rkIERrHu0BXRxkuB1A==
+
+"@wagmi/core@3.0.0":
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/@wagmi/core/-/core-3.0.0.tgz#1501dcb3f2d6a5f8d53b24da3c6c843c15652b76"
+  integrity sha512-wOn8jwB9GNYTdrc4CP/huf1aAhDoQ5GKl5OhxGBZx9X4qE+wReW05dTcurEc+XBl9B/ZVis2JdXVU3ZiYqyS8Q==
+  dependencies:
+    eventemitter3 "5.0.1"
+    mipd "0.0.7"
+    zustand "5.0.0"
 
 abi-wan-kanabi@2.2.4, abi-wan-kanabi@^2.2.4:
   version "2.2.4"
@@ -1473,6 +1494,11 @@ minimatch@^9.0.4:
   dependencies:
     brace-expansion "^2.0.1"
 
+mipd@0.0.7:
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/mipd/-/mipd-0.0.7.tgz#bb5559e21fa18dc3d9fe1c08902ef14b7ce32fd9"
+  integrity sha512-aAPZPNDQ3uMTdKbuO2YmAw2TxLHO0moa4YKAyETM/DTj5FloZo+a+8tU+iv4GmW+sOxKLSRwcSFuczk+Cpt6fg==
+
 ms@^2.1.3:
   version "2.1.3"
   resolved "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz"
@@ -1800,9 +1826,28 @@ uri-js@^4.2.2:
   dependencies:
     punycode "^2.1.0"
 
+use-sync-external-store@1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/use-sync-external-store/-/use-sync-external-store-1.4.0.tgz#adbc795d8eeb47029963016cefdf89dc799fcebc"
+  integrity sha512-9WXSPC5fMv61vaupRkCKCxsPxBocVnwakBEkMIHHpkTTg6icbJtg6jzgtLDm4bl3cSHAca52rYWih0k4K3PfHw==
+
 viem@^2.21.1:
   version "2.40.3"
   resolved "https://registry.npmjs.org/viem/-/viem-2.40.3.tgz"
+  integrity sha512-feYfEpbgjRkZYQpwcgxqkWzjxHI5LSDAjcGetHHwDRuX9BRQHUdV8ohrCosCYpdEhus/RknD3/bOd4qLYVPPuA==
+  dependencies:
+    "@noble/curves" "1.9.1"
+    "@noble/hashes" "1.8.0"
+    "@scure/bip32" "1.7.0"
+    "@scure/bip39" "1.6.0"
+    abitype "1.1.0"
+    isows "1.0.7"
+    ox "0.9.6"
+    ws "8.18.3"
+
+viem@^2.40.3:
+  version "2.40.3"
+  resolved "https://registry.yarnpkg.com/viem/-/viem-2.40.3.tgz#237b11c54f808b5747e483fa7dd05a843e3c079f"
   integrity sha512-feYfEpbgjRkZYQpwcgxqkWzjxHI5LSDAjcGetHHwDRuX9BRQHUdV8ohrCosCYpdEhus/RknD3/bOd4qLYVPPuA==
   dependencies:
     "@noble/curves" "1.9.1"
@@ -1827,6 +1872,15 @@ vite@^7.2.4:
     tinyglobby "^0.2.15"
   optionalDependencies:
     fsevents "~2.3.3"
+
+wagmi@^3.0.2:
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/wagmi/-/wagmi-3.0.2.tgz#6def16d545f7100148fbcfbbad4d8a559184ab4c"
+  integrity sha512-4V6uxi37OuDMkVh+k5HeS71jBHEfOE/livbbNkvOpmdVEMsLV6Djk4nNkA+W9n78MniwFIK/Y1tSGNQ/IcVS0Q==
+  dependencies:
+    "@wagmi/connectors" "7.0.2"
+    "@wagmi/core" "3.0.0"
+    use-sync-external-store "1.4.0"
 
 which@^2.0.1:
   version "2.0.2"
@@ -1901,3 +1955,8 @@ zod@^3.22.4:
   version "4.1.13"
   resolved "https://registry.npmjs.org/zod/-/zod-4.1.13.tgz"
   integrity sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==
+
+zustand@5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/zustand/-/zustand-5.0.0.tgz#71f8aaecf185592a3ba2743d7516607361899da9"
+  integrity sha512-LE+VcmbartOPM+auOjCCLQOsQ05zUTp8RkgwRzefUk+2jISdMMFnxvyTjA4YNWr5ZGXYbVsEMZosttuxUBkojQ==

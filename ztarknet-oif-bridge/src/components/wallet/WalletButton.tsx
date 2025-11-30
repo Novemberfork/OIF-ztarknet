@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAccount, useConnect, useDisconnect } from '@starknet-react/core'
+import { useAccount, useConnect, useDisconnect } from 'wagmi'
 
 export function WalletButton() {
   const { address, isConnected } = useAccount()
@@ -31,7 +31,7 @@ export function WalletButton() {
             <div className="wallet-list">
               {connectors.map((connector) => (
                 <button
-                  key={connector.id}
+                  key={connector.uid}
                   className="wallet-option"
                   onClick={() => {
                     connect({ connector })

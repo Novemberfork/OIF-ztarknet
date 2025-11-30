@@ -1,27 +1,31 @@
 import { useState } from 'react'
-import { useAccount, useBalance } from '@starknet-react/core'
+import { useAccount, useBalance, useChainId } from 'wagmi'
+import { mainnet, sepolia, arbitrum, arbitrumSepolia } from 'wagmi/chains'
+
+const chains = [mainnet, sepolia, arbitrum, arbitrumSepolia]
 
 export function BridgeForm() {
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
   const [amount, setAmount] = useState('')
+  const [recipient, setRecipient] = useState('')
 
-  const { data: balance } = useBalance({
-    address,
-    token: '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
-    watch: true,
-  })
+  const { data: balance } = useBalance({ address })
 
-  const formattedBalance = balance ? (Number(balance.value) / 1e18).toFixed(4) : '0'
+  const currentChain = chains.find(c => c.id === chainId)
+  const formattedBalance = balance ? (Number(balance.value) / 10 ** balance.decimals).toFixed(4) : '0'
 
   const handleBridge = () => {
-    console.log('Bridge:', { amount })
+    console.log('Bridge:', { amount, recipient, chainId })
   }
 
   const handleMax = () => {
     if (balance) {
-      setAmount((Number(balance.value) / 1e18).toString())
+      setAmount((Number(balance.value) / 10 ** balance.decimals).toString())
     }
   }
+
+  const isValidRecipient = recipient.startsWith('0x') && recipient.length === 66
 
   if (!isConnected) {
     return (
@@ -41,13 +45,13 @@ export function BridgeForm() {
 
   return (
     <div className="bridge-form">
-      {/* Source - Public/Exposed */}
+      {/* Source - EVM/Public */}
       <div className="bridge-side bridge-public">
         <div className="side-header">
-          <span className="side-label">Public</span>
-          <span className="side-tag exposed">Exposed</span>
+          <span className="side-label">From</span>
+          <span className="side-tag exposed">Public</span>
         </div>
-        <div className="side-chain">Starknet</div>
+        <div className="side-chain">{currentChain?.name || 'Unknown'}</div>
         <div className="address-preview">
           <span className="address-full">{address}</span>
         </div>
@@ -64,16 +68,20 @@ export function BridgeForm() {
         <div className="transition-line"></div>
       </div>
 
-      {/* Destination - Private/Shielded */}
+      {/* Destination - zStarknet/Private */}
       <div className="bridge-side bridge-private">
         <div className="side-header">
-          <span className="side-label">Private</span>
-          <span className="side-tag shielded">Shielded</span>
+          <span className="side-label">To</span>
+          <span className="side-tag shielded">Private</span>
         </div>
         <div className="side-chain">zStarknet</div>
-        <div className="address-preview redacted">
-          <span>████████████████████████</span>
-        </div>
+        <input
+          type="text"
+          className="recipient-input"
+          placeholder="0x... (Starknet address)"
+          value={recipient}
+          onChange={(e) => setRecipient(e.target.value)}
+        />
       </div>
 
       {/* Amount Input */}
@@ -95,14 +103,14 @@ export function BridgeForm() {
           <span className="token-label">ETH</span>
         </div>
         <div className="balance-row">
-          <span>Available: {formattedBalance} ETH</span>
+          <span>Available: {formattedBalance} {balance?.symbol || 'ETH'}</span>
         </div>
       </div>
 
       <button
         className="btn btn-primary bridge-btn"
         onClick={handleBridge}
-        disabled={!amount || parseFloat(amount) <= 0}
+        disabled={!amount || parseFloat(amount) <= 0 || !isValidRecipient}
       >
         Shield Assets
       </button>
@@ -111,7 +119,7 @@ export function BridgeForm() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
-        <span>Your transaction will be private on zStarknet</span>
+        <span>Your assets will be private on zStarknet</span>
       </div>
     </div>
   )

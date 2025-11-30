@@ -1,15 +1,33 @@
-import { useNetwork } from '@starknet-react/core'
+import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+import { mainnet, sepolia, arbitrum, arbitrumSepolia } from 'wagmi/chains'
+
+const chains = [mainnet, sepolia, arbitrum, arbitrumSepolia]
 
 export function NetworkSwitcher() {
-  const { chain } = useNetwork()
+  const { isConnected } = useAccount()
+  const chainId = useChainId()
+  const { switchChain } = useSwitchChain()
 
-  // Note: Network switching in Starknet wallets is typically done
-  // in the wallet extension itself, not programmatically
+  if (!isConnected) {
+    return (
+      <div className="network-display">
+        <span className="network-indicator off"></span>
+        <span>Not Connected</span>
+      </div>
+    )
+  }
 
   return (
-    <div className="network-display">
-      <span className="network-indicator"></span>
-      <span>{chain?.name || 'Not Connected'}</span>
-    </div>
+    <select
+      className="network-select"
+      value={chainId}
+      onChange={(e) => switchChain({ chainId: Number(e.target.value) })}
+    >
+      {chains.map((chain) => (
+        <option key={chain.id} value={chain.id}>
+          {chain.name}
+        </option>
+      ))}
+    </select>
   )
 }
