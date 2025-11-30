@@ -1,0 +1,32 @@
+# Dev Notes
+
+## Deployment
+
+```bash
+- sncast deploy --class-hash 0x4d971a35627f8190c7bfba53ada5abadf00c8c287e780f61c281d2a5874d639 -c 0x06e1f45db45be161f29c25ffc35e23492fc30773df248b6c85d206a82eb119f6 0x07f99e46dba7bea94d83fb8bde82c313815fa5a1d0bd36087d65a5ffc0e6ef87 0x47aac0b0365b2d689ac7200172beea11e1e744bf115f944137053ec9b3793b8 0x2 0x1
+```
+
+### Addresses
+
+- Me (@0xDegenDeveloper): 0x47aac0b0365b2d689ac7200172beea11e1e744bf115f944137053ec9b3793b8
+
+- Permit2: 0x06e1f45db45be161f29c25ffc35e23492fc30773df248b6c85d206a82eb119f6
+  - Class: 0x05a2e7b49d156afa56d1c1c19a421ea6041250dad14f88e7eb4725e25f86cc76
+
+- MockERC20: 0x067c9b63ecb6a191e369a461ab05cf9a4d08093129e5ac8eedb71d4908e4cc5b
+  - Class: 0x4a5181ee515c8f8331466e2ff3154922c22621b044193fc40a03887f0ea66aa
+
+- Hyperlane7683: 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22
+  - Class: 0x4d971a35627f8190c7bfba53ada5abadf00c8c287e780f61c281d2a5874d639
+  - Explorer: https://explorer-zstarknet.d.karnot.xyz/contract/0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22
+
+### Enrole Routers (on Ztarknet):
+
+```bash
+sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0xaa36a7 0x94b022e16bef7dbecf7614ffd2b201d3 0xf614c6bf
+sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0xaa37dc 0x94b022e16bef7dbecf7614ffd2b201d3 0xf614c6bf
+sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0x66eee 0x94b022e16bef7dbecf7614ffd2b201d3 0xf614c6bf
+sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0x14a34 0x94b022e16bef7dbecf7614ffd2b201d3 0xf614c6bf
+sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0x165cc0f 0x84e3a74f4c444b5c4e6192a12e49a349 0x2369427e2142db4dfac3a61f5ea7f0
+sncast invoke --contract-address 0x06508892543f6dd254cab6f166e16b4e146743cfaedde9afaa2931c18a335f22 --function enroll_remote_router -c 0x999999 0x146743cfaedde9afaa2931c18a335f22 0x06508892543f6dd254cab6f166e16b4e
+```

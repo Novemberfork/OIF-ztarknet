@@ -60,7 +60,7 @@ func NewStarknetListener(listenerConfig *base.ListenerConfig, rpcURL string) (ba
 
 	baseListener := NewBaseListener(*listenerConfig, provider, "Starknet")
 	baseListener.SetLastProcessedBlock(commonConfig.LastProcessedBlock)
-	
+
 	return &starknetListener{
 		config:             listenerConfig,
 		provider:           provider,
@@ -106,7 +106,7 @@ func (l *starknetListener) startEventLoop(ctx context.Context, handler base.Even
 	if err := l.catchUpHistoricalBlocks(ctx, handler); err != nil {
 		fmt.Printf("%s❌ backfill failed: %v\n", p, err)
 	}
-	fmt.Printf("%s🔄 backfill complete\n", p)
+	fmt.Printf("%s backfill complete\n", p)
 	l.startPolling(ctx, handler)
 }
 
@@ -115,7 +115,7 @@ func (l *starknetListener) catchUpHistoricalBlocks(ctx context.Context, handler 
 }
 
 func (l *starknetListener) startPolling(ctx context.Context, handler base.EventHandler) {
-	fmt.Printf("%s📭 Starting event polling...\n", logutil.Prefix(l.config.ChainName))
+	fmt.Printf("%s Starting event polling...\n", logutil.Prefix(l.config.ChainName))
 	for {
 		select {
 		case <-ctx.Done():
@@ -174,7 +174,7 @@ func (l *starknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 		return l.lastProcessedBlock, fmt.Errorf("failed to filter events: %w", err)
 	}
 
-	logutil.LogWithNetworkTagf(l.config.ChainName, "📩 events found: %d\n", len(logs.Events))
+	//	logutil.LogWithNetworkTagf(l.config.ChainName, "📩 events found: %d\n", len(logs.Events))
 	if len(logs.Events) > 0 {
 		fmt.Printf("📩 Found %d Open events on %s\n", len(logs.Events), l.config.ChainName)
 	}
@@ -237,7 +237,7 @@ func (l *starknetListener) processBlockRange(ctx context.Context, fromBlock, toB
 
 func decodeResolvedOrderFromFelts(data []*felt.Felt) types.ResolvedCrossChainOrder {
 	decoder := newFeltDecoder(data)
-	
+
 	ro := types.ResolvedCrossChainOrder{
 		User:             "",
 		OriginChainID:    nil,
@@ -312,10 +312,10 @@ func (d *feltDecoder) readAddress() string {
 
 func (d *feltDecoder) readOutput() types.Output {
 	out := types.Output{
-		Token:    "",
-		Amount:   nil,
+		Token:     "",
+		Amount:    nil,
 		Recipient: "",
-		ChainID:  nil,
+		ChainID:   nil,
 	}
 	out.Token = d.readAddress()
 	out.Amount = d.readU256()
@@ -342,9 +342,9 @@ func (d *feltDecoder) readOutputs() []types.Output {
 
 func (d *feltDecoder) readFillInstruction() types.FillInstruction {
 	fi := types.FillInstruction{
-		DestinationChainID:  nil,
-		DestinationSettler:  "",
-		OriginData:          nil,
+		DestinationChainID: nil,
+		DestinationSettler: "",
+		OriginData:         nil,
 	}
 	destinationDomain := d.readU32()
 	// Map destination domain to actual chain ID using config
@@ -424,6 +424,9 @@ func (d *feltDecoder) readFillInstructions() []types.FillInstruction {
 
 // domainToChainID maps a Hyperlane domain ID to its corresponding chain ID
 func domainToChainID(domain uint32) (*big.Int, error) {
+	// Ensure networks are initialized before searching
+	config.InitializeNetworks()
+
 	// Search through all networks to find the one with matching HyperlaneDomain
 	for _, network := range config.Networks {
 		if network.HyperlaneDomain == uint64(domain) {

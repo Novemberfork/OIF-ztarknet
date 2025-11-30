@@ -192,8 +192,9 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args *types.ParsedArgs) error
 		return fmt.Errorf("failed to get origin domain: %w", err)
 	}
 
-	// Check if origin is Starknet and we're on live networks (not forking)
+	// Check if origin is Starknet or Ztarknet and we're on live networks (not forking)
 	starknetDomain := uint32(config.Networks["Starknet"].HyperlaneDomain)
+	ztarknetDomain := uint32(config.Networks["Ztarknet"].HyperlaneDomain)
 	if originDomain == starknetDomain {
 		if !envutil.IsDevnet() {
 			// Live networks: Skip settlement until Starknet domain is registered
@@ -204,6 +205,18 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args *types.ParsedArgs) error
 		} else {
 			// Fork mode: Continue with settlement (domains are mocked/registered)
 			fmt.Printf("   🔧 Fork mode detected - proceeding with Starknet settlement (domain %d registered)\n", originDomain)
+		}
+	}
+	if originDomain == ztarknetDomain {
+		if !envutil.IsDevnet() {
+			// Live networks: Skip settlement until Ztarknet domain is registered
+			fmt.Printf("   ⚠️  Skipping EVM settlement for Ztarknet origin (domain %d) on live network\n", originDomain)
+			fmt.Printf("   ⏳ Ztarknet domain not yet registered on EVM contracts - waiting for Hyperlane team\n")
+			fmt.Printf("   📝 Order filled successfully, settlement will be available once domain is registered\n")
+			return nil // Skip settlement but don't treat as error
+		} else {
+			// Fork mode: Continue with settlement (domains are mocked/registered)
+			fmt.Printf("   🔧 Fork mode detected - proceeding with Ztarknet settlement (domain %d registered)\n", originDomain)
 		}
 	}
 
@@ -232,7 +245,6 @@ func (h *HyperlaneEVM) Settle(ctx context.Context, args *types.ParsedArgs) error
 	originalValue := h.signer.Value
 	h.signer.Value = new(big.Int).Set(gasPayment)
 	defer func() { h.signer.Value = originalValue }()
-
 
 	tx, err := contract.Settle(h.signer, orderIDs)
 	if err != nil {
@@ -269,7 +281,6 @@ func (h *HyperlaneEVM) GetOrderStatus(ctx context.Context, args *types.ParsedArg
 	orderIDBytes := common.FromHex(args.OrderID)
 	copy(orderIDArr[:], orderIDBytes)
 
-
 	// Check order status
 	orderStatusABI := `[{
 		"type": "function",
@@ -296,17 +307,17 @@ func (h *HyperlaneEVM) GetOrderStatus(ctx context.Context, args *types.ParsedArg
 
 	dummyFrom := common.HexToAddress("0x1000000000000000000000000000000000000000")
 	res, err := h.client.CallContract(ctx, ethereum.CallMsg{
-		From:            dummyFrom,
-		To:              &destinationSettlerAddr,
-		Gas:             0,
-		GasPrice:        nil,
-		GasFeeCap:       nil,
-		GasTipCap:       nil,
-		Value:           nil,
-		Data:            callData,
-		AccessList:      nil,
-		BlobGasFeeCap:   nil,
-		BlobHashes:      nil,
+		From:              dummyFrom,
+		To:                &destinationSettlerAddr,
+		Gas:               0,
+		GasPrice:          nil,
+		GasFeeCap:         nil,
+		GasTipCap:         nil,
+		Value:             nil,
+		Data:              callData,
+		AccessList:        nil,
+		BlobGasFeeCap:     nil,
+		BlobHashes:        nil,
 		AuthorizationList: nil,
 	}, nil)
 	if err != nil {
@@ -353,7 +364,7 @@ func (h *HyperlaneEVM) setupApprovals(ctx context.Context, args *types.ParsedArg
 	destinationChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
 
 	// Get origin chain ID for cross-chain logging
-	originChainID := args.ResolvedOrder.OriginChainID.Uint64()
+	//originChainID := args.ResolvedOrder.OriginChainID.Uint64()
 
 	for _, maxSpent := range args.ResolvedOrder.MaxSpent {
 		// Skip native ETH (empty string)
@@ -378,7 +389,7 @@ func (h *HyperlaneEVM) setupApprovals(ctx context.Context, args *types.ParsedArg
 			return fmt.Errorf("approval failed for token %s: %w", maxSpent.Token, err)
 		}
 	}
-	logutil.CrossChainOperation("EVM token approvals set", originChainID, destinationChainID, args.OrderID)
+	//logutil.CrossChainOperation("EVM token approvals set", originChainID, destinationChainID, args.OrderID)
 
 	// Add a small delay to ensure blockchain state is updated after approvals
 	time.Sleep(1 * time.Second)
@@ -432,17 +443,17 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 	}
 
 	result, err := h.client.CallContract(ctx, ethereum.CallMsg{
-		From:            common.Address{},
-		To:              &tokenAddr,
-		Gas:             0,
-		GasPrice:        nil,
-		GasFeeCap:       nil,
-		GasTipCap:       nil,
-		Value:           nil,
-		Data:            callData,
-		AccessList:      nil,
-		BlobGasFeeCap:   nil,
-		BlobHashes:      nil,
+		From:              common.Address{},
+		To:                &tokenAddr,
+		Gas:               0,
+		GasPrice:          nil,
+		GasFeeCap:         nil,
+		GasTipCap:         nil,
+		Value:             nil,
+		Data:              callData,
+		AccessList:        nil,
+		BlobGasFeeCap:     nil,
+		BlobHashes:        nil,
 		AuthorizationList: nil,
 	}, nil)
 	if err != nil {
@@ -470,7 +481,15 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return nil
 	}
 
-	// Approve exact amount needed
+	approvalAmount := new(big.Int).Mul(amount, big.NewInt(101))
+	approvalAmount.Div(approvalAmount, big.NewInt(100))
+
+	// Ensure we approve at least the required amount (in case of rounding down)
+	if approvalAmount.Cmp(amount) < 0 {
+		approvalAmount.Set(amount)
+	}
+
+	// Approve the calculated amount
 	approveABI := `[{
 		"type": "function",
 		"name": "approve",
@@ -486,7 +505,7 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return fmt.Errorf("failed to parse approve ABI: %w", err)
 	}
 
-	approveData, err := parsedApproveABI.Pack("approve", spender, amount)
+	approveData, err := parsedApproveABI.Pack("approve", spender, approvalAmount)
 	if err != nil {
 		return fmt.Errorf("failed to pack approve call: %w", err)
 	}
@@ -524,7 +543,7 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return fmt.Errorf("failed to send approve transaction: %w", err)
 	}
 
-	fmt.Printf("   🚀 Approve transaction sent: %s\n", signedTx.Hash().Hex())
+	fmt.Printf("Approve transaction sent: %s\n", signedTx.Hash().Hex())
 
 	// Wait for confirmation
 	receipt, err := bind.WaitMined(ctx, h.client, signedTx)
@@ -536,7 +555,8 @@ func (h *HyperlaneEVM) ensureTokenApproval(ctx context.Context, tokenAddr, spend
 		return fmt.Errorf("approve transaction failed with status: %d", receipt.Status)
 	}
 
-	fmt.Printf("   ✅ Approval confirmed! Gas used: %d\n", receipt.GasUsed)
+	fmt.Printf("Approval confirmed! Gas used: %d\n", receipt.GasUsed)
+
 	return nil
 }
 
@@ -555,7 +575,7 @@ func (h *HyperlaneEVM) waitForOrderStatus(
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		status, err := h.GetOrderStatus(ctx, args)
 		if err != nil {
-			fmt.Printf("   ⚠️  Status check attempt %d failed: %v\n", attempt, err)
+			fmt.Printf("⚠️  Status check attempt %d failed: %v\n", attempt, err)
 		} else {
 			logutil.LogStatusCheck(networkName, attempt, maxRetries, status, expectedStatus)
 			if status == expectedStatus {

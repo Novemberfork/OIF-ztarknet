@@ -38,12 +38,14 @@ help:
 	@echo "  register-starknet-on-evm-live - Register Starknet domain on EVM contracts (live networks)"
 	@echo ""
 	@echo "🎯 Order Management:"
-	@echo "  open-random-evm-order-local - Open random EVM order with local devnet (IS_DEVNET=true)"
-	@echo "  open-random-evm-order-live - Open random EVM order with live networks (IS_DEVNET=false)"
-	@echo "  open-random-evm-sn-order-local - Open random EVM-to-Starknet order with local devnet (IS_DEVNET=true)"
-	@echo "  open-random-evm-sn-order-live - Open random EVM-to-Starknet order with live networks (IS_DEVNET=false)"
-	@echo "  open-random-sn-order-local - Open random Starknet order with local devnet (IS_DEVNET=true)"
-	@echo "  open-random-sn-order-live - Open random Starknet order with live networks (IS_DEVNET=false)"
+	@echo "  open-random-order-local ORIGIN=<origin> [DEST=<destination>] - Open order with local devnet"
+	@echo "  open-random-order-live ORIGIN=<origin> [DEST=<destination>] - Open order with live networks"
+	@echo "    Origins: evm, starknet (strk), ztarknet (ztrk), or specific chain names"
+	@echo "    Destinations: evm, starknet (strk), ztarknet (ztrk), or specific chain names (optional)"
+	@echo "    Examples:"
+	@echo "      make open-random-order-local ORIGIN=evm"
+	@echo "      make open-random-order-local ORIGIN=evm DEST=starknet"
+	@echo "      make open-random-order-local ORIGIN=ztarknet DEST=starknet"
 	@echo ""
 	@echo "📊 Coverage Commands:"
 	@echo "  test-coverage    - Show coverage for maintainable code"
@@ -85,7 +87,7 @@ run-local: build
 
 # Run the solver with live networks (sets IS_DEVNET=false)
 run-live: build
-	@echo "🤖 Starting solver with live networks (IS_DEVNET=false)..."
+	@echo "Starting solver with live networks (IS_DEVNET=false)..."
 	@echo "Make sure you have live network access and proper environment variables set"
 	IS_DEVNET=false ./bin/solver solver
 
@@ -343,60 +345,79 @@ build-setup-starknet-contracts:
 
 ### Order Management: ###
 
-# Default order commands for debugging (identical data except nonces)
-default-evm-order: build
-	./bin/solver tools open-order evm
+# Open random order with local devnet (sets IS_DEVNET=true)
+# Usage: make open-random-order-local ORIGIN=<origin> [DEST=<destination>]
+#   OR: make open-random-order-local <origin> [destination]
+# Examples:
+#   make open-random-order-local ORIGIN=evm
+#   make open-random-order-local evm
+#   make open-random-order-local ORIGIN=evm DEST=starknet
+#   make open-random-order-local evm starknet
+#   make open-random-order-local ORIGIN=ztarknet
+open-random-order-local: build
+	@origin="$(ORIGIN)"; \
+	if [ -z "$$origin" ] && [ -n "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
+		origin="$(word 2,$(MAKECMDGOALS))"; \
+	fi; \
+	if [ -z "$$origin" ]; then \
+		echo "❌ Error: ORIGIN is required"; \
+		echo "Usage: make open-random-order-local ORIGIN=<origin> [DEST=<destination>]"; \
+		echo "   OR: make open-random-order-local <origin> [destination]"; \
+		echo "Available origins: evm, starknet (strk), ztarknet (ztrk), or specific chain names"; \
+		echo "Available destinations: evm, starknet (strk), ztarknet (ztrk), or specific chain names"; \
+		echo "  - If DEST is omitted, a random valid destination will be selected"; \
+		exit 1; \
+	fi; \
+	dest="$(DEST)"; \
+	if [ -z "$$dest" ] && [ -n "$(word 3,$(MAKECMDGOALS))" ]; then \
+		dest="$(word 3,$(MAKECMDGOALS))"; \
+	fi; \
+	echo "🎯 Opening order with local devnet (IS_DEVNET=true)..."; \
+	echo "Make sure networks are running in another terminal with: make start-networks"; \
+	if [ -z "$$dest" ]; then \
+		IS_DEVNET=true ./bin/solver tools open-order $$origin; \
+	else \
+		IS_DEVNET=true ./bin/solver tools open-order $$origin $$dest; \
+	fi
 
-default-evm-sn-order: build
-	./bin/solver tools open-order evm
+# Catch-all pattern to prevent Make from trying to build arguments as targets
+%:
+	@:
 
-default-sn-order: build
-	./bin/solver tools open-order starknet
-
-open-random-evm-order: build
-	./bin/solver tools open-order evm
-
-open-random-evm-sn-order: build
-	./bin/solver tools open-order evm random-to-sn
-
-open-random-sn-order: build
-	./bin/solver tools open-order starknet
-
-# Open random EVM order with local devnet (sets IS_DEVNET=true)
-open-random-evm-order-local: build
-	@echo "🎯 Opening random EVM order with local devnet (IS_DEVNET=true)..."
-	@echo "Make sure networks are running in another terminal with: make start-networks"
-	IS_DEVNET=true ./bin/solver tools open-order evm
-
-# Open random EVM order with live networks (sets IS_DEVNET=false)
-open-random-evm-order-live: build
-	@echo "🎯 Opening random EVM order with live networks (IS_DEVNET=false)..."
-	@echo "Make sure you have live network access and proper environment variables set"
-	IS_DEVNET=false ./bin/solver tools open-order evm
-
-# Open random EVM-to-Starknet order with local devnet (sets IS_DEVNET=true)
-open-random-evm-sn-order-local: build
-	@echo "🎯 Opening random EVM-to-Starknet order with local devnet (IS_DEVNET=true)..."
-	@echo "Make sure networks are running in another terminal with: make start-networks"
-	IS_DEVNET=true ./bin/solver tools open-order evm random-to-sn
-
-# Open random EVM-to-Starknet order with live networks (sets IS_DEVNET=false)
-open-random-evm-sn-order-live: build
-	@echo "🎯 Opening random EVM-to-Starknet order with live networks (IS_DEVNET=false)..."
-	@echo "Make sure you have live network access and proper environment variables set"
-	IS_DEVNET=false ./bin/solver tools open-order evm random-to-sn
-
-# Open random Starknet order with local devnet (sets IS_DEVNET=true)
-open-random-sn-order-local: build
-	@echo "🎯 Opening random Starknet order with local devnet (IS_DEVNET=true)..."
-	@echo "Make sure networks are running in another terminal with: make start-networks"
-	IS_DEVNET=true ./bin/solver tools open-order starknet
-
-# Open random Starknet order with live networks (sets IS_DEVNET=false)
-open-random-sn-order-live: build
-	@echo "🎯 Opening random Starknet order with live networks (IS_DEVNET=false)..."
-	@echo "Make sure you have live network access and proper environment variables set"
-	IS_DEVNET=false ./bin/solver tools open-order starknet
+# Open random order with live networks (sets IS_DEVNET=false)
+# Usage: make open-random-order-live ORIGIN=<origin> [DEST=<destination>]
+#   OR: make open-random-order-live <origin> [destination]
+# Examples:
+#   make open-random-order-live ORIGIN=evm
+#   make open-random-order-live evm
+#   make open-random-order-live ORIGIN=evm DEST=starknet
+#   make open-random-order-live evm starknet
+#   make open-random-order-live ORIGIN=ztarknet
+open-random-order-live: build
+	@origin="$(ORIGIN)"; \
+	if [ -z "$$origin" ] && [ -n "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
+		origin="$(word 2,$(MAKECMDGOALS))"; \
+	fi; \
+	if [ -z "$$origin" ]; then \
+		echo "❌ Error: ORIGIN is required"; \
+		echo "Usage: make open-random-order-live ORIGIN=<origin> [DEST=<destination>]"; \
+		echo "   OR: make open-random-order-live <origin> [destination]"; \
+		echo "Available origins: evm, starknet (strk), ztarknet (ztrk), or specific chain names"; \
+		echo "Available destinations: evm, starknet (strk), ztarknet (ztrk), or specific chain names"; \
+		echo "  - If DEST is omitted, a random valid destination will be selected"; \
+		exit 1; \
+	fi; \
+	dest="$(DEST)"; \
+	if [ -z "$$dest" ] && [ -n "$(word 3,$(MAKECMDGOALS))" ]; then \
+		dest="$(word 3,$(MAKECMDGOALS))"; \
+	fi; \
+	echo "🎯 Opening order with live networks (IS_DEVNET=false)..."; \
+	echo "Make sure you have live network access and proper environment variables set"; \
+	if [ -z "$$dest" ]; then \
+		IS_DEVNET=false ./bin/solver tools open-order $$origin; \
+	else \
+		IS_DEVNET=false ./bin/solver tools open-order $$origin $$dest; \
+	fi
 
 ### Testing Commands ###
 

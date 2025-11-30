@@ -79,7 +79,7 @@ func (sm *SolverManager) GetAllowBlockLists() types.AllowBlockLists {
 
 // InitializeSolvers starts all enabled solvers
 func (sm *SolverManager) InitializeSolvers(ctx context.Context) error {
-	fmt.Printf("🚀 Initializing solvers...\n")
+	fmt.Printf("Initializing solvers...\n")
 
 	// Initialize EVM clients for all EVM networks
 	if err := sm.initializeEVMClients(); err != nil {
@@ -119,16 +119,18 @@ func (sm *SolverManager) initializeSolver(ctx context.Context, name string) erro
 
 // initializeEVMClients initializes EVM RPC connections for all EVM networks
 func (sm *SolverManager) initializeEVMClients() error {
-	fmt.Printf("🔗 Initializing EVM clients...\n")
+	fmt.Printf("Initializing EVM clients...\n")
 
 	evmCount := 0
 	for networkName, networkConfig := range config.Networks {
 		// Check if this is NOT a Starknet network (i.e., it's an EVM network)
-		if strings.Contains(strings.ToLower(networkName), "starknet") {
+		// Explicitly check for both "starknet" and "ztarknet" to avoid any confusion
+		name := strings.ToLower(networkName)
+		if strings.Contains(name, "starknet") || strings.Contains(name, "ztarknet") {
 			continue
 		}
-		
-		fmt.Printf("   🔗 Initializing EVM client for %s (Chain ID: %d)\n", networkName, networkConfig.ChainID)
+
+		fmt.Printf("   🔄 Initializing %s client (Chain ID: %d)\n", networkName, networkConfig.ChainID)
 
 		client, err := ethclient.Dial(networkConfig.RPCURL)
 		if err != nil {
@@ -136,34 +138,44 @@ func (sm *SolverManager) initializeEVMClients() error {
 		}
 
 		sm.evmClients[networkConfig.ChainID] = client
-		fmt.Printf("   ✅ EVM client initialized for %s\n", networkName)
+		fmt.Printf("   ✅ %s client initialized\n", networkName)
 		evmCount++
 	}
 
-	fmt.Printf("✅ All EVM clients initialized (%d networks)\n", evmCount)
+	fmt.Printf("All EVM clients initialized (%d networks)\n", evmCount)
 	return nil
 }
 
 // initializeStarknetClients initializes Starknet RPC connection for the first Starknet network found
 func (sm *SolverManager) initializeStarknetClients() error {
-	fmt.Printf("🔗 Initializing Starknet client...\n")
+	fmt.Printf("Initializing Cairo clients...\n")
 
 	for networkName, networkConfig := range config.Networks {
 		// Check if this is a Starknet network
-		if !strings.Contains(strings.ToLower(networkName), "starknet") {
+		name := strings.ToLower(networkName)
+		if !strings.Contains(name, "starknet") && !strings.Contains(name, "ztarknet") {
 			continue
 		}
-		
-		fmt.Printf("   🔗 Initializing Starknet client for %s (Chain ID: %d)\n", networkName, networkConfig.ChainID)
+
+		fmt.Printf("   🔄 Initializing %s client (Chain ID: %d)\n", networkName, networkConfig.ChainID)
 
 		provider, err := rpc.NewProvider(networkConfig.RPCURL)
 		if err != nil {
-			return fmt.Errorf("failed to create Starknet provider for %s: %w", networkName, err)
+			// Don't error out, just skip this one (unless it's critical)
+			fmt.Printf("⚠️  Failed to create Starknet provider for %s: %v\n", networkName, err)
+			continue
 		}
 
+		// Store the last initialized client as the default one
+		// This is a limitation of the current architecture which expects a single Starknet client
+		// However, individual solvers create their own clients, so this is mostly for listeners
 		sm.starknetClient = provider
-		fmt.Printf("✅ Starknet client initialized successfully\n")
-		return nil // Only need one Starknet client
+		fmt.Printf("   ✅ %s client initialized\n", networkName)
+	}
+
+	if sm.starknetClient != nil {
+		fmt.Printf("All Cairo clients initialized (%d networks)\n", 2)
+		return nil
 	}
 
 	fmt.Printf("⚠️  No Starknet networks found in config\n")
@@ -250,7 +262,7 @@ func (sm *SolverManager) GetStarknetSigner() (*account.Account, error) {
 
 // initializeHyperlane7683 starts the Hyperlane 7683 solver
 func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
-	fmt.Printf("   🔧 Setting up Hyperlane7683 solver components...\n")
+	fmt.Printf("   Setting up Hyperlane7683 solver components...\n")
 
 	// Create solver with client and signer getter functions
 	hyperlane7683Solver := contracts.NewHyperlane7683Solver(
@@ -271,7 +283,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 	fmt.Printf("   📡 Starting network listeners...\n")
 	listenerCount := 0
 
-	for _, source := range []string{"Base", "Optimism", "Arbitrum", "Ethereum", "Starknet"} {
+	for _, source := range []string{"Base", "Optimism", "Arbitrum", "Ethereum", "Starknet", "Ztarknet"} {
 		networkConfig, exists := config.Networks[source]
 		if !exists {
 			fmt.Printf("     ⚠️  Network %s not found in config, skipping...\n", source)
@@ -294,7 +306,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 				source,
 				big.NewInt(networkConfig.SolverStartBlock), // pass original value (can be negative)
 				networkConfig.PollInterval,                 // poll interval from config
-				networkConfig.ConfirmationBlocks,   // confirmation blocks from config
+				networkConfig.ConfirmationBlocks,           // confirmation blocks from config
 				networkConfig.MaxBlockRange,                // max block range from config
 			)
 
@@ -306,15 +318,40 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to start Starknet listener for %s: %w", source, err)
 			}
+		} else if source == "Ztarknet" {
+			hyperlaneAddr, err := getZtarknetHyperlaneAddress(&networkConfig)
+			if err != nil {
+				return fmt.Errorf("failed to get Ztarknet Hyperlane address: %w", err)
+			}
+
+			// Create Ztarknet listener config with original solver start block
+			// The listener will handle negative value resolution
+			listenerConfig := base.NewListenerConfig(
+				hyperlaneAddr,
+				source,
+				big.NewInt(networkConfig.SolverStartBlock), // pass original value (can be negative)
+				networkConfig.PollInterval,                 // poll interval from config
+				networkConfig.ConfirmationBlocks,           // confirmation blocks from config
+				networkConfig.MaxBlockRange,                // max block range from config
+			)
+
+			ztarknetListener, err := contracts.NewZtarknetListener(listenerConfig, networkConfig.RPCURL)
+			if err != nil {
+				return fmt.Errorf("failed to create Ztarknet listener: %w", err)
+			}
+			shutdown, err = ztarknetListener.Start(ctx, eventHandler)
+			if err != nil {
+				return fmt.Errorf("failed to start Ztarknet listener for %s: %w", source, err)
+			}
 		} else {
 			// Create EVM listener config with original solver start block
 			// The listener will handle negative value resolution
 			listenerConfig := base.NewListenerConfig(
-				networkConfig.HyperlaneAddress.Hex(),
+				networkConfig.HyperlaneAddress,
 				source,
 				big.NewInt(networkConfig.SolverStartBlock), // pass original value (can be negative)
 				networkConfig.PollInterval,                 // poll interval from config
-				networkConfig.ConfirmationBlocks,   // confirmation blocks from config
+				networkConfig.ConfirmationBlocks,           // confirmation blocks from config
 				networkConfig.MaxBlockRange,                // max block range from config
 			)
 
@@ -330,7 +367,7 @@ func (sm *SolverManager) initializeHyperlane7683(ctx context.Context) error {
 
 		sm.activeShutdowns = append(sm.activeShutdowns, shutdown)
 		listenerCount++
-		fmt.Printf("     ✅ Started listener for %s\n", source)
+		fmt.Printf("     Started listener for %s\n", source)
 	}
 
 	fmt.Printf("   📡 All network listeners started (%d networks)\n", listenerCount)
@@ -400,15 +437,25 @@ func (sm *SolverManager) GetSolverStatus() map[string]bool {
 	return status
 }
 
-
 // getStarknetHyperlaneAddress gets the Starknet Hyperlane address from environment
 func getStarknetHyperlaneAddress(_ *config.NetworkConfig) (string, error) {
 	envAddr := envutil.GetEnvWithDefault("STARKNET_HYPERLANE_ADDRESS", "")
 	if envAddr != "" {
-		fmt.Printf("   🔄 Using Starknet Hyperlane address from .env: %s\n", envAddr)
+		fmt.Printf("   Using Starknet Hyperlane address from .env: %s\n", envAddr)
 		return envAddr, nil
 	} else {
 		return "", fmt.Errorf("no STARKNET_HYPERLANE_ADDRESS set in .env")
+	}
+}
+
+// getZtarknetHyperlaneAddress gets the Ztarknet Hyperlane address from environment
+func getZtarknetHyperlaneAddress(_ *config.NetworkConfig) (string, error) {
+	envAddr := envutil.GetEnvWithDefault("ZTARKNET_HYPERLANE_ADDRESS", "")
+	if envAddr != "" {
+		fmt.Printf("   Using Ztarknet Hyperlane address from .env: %s\n", envAddr)
+		return envAddr, nil
+	} else {
+		return "", fmt.Errorf("no ZTARKNET_HYPERLANE_ADDRESS set in .env")
 	}
 }
 

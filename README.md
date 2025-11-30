@@ -1,5 +1,7 @@
 # OIF-Starknet
 
+This repo is a fork, below is the original codebase's README, see [ZTARKNET.md](/ZTARKNET.md) for more details.
+
 A Starknet implementation of the [Open Intents Framework](https://github.com/BootNodeDev/intents-framework/tree/main).
 
 ## Overview

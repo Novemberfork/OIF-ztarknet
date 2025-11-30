@@ -40,6 +40,7 @@ const (
 type HyperlaneStarknet struct {
 	// Client
 	provider *rpc.Provider
+	rpcURL   string // Added for debugging
 	// Signer
 	account    *account.Account
 	solverAddr *felt.Felt
@@ -50,6 +51,7 @@ type HyperlaneStarknet struct {
 }
 
 // NewHyperlaneStarknet creates a new Starknet handler for Hyperlane operations
+// Supports both Starknet and Ztarknet chains by using chain-appropriate credentials
 func NewHyperlaneStarknet(rpcURL string, chainID uint64) *HyperlaneStarknet {
 	provider, err := rpc.NewProvider(rpcURL)
 	if err != nil {
@@ -57,39 +59,54 @@ func NewHyperlaneStarknet(rpcURL string, chainID uint64) *HyperlaneStarknet {
 		return nil
 	}
 
-	// Use conditional environment variables based on IS_DEVNET
-	pub := envutil.GetStarknetSolverPublicKey()
-	addrHex := envutil.GetStarknetSolverAddress()
-	priv := envutil.GetStarknetSolverPrivateKey()
+	// Determine which credentials to use based on chain ID
+	var pub, addrHex, priv string
+	var chainName string
+
+	// Check if this is Ztarknet (chain ID 10066329) or Starknet
+	if chainID == config.ZtarknetTestnetChainID {
+		chainName = "Ztarknet"
+		pub = envutil.GetZtarknetSolverPublicKey()
+		addrHex = envutil.GetZtarknetSolverAddress()
+		priv = envutil.GetZtarknetSolverPrivateKey()
+		fmt.Printf("Initializing Ztarknet Handler (ChainID: %d)\n", chainID)
+	} else {
+		// Default to Starknet (supports both mainnet and testnet via IS_DEVNET)
+		chainName = "Starknet"
+		pub = envutil.GetStarknetSolverPublicKey()
+		addrHex = envutil.GetStarknetSolverAddress()
+		priv = envutil.GetStarknetSolverPrivateKey()
+	}
 
 	if pub == "" || addrHex == "" || priv == "" {
-		fmt.Printf("missing STARKNET_SOLVER_* env vars for Starknet signer")
+		fmt.Printf("missing %s_SOLVER_* env vars for %s signer", chainName, chainName)
 		return nil
 	}
 
 	addrF, err := utils.HexToFelt(addrHex)
 	if err != nil {
-		fmt.Printf("invalid STARKNET_SOLVER_ADDRESS: %v", err)
+		fmt.Printf("invalid %s_SOLVER_ADDRESS: %v", chainName, err)
 		return nil
 	}
 
 	ks := account.NewMemKeystore()
 	privBI, ok := new(big.Int).SetString(priv, 0)
 	if !ok {
-		fmt.Printf("failed to parse STARKNET_SOLVER_PRIVATE_KEY")
+		fmt.Printf("failed to parse %s_SOLVER_PRIVATE_KEY", chainName)
 		return nil
 	}
 
 	ks.Put(pub, privBI)
 	acct, err := account.NewAccount(provider, addrF, pub, ks, account.CairoV2)
 	if err != nil {
-		fmt.Printf("failed to create Starknet account: %v", err)
+		fmt.Printf("failed to create %s account: %v", chainName, err)
 		return nil
 	}
 
 	return &HyperlaneStarknet{
 		account:    acct,
 		provider:   provider,
+		rpcURL:     rpcURL,
 		solverAddr: addrF,
 		chainID:    chainID,
 		mu:         sync.Mutex{},
@@ -119,7 +136,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args *types.ParsedArgs) (O
 	// Pre-check: skip if order is already filled or settled
 	status, err := h.GetOrderStatus(ctx, args)
 	if err != nil {
-		fmt.Printf("   ⚠️  Status check failed: %v\n", err)
+		fmt.Printf("⚠️  Status check failed: %v\n", err)
 		return OrderActionError, err
 	}
 	networkName := logutil.NetworkNameByChainID(h.chainID)
@@ -152,7 +169,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args *types.ParsedArgs) (O
 	}
 
 	calldata := make([]*felt.Felt, 0, calldataBaseSize+len(words))
-	calldata = append(calldata, 
+	calldata = append(calldata,
 		orderIDLow, orderIDHigh,
 		utils.Uint64ToFelt(uint64(len(originData))),
 		utils.Uint64ToFelt(uint64(len(words))),
@@ -162,6 +179,7 @@ func (h *HyperlaneStarknet) Fill(ctx context.Context, args *types.ParsedArgs) (O
 
 	// Execute the fill transaction
 	invoke := rpc.InvokeFunctionCall{ContractAddress: destinationSettlerAddr, FunctionName: "fill", CallData: calldata}
+
 	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
 		return OrderActionError, fmt.Errorf("starknet fill send failed: %w", err)
@@ -219,6 +237,23 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args *types.ParsedArgs) 
 	// Get chain IDs for cross-chain logging
 	originChainID := args.ResolvedOrder.OriginChainID.Uint64()
 	destChainID := args.ResolvedOrder.FillInstructions[0].DestinationChainID.Uint64()
+
+	// Check if origin is Ztarknet and we're on live networks (not forking)
+	// Starknet contracts are not aware of Ztarknet contracts on testnet
+	ztarknetDomain := uint32(config.Networks["Ztarknet"].HyperlaneDomain)
+	if originDomain == ztarknetDomain {
+		if !envutil.IsDevnet() {
+			// Live networks: Skip settlement until Ztarknet domain is registered on Starknet
+			fmt.Printf("   ⚠️  Skipping Starknet settlement for Ztarknet origin (domain %d) on live network\n", originDomain)
+			fmt.Printf("   ⏳ Ztarknet domain not yet registered on Starknet contracts - waiting for registration\n")
+			fmt.Printf("   Order filled successfully, settlement will be available once domain is registered\n")
+			return nil // Skip settlement but don't treat as error
+		} else {
+			// Fork mode: Continue with settlement (domains are mocked/registered)
+			fmt.Printf("   🔧 Fork mode detected - proceeding with Ztarknet settlement (domain %d registered)\n", originDomain)
+		}
+	}
+
 	logutil.CrossChainOperation(fmt.Sprintf("Quoting gas payment for origin domain: %d", originDomain), originChainID, destChainID, args.OrderID)
 	gasPayment, err := h.quoteGasPayment(ctx, originDomain, destinationSettler)
 	if err != nil {
@@ -226,10 +261,15 @@ func (h *HyperlaneStarknet) Settle(ctx context.Context, args *types.ParsedArgs) 
 	}
 
 	// Approve ETH for the quoted gas amount
-	if err := h.ensureETHApproval(ctx, gasPayment, destinationSettler); err != nil {
-		return fmt.Errorf("ETH approval failed for settlement gas: %w", err)
+	// If gas payment is 0, we can skip approval (avoiding potential issues with ETH address on chains where it might differ or not exist)
+	if gasPayment.Cmp(big.NewInt(0)) > 0 {
+		if err := h.ensureETHApproval(ctx, gasPayment, destinationSettler); err != nil {
+			return fmt.Errorf("ETH approval failed for settlement gas: %w", err)
+		}
+		logutil.CrossChainOperation(fmt.Sprintf("ETH approved for settlement gas payment: %s wei", gasPayment.String()), originChainID, destChainID, args.OrderID)
+	} else {
+		logutil.CrossChainOperation("Skipping ETH approval (gas payment is 0)", originChainID, destChainID, args.OrderID)
 	}
-	logutil.CrossChainOperation(fmt.Sprintf("ETH approved for settlement gas payment: %s wei", gasPayment.String()), originChainID, destChainID, args.OrderID)
 
 	// Prepare calldata
 	orderIDLow, orderIDHigh, err := starknetutil.ConvertSolidityOrderIDForStarknet(orderID)
@@ -287,9 +327,9 @@ func (h *HyperlaneStarknet) GetOrderStatus(ctx context.Context, args *types.Pars
 	}
 
 	call := rpc.FunctionCall{
-		ContractAddress:      destinationSettlerAddr,
-		EntryPointSelector:   utils.GetSelectorFromNameFelt("order_status"),
-		Calldata:             []*felt.Felt{orderIDLow, orderIDHigh},
+		ContractAddress:    destinationSettlerAddr,
+		EntryPointSelector: utils.GetSelectorFromNameFelt("order_status"),
+		Calldata:           []*felt.Felt{orderIDLow, orderIDHigh},
 	}
 	resp, err := h.provider.Call(ctx, call, rpc.WithBlockTag("latest"))
 	if err != nil || len(resp) == 0 {
@@ -408,8 +448,15 @@ func (h *HyperlaneStarknet) quoteGasPayment(ctx context.Context, originDomain ui
 
 // EnsureETHApproval ensures the solver has approved the ETH address for settlement
 func (h *HyperlaneStarknet) ensureETHApproval(ctx context.Context, amount *big.Int, hyperlaneAddress *felt.Felt) error {
-	// Hard-coded ETH address on Starknet
-	ethAddress := "0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"
+	// Determine ETH address based on chain ID
+	var ethAddress string
+	if h.chainID == config.ZtarknetTestnetChainID {
+		ethAddress = envutil.GetEnvWithDefault("ZTARKNET_ETH_ADDRESS", "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7")
+	} else {
+		// Default to Starknet ETH address
+		ethAddress = envutil.GetEnvWithDefault("STARKNET_ETH_ADDRESS", "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7")
+	}
+
 	ethFelt, err := utils.HexToFelt(ethAddress)
 	if err != nil {
 		return fmt.Errorf("failed to convert ETH address to felt: %w", err)
@@ -463,13 +510,13 @@ func (h *HyperlaneStarknet) ensureETHApproval(ctx context.Context, amount *big.I
 		return fmt.Errorf("starknet ETH approve send failed: %w", err)
 	}
 
-	fmt.Printf("   🔄 Starknet ETH approve tx sent: %s\n", tx.Hash.String())
+	fmt.Printf("   Starknet ETH approve tx sent: %s\n", tx.Hash.String())
 	_, waitErr := h.account.WaitForTransactionReceipt(ctx, tx.Hash, 2*time.Second)
 	if waitErr != nil {
 		return fmt.Errorf("starknet ETH approve wait failed: %w", waitErr)
 	}
 
-	fmt.Printf("   ✅ Starknet ETH approval confirmed\n")
+	fmt.Printf("   Starknet ETH approval confirmed\n")
 	return nil
 }
 
@@ -503,16 +550,15 @@ func (h *HyperlaneStarknet) ensureTokenApproval(ctx context.Context, tokenHex st
 	}
 
 	// Approve exact amount: approve(spender: felt, amount: u256)
-	low128 := new(big.Int).And(amount, new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1)))
-	high128 := new(big.Int).Rsh(amount, 128)
-	lowF := utils.BigIntToFelt(low128)
-	highF := utils.BigIntToFelt(high128)
-
-	invoke := rpc.InvokeFunctionCall{
-		ContractAddress: tokenFelt,
-		FunctionName:    "approve",
-		CallData:        []*felt.Felt{hyperlaneAddress, lowF, highF},
+	// We use the helper from starknetutil to ensure consistency with working scripts
+	approveCall, err := starknetutil.ERC20Approve(tokenHex, hyperlaneAddress.String(), amount)
+	if err != nil {
+		return fmt.Errorf("failed to create approval call: %w", err)
 	}
+
+	// The helper returns *rpc.InvokeFunctionCall, we need to adapt it if necessary
+	// but rpc.InvokeFunctionCall structure is standard
+	invoke := *approveCall
 
 	tx, err := h.account.BuildAndSendInvokeTxn(ctx, []rpc.InvokeFunctionCall{invoke}, nil)
 	if err != nil {
@@ -541,7 +587,7 @@ func (h *HyperlaneStarknet) waitForOrderStatus(
 		if err != nil {
 			fmt.Printf("   ⚠️  Status check attempt %d failed: %v\n", attempt, err)
 		} else {
-			fmt.Printf("   📊 Status check attempt %d: %s (expected: %s)\n", attempt, status, expectedStatus)
+			fmt.Printf("   Status check attempt %d: %s (expected: %s)\n", attempt, status, expectedStatus)
 			if status == expectedStatus {
 				return status, nil
 			}

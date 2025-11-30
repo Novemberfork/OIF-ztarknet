@@ -25,13 +25,13 @@ func RunOpenOrder(args []string) {
 
 	switch chain {
 	case "starknet":
-		fmt.Println("🎯 Running Alice's Starknet order creation...")
+		//fmt.Println("🎯 Running Alice's Starknet order creation...")
 		RunStarknetOrder(command)
 	case "ztarknet":
-		fmt.Println("🎯 Running Alice's Ztarknet order creation...")
+		//fmt.Println("🎯 Running Alice's Ztarknet order creation...")
 		RunZtarknetOrder(command)
 	case "evm":
-		fmt.Println("🎯 Running Alice's EVM order creation...")
+		//fmt.Println("🎯 Running Alice's EVM order creation...")
 		RunEVMOrder(command)
 	default:
 		fmt.Printf("Unknown chain: %s\n", chain)
