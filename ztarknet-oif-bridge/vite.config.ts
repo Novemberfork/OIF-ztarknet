@@ -11,6 +11,6 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts: ['http://oif-demo.novemberfork.io/']
+    allowedHosts: ['oif-demo.novemberfork.io']
   }
 })
