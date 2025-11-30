@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { usePublicClient } from 'wagmi'
 import type { Hex } from 'viem'
-import { useProvider } from '@starknet-react/core'
+import { RpcProvider } from 'starknet'
 import { EVM_CONTRACTS, contracts } from '@/config/contracts'
+import { chains } from '@/config/chains'
 import Hyperlane7683Abi from '@/abis/Hyperlane7683.json'
 
 export type OrderState = 'pending' | 'filled' | 'settled' | 'unknown' | 'error'
@@ -27,7 +28,14 @@ export function useOrderStatus(
   pollIntervalMs: number = 5000
 ): UseOrderStatusResult {
   const evmClient = usePublicClient()
-  const { provider: starknetProvider } = useProvider()
+
+  // Create a direct RpcProvider for Ztarknet to avoid CORS issues
+  // with the default starknet-react provider which uses BlastAPI
+  const ztarknetProvider = useMemo(() => {
+    return new RpcProvider({
+      nodeUrl: chains.zstarknet.rpcUrl,
+    })
+  }, [])
 
   const [status, setStatus] = useState<OrderState>('unknown')
   const [isPolling, setIsPolling] = useState(false)
@@ -72,14 +80,14 @@ export function useOrderStatus(
    * Check for Filled event on Ztarknet destination chain
    */
   const checkZtarknetFilled = useCallback(async (orderId: Hex): Promise<boolean> => {
-    if (!starknetProvider) return false
+    if (!ztarknetProvider) return false
 
     try {
       const ztarknetHyperlane = contracts['ztarknet'].hyperlane7683
 
       // Query events from the Ztarknet Hyperlane contract
       // Look for Filled event with matching orderId
-      const events = await starknetProvider.getEvents({
+      const events = await ztarknetProvider.getEvents({
         address: ztarknetHyperlane,
         keys: [[FILLED_EVENT_SELECTOR]],
         from_block: { block_number: 0 },
@@ -107,7 +115,7 @@ export function useOrderStatus(
       console.error('Error checking Ztarknet filled status:', err)
       return false
     }
-  }, [starknetProvider])
+  }, [ztarknetProvider])
 
   /**
    * Check order status once

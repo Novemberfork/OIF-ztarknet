@@ -8,11 +8,6 @@ import {
 import {
   type Hex,
   type Address,
-  encodeAbiParameters,
-  parseAbiParameters,
-  keccak256,
-  toHex,
-  pad,
 } from 'viem'
 import Hyperlane7683Abi from '@/abis/Hyperlane7683.json'
 import {
@@ -21,10 +16,17 @@ import {
   contracts,
 } from '@/config/contracts'
 import type { OnchainCrossChainOrder } from '@/types/orders'
+import {
+  ORDER_DATA_TYPE_HASH,
+  encodeOrderData,
+  evmAddressToBytes32,
+  feltToBytes32,
+  type OrderData,
+} from '@/utils/orderEncoding'
 
-// Order data type hash - must match solver's OrderEncoder.orderDataType() EXACTLY
-const ORDER_DATA_TYPE_STRING = 'OrderData(bytes32 sender,bytes32 recipient,bytes32 inputToken,bytes32 outputToken,uint256 amountIn,uint256 amountOut,uint256 senderNonce,uint32 originDomain,uint32 destinationDomain,bytes32 destinationSettler,uint32 fillDeadline,bytes data)'
-const ORDER_DATA_TYPE_HASH = keccak256(toHex(ORDER_DATA_TYPE_STRING))
+// Log the hash for debugging
+console.log('ORDER_DATA_TYPE_HASH:', ORDER_DATA_TYPE_HASH)
+console.log('Expected hash (from solver): 0x08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e')
 
 interface OpenOrderParams {
   // User's addresses
@@ -48,21 +50,6 @@ interface OpenOrderParams {
 interface OpenOrderResult {
   txHash: Hex
   orderId: Hex
-}
-
-/**
- * Convert an EVM address to bytes32 (left-padded with zeros)
- */
-function evmAddressToBytes32(address: Address): Hex {
-  return pad(address, { size: 32 }) as Hex
-}
-
-/**
- * Convert a Starknet felt/address to bytes32
- */
-function feltToBytes32(felt: string): Hex {
-  const cleaned = felt.startsWith('0x') ? felt.slice(2) : felt
-  return `0x${cleaned.padStart(64, '0')}` as Hex
 }
 
 export function useHyperlane7683() {
@@ -120,56 +107,6 @@ export function useHyperlane7683() {
     })
     return Number(domain)
   }, [publicClient])
-
-  /**
-   * Encode order data matching the solver's expected format
-   */
-  const encodeOrderData = useCallback((params: {
-    sender: Hex           // bytes32
-    recipient: Hex        // bytes32
-    inputToken: Hex       // bytes32
-    outputToken: Hex      // bytes32
-    amountIn: bigint
-    amountOut: bigint
-    senderNonce: bigint
-    originDomain: number
-    destinationDomain: number
-    destinationSettler: Hex // bytes32
-    fillDeadline: number
-    data: Hex             // bytes
-  }): Hex => {
-    // Encode as tuple matching Solidity's abi.encode(OrderData)
-    return encodeAbiParameters(
-      parseAbiParameters([
-        'bytes32 sender',
-        'bytes32 recipient',
-        'bytes32 inputToken',
-        'bytes32 outputToken',
-        'uint256 amountIn',
-        'uint256 amountOut',
-        'uint256 senderNonce',
-        'uint32 originDomain',
-        'uint32 destinationDomain',
-        'bytes32 destinationSettler',
-        'uint32 fillDeadline',
-        'bytes data',
-      ]),
-      [
-        params.sender,
-        params.recipient,
-        params.inputToken,
-        params.outputToken,
-        params.amountIn,
-        params.amountOut,
-        params.senderNonce,
-        params.originDomain,
-        params.destinationDomain,
-        params.destinationSettler,
-        params.fillDeadline,
-        params.data,
-      ]
-    )
-  }, [])
 
   /**
    * Open a bridge order on the origin chain
@@ -260,6 +197,26 @@ export function useHyperlane7683() {
       orderData,
     }
 
+    console.log('Order structure:', {
+      fillDeadline,
+      orderDataType: ORDER_DATA_TYPE_HASH,
+      orderDataLength: orderData.length,
+    })
+
+    // Pre-flight: Try to resolve the order to validate structure
+    try {
+      const resolved = await publicClient.readContract({
+        address: hyperlaneAddress,
+        abi: Hyperlane7683Abi,
+        functionName: 'resolve',
+        args: [order],
+      })
+      console.log('Order resolved successfully:', resolved)
+    } catch (resolveError) {
+      console.error('Order resolve failed:', resolveError)
+      throw new Error(`Order validation failed: ${resolveError instanceof Error ? resolveError.message : 'Unknown error'}`)
+    }
+
     // Estimate gas for the transaction
     const gasEstimate = await publicClient.estimateContractGas({
       address: hyperlaneAddress,
@@ -298,7 +255,7 @@ export function useHyperlane7683() {
       txHash,
       orderId,
     }
-  }, [walletClient, publicClient, address, findValidNonce, encodeOrderData, getLocalDomain])
+  }, [walletClient, publicClient, address, findValidNonce, getLocalDomain])
 
   /**
    * Get the status of an order
