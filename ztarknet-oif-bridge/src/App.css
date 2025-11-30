@@ -240,3 +240,233 @@
   color: var(--text-muted);
   text-align: center;
 }
+
+/* Bridge Form */
+.bridge-form {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+.bridge-empty {
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.bridge-empty .lock-icon {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.bridge-empty p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Bridge Sides */
+.bridge-side {
+  padding: 1rem;
+  border-radius: 10px;
+  position: relative;
+}
+
+.bridge-public {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bridge-private {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(16, 185, 129, 0.04) 100%);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.side-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.side-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.side-tag {
+  font-size: 0.625rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.side-tag.exposed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.side-tag.shielded {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.side-chain {
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.address-preview {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address-preview.redacted {
+  color: rgba(34, 197, 94, 0.5);
+  letter-spacing: 0.05em;
+}
+
+/* Transition */
+.bridge-transition {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0;
+}
+
+.transition-line {
+  width: 1px;
+  height: 12px;
+  background: linear-gradient(to bottom, var(--border), rgba(34, 197, 94, 0.4));
+}
+
+.transition-icon {
+  padding: 0.5rem;
+  color: var(--text-muted);
+}
+
+/* Amount Section */
+.amount-section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.amount-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.max-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.max-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.amount-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.amount-input-wrapper:focus-within {
+  border-color: #444;
+}
+
+.amount-input {
+  flex: 1;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--text);
+  outline: none;
+}
+
+.amount-input::placeholder {
+  color: #333;
+}
+
+.token-label {
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  border-left: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.balance-row {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Bridge Button */
+.bridge-btn {
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+  border: none;
+  color: #000;
+}
+
+.bridge-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #16a34a 0%, #059669 100%);
+}
+
+.bridge-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+/* Privacy Note */
+.privacy-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: rgba(34, 197, 94, 0.7);
+}
+
+.privacy-note svg {
+  flex-shrink: 0;
+}

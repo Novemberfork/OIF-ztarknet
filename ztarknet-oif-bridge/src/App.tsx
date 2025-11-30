@@ -1,7 +1,7 @@
 import './App.css'
 import { WalletButton } from './components/wallet/WalletButton'
-import { AccountDisplay } from './components/wallet/AccountDisplay'
 import { NetworkSwitcher } from './components/wallet/NetworkSwitcher'
+import { BridgeForm } from './components/bridge/BridgeForm'
 
 function App() {
   return (
@@ -16,10 +16,7 @@ function App() {
 
       <main className="app-main">
         <div className="bridge-card">
-          <AccountDisplay />
-          <div className="placeholder">
-            <p>Bridge interface coming soon</p>
-          </div>
+          <BridgeForm />
         </div>
       </main>
 
