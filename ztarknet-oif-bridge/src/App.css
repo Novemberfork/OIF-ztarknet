@@ -608,3 +608,247 @@
 .privacy-note svg {
   flex-shrink: 0;
 }
+
+/* Chain Selector */
+.chain-selector {
+  position: relative;
+  width: 100%;
+}
+
+.chain-selector-label {
+  display: block;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.chain-selector-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chain-selector-button:hover:not(.disabled) {
+  border-color: #444;
+}
+
+.chain-selector-button.open {
+  border-color: #555;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.chain-selector-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chain-selector-selected {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chain-placeholder {
+  color: var(--text-muted);
+}
+
+.chain-selector-arrow {
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.chain-selector-arrow.open {
+  transform: rotate(180deg);
+}
+
+.chain-selector-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid #555;
+  border-top: none;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  z-index: 50;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.chain-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+}
+
+.chain-option:hover {
+  background: var(--bg);
+}
+
+.chain-option.selected {
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.chain-type-badge {
+  font-size: 0.625rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.chain-type-badge.evm {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+}
+
+.chain-type-badge.starknet {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+}
+
+.chain-name {
+  flex: 1;
+  font-size: 0.875rem;
+}
+
+.private-badge {
+  font-size: 0.625rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  font-weight: 500;
+}
+
+/* Bridge Source/Dest styling */
+.bridge-source {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem;
+  border-radius: 10px;
+}
+
+.bridge-dest {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem;
+  border-radius: 10px;
+}
+
+.bridge-dest.bridge-private {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(234, 88, 12, 0.04) 100%);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+.bridge-dest .side-tag.shielded {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.chain-wallet-status {
+  margin-top: 0.75rem;
+}
+
+/* Swap chains button */
+.swap-chains-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.swap-chains-btn:hover:not(:disabled) {
+  border-color: #444;
+  color: var(--text);
+  transform: rotate(180deg);
+}
+
+.swap-chains-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Wallet hints */
+.wallet-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
+.wallet-hint {
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wallet-hint::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.wallet-hint.evm::before {
+  background: #818cf8;
+}
+
+.wallet-hint.starknet::before {
+  background: #fb923c;
+}
+
+/* Loading spinner */
+.loading-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

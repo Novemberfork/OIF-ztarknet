@@ -21,7 +21,6 @@ import {
   encodeOrderData,
   evmAddressToBytes32,
   feltToBytes32,
-  type OrderData,
 } from '@/utils/orderEncoding'
 
 // Log the hash for debugging

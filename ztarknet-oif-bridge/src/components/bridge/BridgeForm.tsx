@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useAccount as useEvmAccount, useChainId, useReadContract } from 'wagmi'
+import { useAccount as useEvmAccount, useChainId, useReadContract, useSwitchChain } from 'wagmi'
 import { useAccount as useStarknetAccount } from '@starknet-react/core'
-import { mainnet, sepolia, arbitrum, arbitrumSepolia } from 'wagmi/chains'
 import { parseEther, formatUnits, type Address, erc20Abi } from 'viem'
 
 import { useHyperlane7683 } from '@/hooks/useHyperlane7683'
@@ -9,37 +8,68 @@ import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useOrderStatus } from '@/hooks/useOrderStatus'
 import { useBridgeStore } from '@/store'
 import { TransferStatus } from '@/types/transfers'
-import { EVM_CONTRACTS, CHAIN_IDS, HYPERLANE_DOMAINS, contracts, DOG_COIN_ADDRESSES } from '@/config/contracts'
+import {
+  EVM_CONTRACTS,
+  contracts,
+  BRIDGE_CHAINS,
+  getHyperlaneDomain,
+  getTokenAddressForChain,
+} from '@/config/contracts'
 import { TransactionStatus } from './TransactionStatus'
+import { ChainSelector, type ChainOption } from './ChainSelector'
 
-const chains = [mainnet, sepolia, arbitrum, arbitrumSepolia]
-
-// Get the correct DOG coin address for the current chain
-function getDogCoinForChain(chainId: number): Address {
-  switch (chainId) {
-    case CHAIN_IDS.ethereumSepolia: return DOG_COIN_ADDRESSES.ethereumSepolia
-    case CHAIN_IDS.optimismSepolia: return DOG_COIN_ADDRESSES.optimismSepolia
-    case CHAIN_IDS.arbitrumSepolia: return DOG_COIN_ADDRESSES.arbitrumSepolia
-    case CHAIN_IDS.baseSepolia: return DOG_COIN_ADDRESSES.baseSepolia
-    default: return DOG_COIN_ADDRESSES.ethereumSepolia
-  }
-}
+// Convert BridgeChain to ChainOption for the selector
+const chainOptions: ChainOption[] = BRIDGE_CHAINS.map(chain => ({
+  id: chain.id,
+  name: chain.name,
+  chainId: chain.chainId,
+  type: chain.type,
+  isPrivate: chain.isPrivate,
+}))
 
 export function BridgeForm() {
   const { address: evmAddress, isConnected: evmConnected } = useEvmAccount()
   const { address: starknetAddress, isConnected: starknetConnected } = useStarknetAccount()
-  const chainId = useChainId()
+  const evmChainId = useChainId()
+  const { switchChain } = useSwitchChain()
+
+  const [sourceChain, setSourceChain] = useState<ChainOption | null>(null)
+  const [destChain, setDestChain] = useState<ChainOption | null>(null)
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
 
-  const dogTokenAddress = useMemo(() => getDogCoinForChain(chainId), [chainId])
+  // Determine which wallet is needed for source/destination
+  const sourceWalletType = sourceChain?.type
+  const destWalletType = destChain?.type
 
-  const { data: dogBalance } = useReadContract({
-    address: dogTokenAddress,
+  // Check if the correct wallet is connected for each chain
+  const isSourceWalletConnected = sourceWalletType === 'evm' ? evmConnected : starknetConnected
+  const isDestWalletConnected = destWalletType === 'evm' ? evmConnected : starknetConnected
+
+  // Get the sender address based on source chain type
+  const senderAddress = sourceWalletType === 'evm' ? evmAddress : starknetAddress
+
+  // Get token address for source chain
+  const sourceTokenAddress = useMemo(() => {
+    if (!sourceChain) return undefined
+    return getTokenAddressForChain(sourceChain.chainId)
+  }, [sourceChain])
+
+  // Get token address for destination chain
+  const destTokenAddress = useMemo(() => {
+    if (!destChain) return undefined
+    return getTokenAddressForChain(destChain.chainId)
+  }, [destChain])
+
+  // Read balance for EVM source chains
+  const { data: evmBalance } = useReadContract({
+    address: sourceTokenAddress as Address,
     abi: erc20Abi,
     functionName: 'balanceOf',
     args: evmAddress ? [evmAddress] : undefined,
-    query: { enabled: !!evmAddress },
+    query: {
+      enabled: !!evmAddress && sourceWalletType === 'evm' && !!sourceTokenAddress,
+    },
   })
 
   const { openOrder } = useHyperlane7683()
@@ -60,16 +90,26 @@ export function BridgeForm() {
     resetCurrentTransfer,
   } = useBridgeStore()
 
-  const currentChain = chains.find(c => c.id === chainId)
-  const formattedBalance = dogBalance ? formatUnits(dogBalance, 18) : '0'
+  const formattedBalance = evmBalance ? formatUnits(evmBalance, 18) : '0'
   const displayBalance = Number(formattedBalance).toFixed(4)
 
-  // Auto-fill recipient when starknet wallet connects
+  // Auto-switch EVM network when source chain changes
   useEffect(() => {
-    if (starknetAddress && !recipient) {
-      setRecipient(starknetAddress)
+    if (sourceChain?.type === 'evm' && evmConnected && evmChainId !== sourceChain.chainId) {
+      switchChain({ chainId: sourceChain.chainId })
     }
-  }, [starknetAddress, recipient])
+  }, [sourceChain, evmConnected, evmChainId, switchChain])
+
+  // Auto-fill recipient when destination wallet connects
+  useEffect(() => {
+    if (!recipient) {
+      if (destWalletType === 'starknet' && starknetAddress) {
+        setRecipient(starknetAddress)
+      } else if (destWalletType === 'evm' && evmAddress) {
+        setRecipient(evmAddress)
+      }
+    }
+  }, [destWalletType, starknetAddress, evmAddress, recipient])
 
   // Update transfer status when order status changes
   useEffect(() => {
@@ -80,8 +120,40 @@ export function BridgeForm() {
     }
   }, [orderStatus, currentTransfer, updateTransferStatus])
 
+  const handleSourceChainSelect = (chain: ChainOption) => {
+    setSourceChain(chain)
+    // Clear recipient if switching chain types
+    if (chain.type !== sourceChain?.type) {
+      setRecipient('')
+    }
+  }
+
+  const handleDestChainSelect = (chain: ChainOption) => {
+    setDestChain(chain)
+    // Auto-fill recipient based on new destination type
+    setRecipient('')
+    if (chain.type === 'starknet' && starknetAddress) {
+      setRecipient(starknetAddress)
+    } else if (chain.type === 'evm' && evmAddress) {
+      setRecipient(evmAddress)
+    }
+  }
+
+  const handleSwapChains = () => {
+    const temp = sourceChain
+    setSourceChain(destChain)
+    setDestChain(temp)
+    setRecipient('')
+  }
+
   const handleBridge = useCallback(async () => {
-    if (!evmAddress || !starknetAddress || !amount || parseFloat(amount) <= 0) {
+    if (!sourceChain || !destChain || !senderAddress || !amount || parseFloat(amount) <= 0) {
+      return
+    }
+
+    // Validate source wallet connection
+    if (!isSourceWalletConnected) {
+      console.error('Source wallet not connected')
       return
     }
 
@@ -92,27 +164,34 @@ export function BridgeForm() {
 
       // Initialize transfer in store
       initTransfer({
-        originChain: currentChain?.name || 'Sepolia',
-        originChainId: chainId,
-        destinationChain: 'Ztarknet',
-        destinationChainId: CHAIN_IDS.ztarknet,
-        originToken: dogTokenAddress, // DOG coin
-        destinationToken: contracts['ztarknet'].erc20,
+        originChain: sourceChain.name,
+        originChainId: sourceChain.chainId,
+        destinationChain: destChain.name,
+        destinationChainId: destChain.chainId,
+        originToken: (sourceTokenAddress || '0x') as `0x${string}`,
+        destinationToken: destTokenAddress || '',
         amount,
         amountRaw: amountWei.toString(),
-        sender: evmAddress,
+        sender: (senderAddress || '0x') as `0x${string}`,
         recipient,
       })
 
       updateTransferStatus(TransferStatus.Preparing)
 
-      const tokenAddress = dogTokenAddress
-      const spenderAddress = EVM_CONTRACTS.hyperlane7683
+      // Get domain IDs
+      const originDomain = getHyperlaneDomain(sourceChain.chainId)
+      const destinationDomain = getHyperlaneDomain(destChain.chainId)
 
-      // For DOG coin transfers, we need approval
-      const isNativeETH = false // Using DOG coin, not native ETH
+      if (!originDomain || !destinationDomain) {
+        throw new Error('Invalid chain configuration')
+      }
 
-      if (!isNativeETH) {
+      // Handle EVM source chain
+      if (sourceChain.type === 'evm') {
+        const tokenAddress = sourceTokenAddress as Address
+        const spenderAddress = EVM_CONTRACTS.hyperlane7683
+
+        // Check and approve token if needed
         updateTransferStatus(TransferStatus.CheckingApproval)
         const needsApprove = await checkAllowance(tokenAddress, spenderAddress, amountWei)
 
@@ -123,40 +202,39 @@ export function BridgeForm() {
             approvalTxHash: approvalTx,
           })
 
-          // Re-verify approval is sufficient before proceeding
+          // Re-verify approval
           const stillNeedsApprove = await checkAllowance(tokenAddress, spenderAddress, amountWei)
           if (stillNeedsApprove) {
             throw new Error('Token approval failed or was insufficient')
           }
         }
+
+        // Submit bridge transaction
+        updateTransferStatus(TransferStatus.WaitingBridgeSignature)
+
+        const result = await openOrder({
+          senderAddress: evmAddress!,
+          recipientAddress: recipient,
+          inputToken: tokenAddress,
+          outputToken: destTokenAddress || contracts['ztarknet'].erc20,
+          amountIn: amountWei,
+          amountOut: amountWei, // 1:1 for now
+          originDomain,
+          destinationDomain,
+        })
+
+        updateTransferStatus(TransferStatus.BridgeConfirming, {
+          originTxHash: result.txHash,
+          orderId: result.orderId,
+        })
+
+        // Start polling for fulfillment
+        updateTransferStatus(TransferStatus.WaitingForFulfillment)
+        startPolling(result.orderId)
+      } else {
+        // Handle Starknet source chain (future implementation)
+        throw new Error('Starknet as source chain is not yet supported')
       }
-
-      // Now submit the bridge transaction
-      updateTransferStatus(TransferStatus.WaitingBridgeSignature)
-
-      // Get origin domain (Sepolia = 11155111)
-      const originDomain = HYPERLANE_DOMAINS.ethereumSepolia
-      const destinationDomain = HYPERLANE_DOMAINS.ztarknet
-
-      const result = await openOrder({
-        senderAddress: evmAddress,
-        recipientAddress: recipient,
-        inputToken: tokenAddress, // DOG coin
-        outputToken: contracts['ztarknet'].erc20,
-        amountIn: amountWei,
-        amountOut: amountWei, // 1:1 for now
-        originDomain,
-        destinationDomain,
-      })
-
-      updateTransferStatus(TransferStatus.BridgeConfirming, {
-        originTxHash: result.txHash,
-        orderId: result.orderId,
-      })
-
-      // Start polling for fulfillment
-      updateTransferStatus(TransferStatus.WaitingForFulfillment)
-      startPolling(result.orderId)
 
     } catch (error) {
       console.error('Bridge failed:', error)
@@ -167,13 +245,15 @@ export function BridgeForm() {
       setTransferLoading(false)
     }
   }, [
-    evmAddress,
-    starknetAddress,
+    sourceChain,
+    destChain,
+    senderAddress,
     amount,
-    chainId,
-    currentChain,
     recipient,
-    dogTokenAddress,
+    sourceTokenAddress,
+    destTokenAddress,
+    isSourceWalletConnected,
+    evmAddress,
     initTransfer,
     updateTransferStatus,
     setTransferLoading,
@@ -184,14 +264,16 @@ export function BridgeForm() {
   ])
 
   const handleMax = () => {
-    if (dogBalance) {
-      setAmount(formatUnits(dogBalance, 18))
+    if (evmBalance && sourceWalletType === 'evm') {
+      setAmount(formatUnits(evmBalance, 18))
     }
   }
 
   const handleSelf = () => {
-    if (starknetAddress) {
+    if (destWalletType === 'starknet' && starknetAddress) {
       setRecipient(starknetAddress)
+    } else if (destWalletType === 'evm' && evmAddress) {
+      setRecipient(evmAddress)
     }
   }
 
@@ -200,9 +282,19 @@ export function BridgeForm() {
     setAmount('')
   }
 
-  const isValidRecipient = recipient.startsWith('0x') && recipient.length === 66
-  const bothWalletsConnected = evmConnected && starknetConnected
-  const canBridge = bothWalletsConnected &&
+  // Validate recipient address based on destination chain type
+  const isValidRecipient = useMemo(() => {
+    if (!recipient || !destChain) return false
+    if (destChain.type === 'starknet') {
+      return recipient.startsWith('0x') && recipient.length === 66
+    }
+    // EVM address validation
+    return recipient.startsWith('0x') && recipient.length === 42
+  }, [recipient, destChain])
+
+  const canBridge = sourceChain &&
+                    destChain &&
+                    isSourceWalletConnected &&
                     amount &&
                     parseFloat(amount) > 0 &&
                     isValidRecipient &&
@@ -229,84 +321,101 @@ export function BridgeForm() {
     )
   }
 
-  if (!evmConnected && !starknetConnected) {
-    return (
-      <div className="bridge-form">
-        <div className="bridge-empty">
-          <div className="lock-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          </div>
-          <p>Connect both wallets to bridge</p>
-          <p className="hint">EVM wallet for source, Ztarknet for destination</p>
-        </div>
-      </div>
-    )
-  }
+  // Determine what wallet connections are needed
+  const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
+  const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
 
   return (
     <div className="bridge-form">
-      {/* Source - EVM/Public */}
-      <div className={`bridge-side bridge-public ${!evmConnected ? 'disconnected' : ''}`}>
-        <div className="side-header">
-          <span className="side-label">From</span>
-          <span className="side-tag exposed">Public</span>
-        </div>
-        <div className="side-chain">{currentChain?.name || 'EVM'}</div>
-        {evmConnected && evmAddress ? (
-          <div className="address-preview">
-            <span className="address-full">{evmAddress}</span>
+      {/* Source Chain Selection */}
+      <div className={`bridge-side bridge-source ${!isSourceWalletConnected && sourceChain ? 'disconnected' : ''}`}>
+        <ChainSelector
+          label="From"
+          selectedChain={sourceChain}
+          chains={chainOptions}
+          onSelect={handleSourceChainSelect}
+          excludeChainId={destChain?.chainId}
+        />
+        {sourceChain && (
+          <div className="chain-wallet-status">
+            {isSourceWalletConnected ? (
+              <div className="address-preview">
+                <span className="address-full">{senderAddress}</span>
+              </div>
+            ) : (
+              <div className="connect-prompt">
+                Connect {sourceChain.type === 'evm' ? 'EVM' : 'Starknet'} wallet above
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="connect-prompt">Connect EVM wallet ↑</div>
         )}
       </div>
 
-      {/* Transition Arrow */}
+      {/* Swap Button */}
       <div className="bridge-transition">
         <div className="transition-line"></div>
-        <div className="transition-icon">
+        <button
+          className="swap-chains-btn"
+          onClick={handleSwapChains}
+          disabled={!sourceChain && !destChain}
+          title="Swap chains"
+          type="button"
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2L12 22M12 22L6 16M12 22L18 16"/>
+            <path d="M7 16V4M7 4L3 8M7 4L11 8"/>
+            <path d="M17 8V20M17 20L21 16M17 20L13 16"/>
           </svg>
-        </div>
+        </button>
         <div className="transition-line"></div>
       </div>
 
-      {/* Destination - Ztarknet/Private */}
-      <div className={`bridge-side bridge-private ${!starknetConnected ? 'disconnected' : ''}`}>
-        <div className="side-header">
-          <span className="side-label">To</span>
-          <span className="side-tag shielded">Private</span>
-        </div>
-        <div className="side-chain">Ztarknet</div>
-        <div className="recipient-row">
-          <input
-            type="text"
-            className="recipient-input"
-            placeholder="0x... (Starknet address)"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-          />
-          {starknetConnected && (
-            <button
-              className="self-btn"
-              onClick={handleSelf}
-              title="Use connected wallet address"
-            >
-              Self
-            </button>
-          )}
-        </div>
+      {/* Destination Chain Selection */}
+      <div className={`bridge-side bridge-dest ${destChain?.isPrivate ? 'bridge-private' : ''}`}>
+        <ChainSelector
+          label="To"
+          selectedChain={destChain}
+          chains={chainOptions}
+          onSelect={handleDestChainSelect}
+          excludeChainId={sourceChain?.chainId}
+        />
+        {destChain && (
+          <>
+            {destChain.isPrivate && (
+              <span className="side-tag shielded">Private</span>
+            )}
+            <div className="recipient-row">
+              <input
+                type="text"
+                className="recipient-input"
+                placeholder={destChain.type === 'starknet' ? '0x... (Starknet address)' : '0x... (EVM address)'}
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+              />
+              {isDestWalletConnected && (
+                <button
+                  className="self-btn"
+                  onClick={handleSelf}
+                  title="Use connected wallet address"
+                  type="button"
+                >
+                  Self
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Amount Input */}
       <div className="amount-section">
         <div className="amount-header">
-          <span>Amount to shield</span>
-          <button className="max-btn" onClick={handleMax} disabled={!evmConnected}>
+          <span>Amount to bridge</span>
+          <button
+            className="max-btn"
+            onClick={handleMax}
+            disabled={!isSourceWalletConnected || sourceWalletType !== 'evm'}
+            type="button"
+          >
             MAX
           </button>
         </div>
@@ -317,46 +426,61 @@ export function BridgeForm() {
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.0"
             className="amount-input"
-            disabled={!evmConnected || isTransferLoading}
+            disabled={!sourceChain || isTransferLoading}
           />
           <span className="token-label">DOG</span>
         </div>
-        {evmConnected && (
+        {isSourceWalletConnected && sourceWalletType === 'evm' && (
           <div className="balance-row">
             <span>Available: {displayBalance} DOG</span>
           </div>
         )}
       </div>
 
+      {/* Wallet Connection Hints */}
+      {(sourceChain || destChain) && (!evmConnected && needsEvmWallet || !starknetConnected && needsStarknetWallet) && (
+        <div className="wallet-hints">
+          {!evmConnected && needsEvmWallet && (
+            <div className="wallet-hint evm">Connect EVM wallet</div>
+          )}
+          {!starknetConnected && needsStarknetWallet && (
+            <div className="wallet-hint starknet">Connect Starknet wallet</div>
+          )}
+        </div>
+      )}
+
       <button
         className="btn btn-primary bridge-btn"
         onClick={handleBridge}
         disabled={!canBridge}
+        type="button"
       >
         {isTransferLoading ? (
           <span className="loading-text">
             <span className="spinner"></span>
             Processing...
           </span>
-        ) : !evmConnected ? (
-          'Connect EVM Wallet'
-        ) : !starknetConnected ? (
-          'Connect Ztarknet Wallet'
+        ) : !sourceChain || !destChain ? (
+          'Select Chains'
+        ) : !isSourceWalletConnected ? (
+          `Connect ${sourceChain.type === 'evm' ? 'EVM' : 'Starknet'} Wallet`
         ) : isApproving ? (
           'Approving...'
         ) : needsApproval ? (
-          'Approve & Shield'
+          'Approve & Bridge'
         ) : (
-          'Shield Assets'
+          'Bridge'
         )}
       </button>
 
-      <div className="privacy-note">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        <span>Your assets will be private on Ztarknet</span>
-      </div>
+      {destChain?.isPrivate && (
+        <div className="privacy-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span>Your assets will be private on {destChain.name}</span>
+        </div>
+      )}
     </div>
   )
 }

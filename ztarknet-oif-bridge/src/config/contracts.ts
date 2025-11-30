@@ -27,6 +27,57 @@ export const HYPERLANE_DOMAINS = {
   ztarknet: 10066329,
 } as const
 
+// Chain type definitions for UI
+export type ChainType = 'evm' | 'starknet'
+
+export interface BridgeChain {
+  id: string
+  name: string
+  chainId: number
+  type: ChainType
+  isPrivate?: boolean
+}
+
+// All supported chains for bridging
+export const BRIDGE_CHAINS: BridgeChain[] = [
+  { id: 'ethereum-sepolia', name: 'Ethereum Sepolia', chainId: CHAIN_IDS.ethereumSepolia, type: 'evm' },
+  { id: 'optimism-sepolia', name: 'Optimism Sepolia', chainId: CHAIN_IDS.optimismSepolia, type: 'evm' },
+  { id: 'arbitrum-sepolia', name: 'Arbitrum Sepolia', chainId: CHAIN_IDS.arbitrumSepolia, type: 'evm' },
+  { id: 'base-sepolia', name: 'Base Sepolia', chainId: CHAIN_IDS.baseSepolia, type: 'evm' },
+  { id: 'starknet-sepolia', name: 'Starknet Sepolia', chainId: CHAIN_IDS.starknetSepolia, type: 'starknet' },
+  { id: 'ztarknet', name: 'Ztarknet', chainId: CHAIN_IDS.ztarknet, type: 'starknet', isPrivate: true },
+]
+
+// Helper to get chain by ID
+export function getBridgeChainById(id: string): BridgeChain | undefined {
+  return BRIDGE_CHAINS.find(c => c.id === id)
+}
+
+// Helper to get chain by chainId
+export function getBridgeChainByChainId(chainId: number): BridgeChain | undefined {
+  return BRIDGE_CHAINS.find(c => c.chainId === chainId)
+}
+
+// Get Hyperlane domain for a chain
+export function getHyperlaneDomain(chainId: number): number | undefined {
+  const entry = Object.entries(CHAIN_IDS).find(([, id]) => id === chainId)
+  if (!entry) return undefined
+  return HYPERLANE_DOMAINS[entry[0] as keyof typeof HYPERLANE_DOMAINS]
+}
+
+// Get token address for a chain
+export function getTokenAddressForChain(chainId: number): string | undefined {
+  switch (chainId) {
+    case CHAIN_IDS.ethereumSepolia: return DOG_COIN_ADDRESSES.ethereumSepolia
+    case CHAIN_IDS.optimismSepolia: return DOG_COIN_ADDRESSES.optimismSepolia
+    case CHAIN_IDS.arbitrumSepolia: return DOG_COIN_ADDRESSES.arbitrumSepolia
+    case CHAIN_IDS.baseSepolia: return DOG_COIN_ADDRESSES.baseSepolia
+    case CHAIN_IDS.starknetSepolia: return DOG_COIN_ADDRESSES.starknetSepolia
+    case CHAIN_IDS.ztarknet: return DOG_COIN_ADDRESSES.ztarknet
+    default: return undefined
+  }
+}
+
 // EVM contract addresses (shared across Sepolia chains)
 export const EVM_CONTRACTS = {
   hyperlane7683: '0xf614c6bF94b022E16BEF7dBecF7614FFD2b201d3' as Address,
