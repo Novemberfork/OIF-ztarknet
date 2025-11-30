@@ -32,10 +32,8 @@ export function BridgeForm() {
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
 
-  // Get DOG token address for current chain
   const dogTokenAddress = useMemo(() => getDogCoinForChain(chainId), [chainId])
 
-  // Fetch DOG token balance
   const { data: dogBalance } = useReadContract({
     address: dogTokenAddress,
     abi: erc20Abi,
@@ -44,7 +42,6 @@ export function BridgeForm() {
     query: { enabled: !!evmAddress },
   })
 
-  // Hooks
   const { openOrder } = useHyperlane7683()
   const {
     checkAllowance,
@@ -54,7 +51,6 @@ export function BridgeForm() {
   } = useTokenApproval()
   const { startPolling, status: orderStatus } = useOrderStatus()
 
-  // Store
   const {
     currentTransfer,
     isTransferLoading,
