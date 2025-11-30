@@ -1,6 +1,5 @@
 import './App.css'
 import { WalletButton } from './components/wallet/WalletButton'
-import { NetworkSwitcher } from './components/wallet/NetworkSwitcher'
 import { BridgeForm } from './components/bridge/BridgeForm'
 
 function App() {
@@ -8,10 +7,7 @@ function App() {
     <div className="app">
       <header className="app-header">
         <h1>zStarknet Bridge</h1>
-        <div className="header-actions">
-          <NetworkSwitcher />
-          <WalletButton />
-        </div>
+        <WalletButton />
       </header>
 
       <main className="app-main">
