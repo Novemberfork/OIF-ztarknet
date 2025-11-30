@@ -18,7 +18,8 @@
     "react-dom": "^18.3.1",
     "starknet": "^8.9.1",
     "viem": "^2.40.3",
-    "wagmi": "^3.0.2"
+    "wagmi": "^3.0.2",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

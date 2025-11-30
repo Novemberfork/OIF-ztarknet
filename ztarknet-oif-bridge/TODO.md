@@ -78,7 +78,7 @@ None currently
 
 ### TODOs in Code
 Search for `TODO:` comments in the codebase:
-- `src/main.tsx`: Update zStarknet chain ID
+- `src/main.tsx`: Update ztarknet chain ID
 - `src/config/contracts.ts`: Fill in deployed contract addresses
 - Contract ABIs need to be extracted from Cairo deployments
 

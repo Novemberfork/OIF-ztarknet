@@ -6,7 +6,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>zStarknet Bridge</h1>
+        <h1>Ztarknet Bridge</h1>
         <WalletButton />
       </header>
 
@@ -16,9 +16,6 @@ function App() {
         </div>
       </main>
 
-      <footer className="app-footer">
-        <p>Powered by Hyperlane</p>
-      </footer>
     </div>
   )
 }

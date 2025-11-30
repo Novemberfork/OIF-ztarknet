@@ -25,11 +25,11 @@ export const chains: Record<string, ChainConfig> = {
     isTestnet: true,
   },
   zstarknet: {
-    id: 'zstarknet',
-    name: 'zStarknet Testnet',
-    chainId: BigInt('0x1'), // TODO: Update with actual zStarknet chain ID
-    rpcUrl: 'http://188.34.188.124:6060',
-    explorer: '', // No explorer yet
+    id: 'ztarknet',
+    name: 'Ztarknet Testnet',
+    chainId: BigInt(10066329), // 0x999999 - Ztarknet chain ID
+    rpcUrl: 'https://ztarknet-madara.d.karnot.xyz',
+    explorer: 'https://explorer-zstarknet.d.karnot.xyz/',
     nativeToken: {
       symbol: 'ETH',
       decimals: 18,
@@ -41,7 +41,7 @@ export const chains: Record<string, ChainConfig> = {
     name: 'Starknet',
     chainId: BigInt('0x534e5f4d41494e'), // SN_MAIN
     rpcUrl: 'https://starknet-mainnet.public.blastapi.io',
-    explorer: 'https://starkscan.co',
+    explorer: 'https://voyager.online/',
     nativeToken: {
       symbol: 'ETH',
       decimals: 18,

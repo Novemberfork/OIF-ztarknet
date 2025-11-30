@@ -51,7 +51,7 @@ export function WalletButton() {
           </div>
         ) : (
           <button className="btn btn-primary" onClick={() => openModal('starknet')}>
-            Connect zStarknet
+            Connect Ztarknet
           </button>
         )}
       </div>
@@ -60,7 +60,7 @@ export function WalletButton() {
         <div className="wallet-select-overlay" onClick={closeModal}>
           <div className="wallet-select" onClick={(e) => e.stopPropagation()}>
             <h3>
-              {walletType === 'evm' ? 'Connect EVM Wallet' : 'Connect zStarknet Wallet'}
+              {walletType === 'evm' ? 'Connect EVM Wallet' : 'Connect Ztarknet Wallet'}
             </h3>
             <div className="wallet-list">
               {walletType === 'evm' ? (
