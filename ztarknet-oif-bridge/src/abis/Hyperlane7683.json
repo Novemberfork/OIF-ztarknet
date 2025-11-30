@@ -208,6 +208,33 @@
     "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "isValidNonce",
+    "inputs": [
+      { "name": "_from", "type": "address", "internalType": "address" },
+      { "name": "_nonce", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "usedNonces",
+    "inputs": [
+      { "name": "", "type": "address", "internalType": "address" },
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "invalidateNonces",
+    "inputs": [{ "name": "_nonce", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "event",
     "name": "Open",
     "inputs": [
@@ -289,6 +316,15 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "NonceInvalidation",
+    "inputs": [
+      { "name": "owner", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "nonce", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "InvalidOrderStatus",
     "inputs": []
@@ -301,6 +337,11 @@
   {
     "type": "error",
     "name": "OrderFillExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidNonce",
     "inputs": []
   }
 ]

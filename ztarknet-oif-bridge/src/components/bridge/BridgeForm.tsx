@@ -122,6 +122,12 @@ export function BridgeForm() {
           updateTransferStatus(TransferStatus.ApprovalConfirming, {
             approvalTxHash: approvalTx,
           })
+
+          // Re-verify approval is sufficient before proceeding
+          const stillNeedsApprove = await checkAllowance(tokenAddress, spenderAddress, amountWei)
+          if (stillNeedsApprove) {
+            throw new Error('Token approval failed or was insufficient')
+          }
         }
       }
 

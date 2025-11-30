@@ -181,8 +181,54 @@ export function useHyperlane7683() {
 
     const hyperlaneAddress = EVM_CONTRACTS.hyperlane7683
 
+    // Get the local domain from the contract (not hardcoded)
+    // This ensures the orderData.originDomain matches what the contract expects
+    const localDomain = await getLocalDomain()
+    console.log('Contract localDomain:', localDomain, 'Passed originDomain:', params.originDomain)
+
     // Get a valid nonce
     const senderNonce = await findValidNonce(address)
+    console.log('Using senderNonce:', senderNonce.toString())
+
+    // Debug: Check token allowance
+    const allowance = await publicClient.readContract({
+      address: params.inputToken,
+      abi: [{
+        type: 'function',
+        name: 'allowance',
+        inputs: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' }
+        ],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view'
+      }],
+      functionName: 'allowance',
+      args: [address, hyperlaneAddress],
+    })
+    console.log('Token allowance:', allowance.toString(), 'Required:', params.amountIn.toString())
+
+    // Debug: Check token balance
+    const balance = await publicClient.readContract({
+      address: params.inputToken,
+      abi: [{
+        type: 'function',
+        name: 'balanceOf',
+        inputs: [{ name: 'account', type: 'address' }],
+        outputs: [{ name: '', type: 'uint256' }],
+        stateMutability: 'view'
+      }],
+      functionName: 'balanceOf',
+      args: [address],
+    })
+    console.log('Token balance:', balance.toString(), 'Required:', params.amountIn.toString())
+
+    if (balance < params.amountIn) {
+      throw new Error(`Insufficient token balance. Have: ${balance}, Need: ${params.amountIn}`)
+    }
+    if (allowance < params.amountIn) {
+      throw new Error(`Insufficient token allowance. Have: ${allowance}, Need: ${params.amountIn}`)
+    }
 
     // Calculate fill deadline (default 1 hour from now)
     const fillDeadline = Math.floor(Date.now() / 1000) + (params.fillDeadlineSeconds ?? 3600)
@@ -191,6 +237,7 @@ export function useHyperlane7683() {
     const destinationSettler = feltToBytes32(contracts['ztarknet'].hyperlane7683)
 
     // Encode order data matching solver format
+    // IMPORTANT: Use localDomain from contract, not params.originDomain
     const orderData = encodeOrderData({
       sender: evmAddressToBytes32(params.senderAddress),
       recipient: feltToBytes32(params.recipientAddress),
@@ -199,7 +246,7 @@ export function useHyperlane7683() {
       amountIn: params.amountIn,
       amountOut: params.amountOut,
       senderNonce,
-      originDomain: params.originDomain,
+      originDomain: localDomain, // Use contract's localDomain
       destinationDomain: params.destinationDomain,
       destinationSettler,
       fillDeadline,
@@ -251,7 +298,7 @@ export function useHyperlane7683() {
       txHash,
       orderId,
     }
-  }, [walletClient, publicClient, address, findValidNonce, encodeOrderData])
+  }, [walletClient, publicClient, address, findValidNonce, encodeOrderData, getLocalDomain])
 
   /**
    * Get the status of an order
