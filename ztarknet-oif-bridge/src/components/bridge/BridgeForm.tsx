@@ -1,18 +1,29 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useAccount as useEvmAccount, useBalance as useEvmBalance, useChainId } from 'wagmi'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useAccount as useEvmAccount, useChainId, useReadContract } from 'wagmi'
 import { useAccount as useStarknetAccount } from '@starknet-react/core'
 import { mainnet, sepolia, arbitrum, arbitrumSepolia } from 'wagmi/chains'
-import { parseEther, type Address } from 'viem'
+import { parseEther, formatUnits, type Address, erc20Abi } from 'viem'
 
 import { useHyperlane7683 } from '@/hooks/useHyperlane7683'
 import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useOrderStatus } from '@/hooks/useOrderStatus'
 import { useBridgeStore } from '@/store'
 import { TransferStatus } from '@/types/transfers'
-import { EVM_CONTRACTS, CHAIN_IDS, HYPERLANE_DOMAINS, contracts } from '@/config/contracts'
+import { EVM_CONTRACTS, CHAIN_IDS, HYPERLANE_DOMAINS, contracts, DOG_COIN_ADDRESSES } from '@/config/contracts'
 import { TransactionStatus } from './TransactionStatus'
 
 const chains = [mainnet, sepolia, arbitrum, arbitrumSepolia]
+
+// Get the correct DOG coin address for the current chain
+function getDogCoinForChain(chainId: number): Address {
+  switch (chainId) {
+    case CHAIN_IDS.ethereumSepolia: return DOG_COIN_ADDRESSES.ethereumSepolia
+    case CHAIN_IDS.optimismSepolia: return DOG_COIN_ADDRESSES.optimismSepolia
+    case CHAIN_IDS.arbitrumSepolia: return DOG_COIN_ADDRESSES.arbitrumSepolia
+    case CHAIN_IDS.baseSepolia: return DOG_COIN_ADDRESSES.baseSepolia
+    default: return DOG_COIN_ADDRESSES.ethereumSepolia
+  }
+}
 
 export function BridgeForm() {
   const { address: evmAddress, isConnected: evmConnected } = useEvmAccount()
@@ -21,7 +32,17 @@ export function BridgeForm() {
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
 
-  const { data: balance } = useEvmBalance({ address: evmAddress })
+  // Get DOG token address for current chain
+  const dogTokenAddress = useMemo(() => getDogCoinForChain(chainId), [chainId])
+
+  // Fetch DOG token balance
+  const { data: dogBalance } = useReadContract({
+    address: dogTokenAddress,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: evmAddress ? [evmAddress] : undefined,
+    query: { enabled: !!evmAddress },
+  })
 
   // Hooks
   const { openOrder } = useHyperlane7683()
@@ -44,7 +65,8 @@ export function BridgeForm() {
   } = useBridgeStore()
 
   const currentChain = chains.find(c => c.id === chainId)
-  const formattedBalance = balance ? (Number(balance.value) / 10 ** balance.decimals).toFixed(4) : '0'
+  const formattedBalance = dogBalance ? formatUnits(dogBalance, 18) : '0'
+  const displayBalance = Number(formattedBalance).toFixed(4)
 
   // Auto-fill recipient when starknet wallet connects
   useEffect(() => {
@@ -78,7 +100,7 @@ export function BridgeForm() {
         originChainId: chainId,
         destinationChain: 'Ztarknet',
         destinationChainId: CHAIN_IDS.ztarknet,
-        originToken: '0x0000000000000000000000000000000000000000' as Address, // ETH
+        originToken: dogTokenAddress, // DOG coin
         destinationToken: contracts['ztarknet'].erc20,
         amount,
         amountRaw: amountWei.toString(),
@@ -88,13 +110,11 @@ export function BridgeForm() {
 
       updateTransferStatus(TransferStatus.Preparing)
 
-      // For ETH transfers, we might not need approval
-      // But for ERC20 tokens, check and approve if needed
-      const tokenAddress = EVM_CONTRACTS.testToken
+      const tokenAddress = dogTokenAddress
       const spenderAddress = EVM_CONTRACTS.hyperlane7683
 
-      // Skip approval check for native ETH
-      const isNativeETH = tokenAddress === '0x...' // Placeholder check
+      // For DOG coin transfers, we need approval
+      const isNativeETH = false // Using DOG coin, not native ETH
 
       if (!isNativeETH) {
         updateTransferStatus(TransferStatus.CheckingApproval)
@@ -119,7 +139,7 @@ export function BridgeForm() {
       const result = await openOrder({
         senderAddress: evmAddress,
         recipientAddress: recipient,
-        inputToken: '0x0000000000000000000000000000000000000000' as Address, // Native ETH
+        inputToken: tokenAddress, // DOG coin
         outputToken: contracts['ztarknet'].erc20,
         amountIn: amountWei,
         amountOut: amountWei, // 1:1 for now
@@ -151,6 +171,7 @@ export function BridgeForm() {
     chainId,
     currentChain,
     recipient,
+    dogTokenAddress,
     initTransfer,
     updateTransferStatus,
     setTransferLoading,
@@ -161,8 +182,8 @@ export function BridgeForm() {
   ])
 
   const handleMax = () => {
-    if (balance) {
-      setAmount((Number(balance.value) / 10 ** balance.decimals).toString())
+    if (dogBalance) {
+      setAmount(formatUnits(dogBalance, 18))
     }
   }
 
@@ -296,11 +317,11 @@ export function BridgeForm() {
             className="amount-input"
             disabled={!evmConnected || isTransferLoading}
           />
-          <span className="token-label">ETH</span>
+          <span className="token-label">DOG</span>
         </div>
         {evmConnected && (
           <div className="balance-row">
-            <span>Available: {formattedBalance} {balance?.symbol || 'ETH'}</span>
+            <span>Available: {displayBalance} DOG</span>
           </div>
         )}
       </div>
