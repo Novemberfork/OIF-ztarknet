@@ -4,173 +4,239 @@
   flex-direction: column;
 }
 
+/* Header */
 .app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 2rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .app-header h1 {
-  font-size: 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
   margin: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  letter-spacing: -0.02em;
 }
 
 .header-actions {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: center;
 }
 
+/* Main Content */
 .app-main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 2rem;
-  max-width: 600px;
-  margin: 0 auto;
+}
+
+.bridge-card {
   width: 100%;
+  max-width: 400px;
 }
 
 .placeholder {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 3rem 2rem;
+  padding: 4rem 2rem;
   text-align: center;
-  margin-top: 2rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
 }
 
 .placeholder p {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   margin: 0;
+  font-size: 0.875rem;
 }
 
-/* Wallet Components */
+/* Buttons */
+.btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover {
+  background: var(--bg-elevated);
+  border-color: #333;
+}
+
+.btn-primary {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.btn-primary:hover {
+  background: #e0e0e0;
+  border-color: #e0e0e0;
+}
+
+/* Wallet Connected State */
 .wallet-connected {
   display: flex;
-  gap: 0.75rem;
   align-items: center;
-  padding: 0.75rem 1rem;
-  background: rgba(102, 126, 234, 0.1);
-  border-radius: 8px;
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  gap: 0.75rem;
 }
 
-.wallet-connected span {
-  font-family: monospace;
-  font-size: 0.9rem;
+.wallet-connected .address {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
-.wallet-connected button {
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.wallet-connected button:hover {
-  background: rgba(255, 255, 255, 0.15);
+/* Wallet Select Modal */
+.wallet-select-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
 }
 
 .wallet-select {
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 320px;
 }
 
 .wallet-select h3 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 500;
 }
 
-.wallet-select button {
+.wallet-select .wallet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wallet-select .wallet-option {
   display: block;
   width: 100%;
   padding: 0.75rem 1rem;
-  margin: 0.5rem 0;
-  background: rgba(102, 126, 234, 0.1);
-  border: 1px solid rgba(102, 126, 234, 0.3);
-  border-radius: 6px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.875rem;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-.wallet-select button:hover:not(:disabled) {
-  background: rgba(102, 126, 234, 0.2);
-  border-color: rgba(102, 126, 234, 0.5);
+.wallet-select .wallet-option:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: #333;
 }
 
-.wallet-select button:disabled {
-  opacity: 0.5;
+.wallet-select .wallet-option:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.account-info {
-  background: rgba(255, 255, 255, 0.05);
-  padding: 1rem;
-  border-radius: 8px;
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.wallet-select .cancel-btn {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.625rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
 }
 
-.chain-badge {
-  padding: 0.25rem 0.75rem;
-  background: rgba(102, 126, 234, 0.2);
+.wallet-select .cancel-btn:hover {
+  color: var(--text);
+}
+
+.no-wallets {
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.no-wallets p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.no-wallets .hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Account Info */
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.account-info .chain-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
   border-radius: 4px;
-  font-size: 0.85rem;
-  border: 1px solid rgba(102, 126, 234, 0.4);
+  color: var(--text-muted);
 }
 
 .account-info .address {
-  font-family: monospace;
-  font-size: 0.9rem;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 0.8125rem;
   flex: 1;
+  color: var(--text-muted);
 }
 
 .account-info .balance {
-  font-weight: 600;
-  color: #667eea;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
+/* Network Display */
 .network-display {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 0.9rem;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
 }
 
 .network-indicator {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #4ade80;
+  background: #22c55e;
 }
 
+/* Footer */
 .app-footer {
-  padding: 1.5rem;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.5);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
 }
 
 .app-footer p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
 }

@@ -5,7 +5,7 @@ export function AccountDisplay() {
   const { chain } = useNetwork()
   const { data: balance, isLoading } = useBalance({
     address,
-    token: '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7', // ETH token address
+    token: '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
     watch: true,
   })
 
@@ -13,14 +13,14 @@ export function AccountDisplay() {
 
   return (
     <div className="account-info">
-      <div className="chain-badge">{chain?.name || 'Unknown Network'}</div>
-      <div className="address" title={address}>
+      <span className="chain-badge">{chain?.name || 'Unknown'}</span>
+      <span className="address" title={address}>
         {address?.slice(0, 6)}...{address?.slice(-4)}
-      </div>
+      </span>
       {!isLoading && balance && (
-        <div className="balance">
+        <span className="balance">
           {(Number(balance.value) / 1e18).toFixed(4)} ETH
-        </div>
+        </span>
       )}
     </div>
   )

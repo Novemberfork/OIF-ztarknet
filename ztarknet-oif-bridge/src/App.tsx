@@ -7,7 +7,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Starknet OIF Bridge</h1>
+        <h1>zStarknet Bridge</h1>
         <div className="header-actions">
           <NetworkSwitcher />
           <WalletButton />
@@ -15,15 +15,16 @@ function App() {
       </header>
 
       <main className="app-main">
-        <AccountDisplay />
-        {/* Bridge UI will go here */}
-        <div className="placeholder">
-          <p>Bridge interface coming soon...</p>
+        <div className="bridge-card">
+          <AccountDisplay />
+          <div className="placeholder">
+            <p>Bridge interface coming soon</p>
+          </div>
         </div>
       </main>
 
       <footer className="app-footer">
-        <p>Cross-chain intents powered by Hyperlane & Starknet</p>
+        <p>Powered by Hyperlane & Starknet</p>
       </footer>
     </div>
   )
