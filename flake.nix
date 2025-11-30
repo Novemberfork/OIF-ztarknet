@@ -23,6 +23,7 @@
             typescript-language-server
             vscode-langservers-extracted  # Includes solidity-ls
             gnumake
+            asdf
           ];
 
 
