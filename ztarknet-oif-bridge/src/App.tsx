@@ -30,7 +30,7 @@ function App() {
         <div className="logo-container">
           <div className="logo-hex" />
           <h1 className="logo-text">ZTARKNET</h1>
-          <span className="logo-subtitle">BRIDGE PROTOCOL</span>
+          <span className="logo-subtitle">OPEN INTENT FRAMEWORK</span>
         </div>
         <div className="status-right">
           <WalletButton />
@@ -50,8 +50,8 @@ function App() {
               <span className="readout-value">HYPERLANE-7683</span>
             </div>
             <div className="readout-line">
-              <span className="readout-label">ENCRYPTION</span>
-              <span className="readout-value">ZK-STARK</span>
+              <span className="readout-label">SUPPORTED VMs</span>
+              <span className="readout-value">EVM & CairoVM</span>
             </div>
             <div className="readout-line">
               <span className="readout-label">STATUS</span>
@@ -97,11 +97,11 @@ function App() {
             </div>
             <div className="activity-stats">
               <div className="stat">
-                <span className="stat-value">24</span>
+                <span className="stat-value">123</span>
                 <span className="stat-label">BRIDGES/HR</span>
               </div>
               <div className="stat">
-                <span className="stat-value">99.9%</span>
+                <span className="stat-value">98.7%</span>
                 <span className="stat-label">UPTIME</span>
               </div>
             </div>

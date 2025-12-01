@@ -31,7 +31,7 @@ export function ChainStats({ chain, position }: ChainStatsProps) {
         {isPrivate && (
           <div className="privacy-shield">
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
             </svg>
           </div>
         )}
@@ -41,9 +41,9 @@ export function ChainStats({ chain, position }: ChainStatsProps) {
         <div className="stat-item">
           <div className="stat-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <path d="M3 9h18"/>
-              <path d="M9 21V9"/>
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M9 21V9" />
             </svg>
           </div>
           <div className="stat-content">
@@ -64,8 +64,8 @@ export function ChainStats({ chain, position }: ChainStatsProps) {
           <div className="stat-item">
             <div className="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 2v20"/>
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                <path d="M12 2v20" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             </div>
             <div className="stat-content">
@@ -87,7 +87,7 @@ export function ChainStats({ chain, position }: ChainStatsProps) {
           <div className="stat-item">
             <div className="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
               </svg>
             </div>
             <div className="stat-content">
@@ -100,8 +100,8 @@ export function ChainStats({ chain, position }: ChainStatsProps) {
         <div className="stat-item">
           <div className="stat-icon latency">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
             </svg>
           </div>
           <div className="stat-content">
