@@ -3,21 +3,92 @@
 }
 
 :root {
-  --bg: #0a0a0a;
-  --bg-elevated: #141414;
-  --border: #222;
-  --text: #fafafa;
-  --text-muted: #888;
-  --accent: #fff;
+  /* Core dark theme - deep black */
+  --bg: #050505;
+  --bg-elevated: #0a0a0a;
+  --bg-card: #0d0d0d;
+
+  /* Primary - Neon Orange */
+  --orange: #ff6600;
+  --orange-bright: #ff8533;
+  --orange-dim: #cc5200;
+  --orange-glow: rgba(255, 102, 0, 0.5);
+
+  /* Secondary accents */
+  --amber: #ffaa00;
+  --amber-glow: rgba(255, 170, 0, 0.4);
+  --red: #ff3300;
+  --red-glow: rgba(255, 51, 0, 0.4);
+
+  /* Security/Privacy - keeping green for "private" indication */
+  --green: #00ff88;
+  --green-dim: #00aa5c;
+  --green-glow: rgba(0, 255, 136, 0.4);
+
+  /* Text */
+  --text: #f0f0f0;
+  --text-muted: #666666;
+  --text-bright: #ffffff;
+
+  /* Borders */
+  --border: #1a1a1a;
+  --border-glow: var(--orange);
+
+  /* Effects */
+  --glow-orange: 0 0 20px var(--orange-glow), 0 0 40px rgba(255, 102, 0, 0.2);
+  --glow-amber: 0 0 20px var(--amber-glow), 0 0 40px rgba(255, 170, 0, 0.2);
+  --glow-green: 0 0 20px var(--green-glow), 0 0 40px rgba(0, 255, 136, 0.2);
+
+  /* Gradients */
+  --gradient-fire: linear-gradient(135deg, var(--orange) 0%, var(--red) 100%);
+  --gradient-warm: linear-gradient(135deg, var(--amber) 0%, var(--orange) 100%);
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Animated grid background - orange tint */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(rgba(255, 102, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 102, 0, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scanline effect */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
 }
 
 button {
@@ -27,4 +98,90 @@ button {
 
 #root {
   min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--orange-dim);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--orange);
+}
+
+/* Selection color */
+::selection {
+  background: var(--orange);
+  color: var(--bg);
+}
+
+/* Glowing text utility */
+.glow-text {
+  text-shadow: 0 0 10px var(--orange-glow), 0 0 20px var(--orange-glow);
+}
+
+/* Pulse animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes pulse-glow-orange {
+  0%, 100% {
+    box-shadow: 0 0 10px var(--orange-glow);
+  }
+  50% {
+    box-shadow: 0 0 25px var(--orange-glow), 0 0 40px rgba(255, 102, 0, 0.3);
+  }
+}
+
+@keyframes border-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes data-stream {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+  95% { opacity: 0.9; }
+  96% { opacity: 1; }
 }
