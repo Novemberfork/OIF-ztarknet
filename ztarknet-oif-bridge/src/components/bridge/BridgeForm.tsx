@@ -17,6 +17,7 @@ import {
 } from '@/config/contracts'
 import { TransactionStatus } from './TransactionStatus'
 import { ChainSelector, type ChainOption } from './ChainSelector'
+import { ChainStats } from './ChainStats'
 
 // Convert BridgeChain to ChainOption for the selector
 const chainOptions: ChainOption[] = BRIDGE_CHAINS.map(chain => ({
@@ -345,6 +346,9 @@ export function BridgeForm() {
             </div>
           </div>
         )}
+
+        {/* Chain Stats for Origin */}
+        <ChainStats chain={sourceChain} position="origin" />
       </div>
 
       {/* Transfer Visualization */}
@@ -425,6 +429,9 @@ export function BridgeForm() {
             </div>
           </div>
         )}
+
+        {/* Chain Stats for Destination */}
+        <ChainStats chain={destChain} position="destination" />
       </div>
 
       {/* Amount Section */}
