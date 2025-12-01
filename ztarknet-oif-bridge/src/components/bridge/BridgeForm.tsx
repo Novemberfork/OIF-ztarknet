@@ -122,7 +122,6 @@ export function BridgeForm() {
 
   const handleSourceChainSelect = (chain: ChainOption) => {
     setSourceChain(chain)
-    // Clear recipient if switching chain types
     if (chain.type !== sourceChain?.type) {
       setRecipient('')
     }
@@ -130,7 +129,6 @@ export function BridgeForm() {
 
   const handleDestChainSelect = (chain: ChainOption) => {
     setDestChain(chain)
-    // Auto-fill recipient based on new destination type
     setRecipient('')
     if (chain.type === 'starknet' && starknetAddress) {
       setRecipient(starknetAddress)
@@ -151,7 +149,6 @@ export function BridgeForm() {
       return
     }
 
-    // Validate source wallet connection
     if (!isSourceWalletConnected) {
       console.error('Source wallet not connected')
       return
@@ -162,7 +159,6 @@ export function BridgeForm() {
     try {
       const amountWei = parseEther(amount)
 
-      // Initialize transfer in store
       initTransfer({
         originChain: sourceChain.name,
         originChainId: sourceChain.chainId,
@@ -178,7 +174,6 @@ export function BridgeForm() {
 
       updateTransferStatus(TransferStatus.Preparing)
 
-      // Get domain IDs
       const originDomain = getHyperlaneDomain(sourceChain.chainId)
       const destinationDomain = getHyperlaneDomain(destChain.chainId)
 
@@ -186,12 +181,10 @@ export function BridgeForm() {
         throw new Error('Invalid chain configuration')
       }
 
-      // Handle EVM source chain
       if (sourceChain.type === 'evm') {
         const tokenAddress = sourceTokenAddress as Address
         const spenderAddress = EVM_CONTRACTS.hyperlane7683
 
-        // Check and approve token if needed
         updateTransferStatus(TransferStatus.CheckingApproval)
         const needsApprove = await checkAllowance(tokenAddress, spenderAddress, amountWei)
 
@@ -202,14 +195,12 @@ export function BridgeForm() {
             approvalTxHash: approvalTx,
           })
 
-          // Re-verify approval
           const stillNeedsApprove = await checkAllowance(tokenAddress, spenderAddress, amountWei)
           if (stillNeedsApprove) {
             throw new Error('Token approval failed or was insufficient')
           }
         }
 
-        // Submit bridge transaction
         updateTransferStatus(TransferStatus.WaitingBridgeSignature)
 
         const result = await openOrder({
@@ -218,7 +209,7 @@ export function BridgeForm() {
           inputToken: tokenAddress,
           outputToken: destTokenAddress || contracts['ztarknet'].erc20,
           amountIn: amountWei,
-          amountOut: amountWei, // 1:1 for now
+          amountOut: amountWei,
           originDomain,
           destinationDomain,
         })
@@ -228,11 +219,9 @@ export function BridgeForm() {
           orderId: result.orderId,
         })
 
-        // Start polling for fulfillment
         updateTransferStatus(TransferStatus.WaitingForFulfillment)
         startPolling(result.orderId)
       } else {
-        // Handle Starknet source chain (future implementation)
         throw new Error('Starknet as source chain is not yet supported')
       }
 
@@ -282,13 +271,11 @@ export function BridgeForm() {
     setAmount('')
   }
 
-  // Validate recipient address based on destination chain type
   const isValidRecipient = useMemo(() => {
     if (!recipient || !destChain) return false
     if (destChain.type === 'starknet') {
       return recipient.startsWith('0x') && recipient.length === 66
     }
-    // EVM address validation
     return recipient.startsWith('0x') && recipient.length === 42
   }, [recipient, destChain])
 
@@ -303,7 +290,7 @@ export function BridgeForm() {
   // Show transaction status when transfer is in progress
   if (currentTransfer && currentTransfer.status !== TransferStatus.Idle) {
     return (
-      <div className="bridge-form">
+      <div className="bridge-terminal">
         <TransactionStatus
           transfer={currentTransfer}
           onClose={currentTransfer.status === TransferStatus.Completed ||
@@ -313,172 +300,225 @@ export function BridgeForm() {
 
         {(currentTransfer.status === TransferStatus.Completed ||
           currentTransfer.status === TransferStatus.Failed) && (
-          <button className="btn btn-primary bridge-btn" onClick={handleReset}>
-            New Bridge
+          <button className="action-btn primary" onClick={handleReset}>
+            <span className="btn-text">INITIATE NEW TRANSFER</span>
+            <div className="btn-glow" />
           </button>
         )}
       </div>
     )
   }
 
-  // Determine what wallet connections are needed
   const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
   const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
 
   return (
-    <div className="bridge-form">
-      {/* Source Chain Selection */}
-      <div className={`bridge-side bridge-source ${!isSourceWalletConnected && sourceChain ? 'disconnected' : ''}`}>
+    <div className="bridge-terminal">
+      {/* Origin Section */}
+      <div className="terminal-section origin">
+        <div className="section-header">
+          <div className="section-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+          </div>
+          <span className="section-label">ORIGIN</span>
+          {sourceChain && (
+            <span className={`chain-type ${sourceChain.type}`}>{sourceChain.type.toUpperCase()}</span>
+          )}
+        </div>
+
         <ChainSelector
-          label="From"
+          label=""
           selectedChain={sourceChain}
           chains={chainOptions}
           onSelect={handleSourceChainSelect}
           excludeChainId={destChain?.chainId}
         />
-        {sourceChain && (
-          <div className="chain-wallet-status">
-            {isSourceWalletConnected ? (
-              <div className="address-preview">
-                <span className="address-full">{senderAddress}</span>
-              </div>
-            ) : (
-              <div className="connect-prompt">
-                Connect {sourceChain.type === 'evm' ? 'EVM' : 'Starknet'} wallet above
-              </div>
-            )}
+
+        {sourceChain && isSourceWalletConnected && (
+          <div className="wallet-info">
+            <div className="wallet-address">
+              <span className="address-label">SENDER</span>
+              <span className="address-value">{senderAddress?.slice(0, 8)}...{senderAddress?.slice(-6)}</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Swap Button */}
-      <div className="bridge-transition">
-        <div className="transition-line"></div>
+      {/* Transfer Visualization */}
+      <div className="transfer-visual">
+        <div className="transfer-line">
+          <div className="line-segment" />
+          <div className="data-packet" />
+          <div className="data-packet delay-1" />
+          <div className="data-packet delay-2" />
+        </div>
         <button
-          className="swap-chains-btn"
+          className="swap-btn"
           onClick={handleSwapChains}
           disabled={!sourceChain && !destChain}
           title="Swap chains"
           type="button"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M7 16V4M7 4L3 8M7 4L11 8"/>
             <path d="M17 8V20M17 20L21 16M17 20L13 16"/>
           </svg>
         </button>
-        <div className="transition-line"></div>
+        <div className="transfer-line">
+          <div className="line-segment" />
+        </div>
       </div>
 
-      {/* Destination Chain Selection */}
-      <div className={`bridge-side bridge-dest ${destChain?.isPrivate ? 'bridge-private' : ''}`}>
+      {/* Destination Section */}
+      <div className={`terminal-section destination ${destChain?.isPrivate ? 'private' : ''}`}>
+        <div className="section-header">
+          <div className="section-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <span className="section-label">DESTINATION</span>
+          {destChain?.isPrivate && (
+            <span className="privacy-tag">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+              </svg>
+              SHIELDED
+            </span>
+          )}
+        </div>
+
         <ChainSelector
-          label="To"
+          label=""
           selectedChain={destChain}
           chains={chainOptions}
           onSelect={handleDestChainSelect}
           excludeChainId={sourceChain?.chainId}
         />
+
         {destChain && (
-          <>
-            {destChain.isPrivate && (
-              <span className="side-tag shielded">Private</span>
-            )}
-            <div className="recipient-row">
-              <input
-                type="text"
-                className="recipient-input"
-                placeholder={destChain.type === 'starknet' ? '0x... (Starknet address)' : '0x... (EVM address)'}
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-              />
+          <div className="recipient-section">
+            <div className="recipient-header">
+              <span className="recipient-label">RECIPIENT ADDRESS</span>
               {isDestWalletConnected && (
-                <button
-                  className="self-btn"
-                  onClick={handleSelf}
-                  title="Use connected wallet address"
-                  type="button"
-                >
-                  Self
+                <button className="self-btn" onClick={handleSelf} type="button">
+                  USE CONNECTED
                 </button>
               )}
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Amount Input */}
-      <div className="amount-section">
-        <div className="amount-header">
-          <span>Amount to bridge</span>
-          <button
-            className="max-btn"
-            onClick={handleMax}
-            disabled={!isSourceWalletConnected || sourceWalletType !== 'evm'}
-            type="button"
-          >
-            MAX
-          </button>
-        </div>
-        <div className="amount-input-wrapper">
-          <input
-            type="text"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.0"
-            className="amount-input"
-            disabled={!sourceChain || isTransferLoading}
-          />
-          <span className="token-label">DOG</span>
-        </div>
-        {isSourceWalletConnected && sourceWalletType === 'evm' && (
-          <div className="balance-row">
-            <span>Available: {displayBalance} DOG</span>
+            <div className="recipient-input-wrapper">
+              <input
+                type="text"
+                className="recipient-input"
+                placeholder={destChain.type === 'starknet' ? '0x...' : '0x...'}
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+              />
+              {recipient && (
+                <div className={`input-status ${isValidRecipient ? 'valid' : 'invalid'}`}>
+                  {isValidRecipient ? '✓' : '✗'}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Wallet Connection Hints */}
+      {/* Amount Section */}
+      <div className="amount-terminal">
+        <div className="amount-display">
+          <div className="amount-header">
+            <span className="amount-label">TRANSFER AMOUNT</span>
+            <button
+              className="max-btn"
+              onClick={handleMax}
+              disabled={!isSourceWalletConnected || sourceWalletType !== 'evm'}
+              type="button"
+            >
+              MAX
+            </button>
+          </div>
+          <div className="amount-input-container">
+            <input
+              type="text"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              className="amount-input"
+              disabled={!sourceChain || isTransferLoading}
+            />
+            <div className="token-badge">
+              <span className="token-symbol">DOG</span>
+            </div>
+          </div>
+          {isSourceWalletConnected && sourceWalletType === 'evm' && (
+            <div className="balance-display">
+              <span className="balance-label">AVAILABLE</span>
+              <span className="balance-value">{displayBalance} DOG</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Wallet Connection Alerts */}
       {(sourceChain || destChain) && (!evmConnected && needsEvmWallet || !starknetConnected && needsStarknetWallet) && (
-        <div className="wallet-hints">
+        <div className="connection-alerts">
           {!evmConnected && needsEvmWallet && (
-            <div className="wallet-hint evm">Connect EVM wallet</div>
+            <div className="alert evm">
+              <div className="alert-icon">!</div>
+              <span>EVM WALLET REQUIRED</span>
+            </div>
           )}
           {!starknetConnected && needsStarknetWallet && (
-            <div className="wallet-hint starknet">Connect Starknet wallet</div>
+            <div className="alert starknet">
+              <div className="alert-icon">!</div>
+              <span>STARKNET WALLET REQUIRED</span>
+            </div>
           )}
         </div>
       )}
 
+      {/* Execute Button */}
       <button
-        className="btn btn-primary bridge-btn"
+        className={`action-btn primary ${canBridge ? 'ready' : ''}`}
         onClick={handleBridge}
         disabled={!canBridge}
         type="button"
       >
-        {isTransferLoading ? (
-          <span className="loading-text">
-            <span className="spinner"></span>
-            Processing...
-          </span>
-        ) : !sourceChain || !destChain ? (
-          'Select Chains'
-        ) : !isSourceWalletConnected ? (
-          `Connect ${sourceChain.type === 'evm' ? 'EVM' : 'Starknet'} Wallet`
-        ) : isApproving ? (
-          'Approving...'
-        ) : needsApproval ? (
-          'Approve & Bridge'
-        ) : (
-          'Bridge'
-        )}
+        <div className="btn-inner">
+          {isTransferLoading ? (
+            <>
+              <div className="loading-spinner" />
+              <span className="btn-text">PROCESSING</span>
+            </>
+          ) : !sourceChain || !destChain ? (
+            <span className="btn-text">SELECT CHAINS</span>
+          ) : !isSourceWalletConnected ? (
+            <span className="btn-text">CONNECT WALLET</span>
+          ) : isApproving ? (
+            <span className="btn-text">APPROVING</span>
+          ) : needsApproval ? (
+            <span className="btn-text">APPROVE & EXECUTE</span>
+          ) : (
+            <span className="btn-text">EXECUTE TRANSFER</span>
+          )}
+        </div>
+        <div className="btn-glow" />
+        <div className="btn-scanline" />
       </button>
 
       {destChain?.isPrivate && (
-        <div className="privacy-note">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-          <span>Your assets will be private on {destChain.name}</span>
+        <div className="privacy-notice">
+          <div className="notice-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+          </div>
+          <span>Assets will be shielded on {destChain.name}</span>
         </div>
       )}
     </div>
