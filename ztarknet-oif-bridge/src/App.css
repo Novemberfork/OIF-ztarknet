@@ -844,6 +844,7 @@
   font-weight: 600;
   color: var(--orange);
   letter-spacing: 0.1em;
+  white-space: nowrap;
 }
 
 .balance-display {

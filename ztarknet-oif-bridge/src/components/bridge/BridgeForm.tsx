@@ -108,7 +108,7 @@ export function BridgeForm() {
   // Pass chainId to enable manual fetching for both Ztarknet and Starknet Sepolia if configured
   // Only call useERC20 when we have a valid token address to avoid hook order issues
   const { balance: snBalance } = useERC20(
-    sourceTokenAddress || '0x0', 
+    sourceTokenAddress || '0x0',
     sourceChain?.type === 'starknet' ? sourceChain.chainId : undefined
   )
   console.log("snBalance", snBalance);
@@ -196,7 +196,7 @@ export function BridgeForm() {
   // Use a stable address to ensure hooks are always called in the same order
   const stableHyperlaneAddress = starknetHyperlaneAddress || '0x0'
   const { calls, orderData } = useOpenOrder(stableHyperlaneAddress, o);
-  
+
   // Always call useSendTransaction with a consistent structure to avoid hook order issues
   // This must be called unconditionally and after all other hooks
   // Use useMemo to ensure calls array is stable
@@ -779,7 +779,7 @@ export function BridgeForm() {
               disabled={!sourceChain || isTransferLoading}
             />
             <div className="token-badge">
-              <span className="token-symbol">DOG</span>
+              <span className="token-symbol">DOG COIN</span>
             </div>
           </div>
           {isSourceWalletConnected && (
