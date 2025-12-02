@@ -74,8 +74,8 @@ function App() {
               <span className="readout-value">DOG COIN</span>
             </div>
             <div className="readout-line">
-              <span className="readout-label">MINT</span>
-              <span className="readout-value status-active">HERE</span>
+              <span className="readout-label">asdf</span>
+              <span className="readout-value status-active">asdf</span>
             </div>
           </div>
 
