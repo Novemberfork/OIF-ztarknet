@@ -14,13 +14,15 @@ export function useERC20(tokenAddress: string, chainId?: number) {
   const manualFetchEnabled = chainId && STARKNET_RPC_URLS[chainId]
 
   // Standard hook for normal Starknet usage (fallback/default)
+  // Disable if tokenAddress is invalid (empty or '0x0') to avoid hook order issues
+  const isValidAddress = tokenAddress && tokenAddress !== '' && tokenAddress !== '0x0'
   const { data: hookBalance, refetch: refetchHook } = useReadContract({
     address: tokenAddress as `0x${string}`,
     abi: erc20Abi,
     functionName: 'balanceOf',
     args: accountAddress ? [accountAddress] : undefined,
     watch: true,
-    enabled: !!accountAddress && !manualFetchEnabled, // Disable hook if we are using manual fetch
+    enabled: !!accountAddress && !manualFetchEnabled && isValidAddress, // Disable hook if address is invalid or we are using manual fetch
   })
 
   // Manual fetch effect

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPublicClient, http, type Chain } from 'viem'
 import { mainnet, sepolia, arbitrum, arbitrumSepolia, optimismSepolia, baseSepolia } from 'viem/chains'
 import { RpcProvider } from 'starknet'
-import { BRIDGE_CHAINS, contracts } from '@/config/contracts'
+import { BRIDGE_CHAINS, contracts, CHAIN_IDS } from '@/config/contracts'
 import { STARKNET_RPC_URLS } from './useChainStats'
 
 // Event selectors
@@ -52,14 +52,23 @@ export function useGlobalBridgeStats() {
               })
 
               const blockNumber = await client.getBlockNumber()
-              // Estimate blocks per hour
-              // Avg block time: Eth ~12s, L2s ~2s. Let's approximate.
-              // Eth/Sepolia: 12s -> 300 blocks/hr
-              // Arb/Op/Base: 2s -> 1800 blocks/hr
-              let blocksPerHour = 300
-              const fastChains = [arbitrumSepolia.id, optimismSepolia.id, baseSepolia.id] as number[]
-              if (fastChains.includes(chain.chainId)) {
+              // Blocks per hour for accurate bridges/hour calculation
+              // Chain-specific block speeds:
+              // - Ethereum Sepolia: ~300 blocks/hr
+              // - Base Sepolia: ~1800 blocks/hr
+              // - Optimism Sepolia: ~4000 blocks/hr
+              // - Arbitrum Sepolia: ~30k blocks/hr (skipped due to rate limits/pagination concerns)
+              let blocksPerHour = 300 // Default: Ethereum Sepolia
+              
+              if (chain.chainId === baseSepolia.id) {
                 blocksPerHour = 1800
+              } else if (chain.chainId === optimismSepolia.id) {
+                blocksPerHour = 4000
+              } else if (chain.chainId === arbitrumSepolia.id) {
+                // Arbitrum has ~30k blocks/hr which would require extensive pagination
+                // and could hit rate limits. Skipping for now.
+                console.log(`Skipping Arbitrum Sepolia stats due to high block count (~30k/hr)`)
+                return 0
               }
 
               const fromBlock = blockNumber - BigInt(blocksPerHour)
@@ -95,11 +104,18 @@ export function useGlobalBridgeStats() {
               const provider = new RpcProvider({ nodeUrl: rpcUrl })
               const latestBlock = await provider.getBlock('latest')
               
-              // Starknet block time can vary, ~30s on Sepolia?
-              // 30s -> 120 blocks/hr
-              // Let's assume 120 blocks
+              // Blocks per hour for accurate bridges/hour calculation
+              // Chain-specific block speeds:
+              // - Ztarknet: ~100 blocks/hr
+              // - Starknet Sepolia: ~2000 blocks/hr
+              let blocksPerHour = 100 // Default: Ztarknet
+              
+              if (chain.chainId === CHAIN_IDS.starknetSepolia) {
+                blocksPerHour = 2000
+              }
+              
               const currentBlockNum = latestBlock.block_number
-              const fromBlock = currentBlockNum - 120 > 0 ? currentBlockNum - 120 : 0
+              const fromBlock = currentBlockNum - blocksPerHour > 0 ? currentBlockNum - blocksPerHour : 0
 
               console.log(`Fetching Starknet stats for ${chain.name}:`, {
                 fromBlock,

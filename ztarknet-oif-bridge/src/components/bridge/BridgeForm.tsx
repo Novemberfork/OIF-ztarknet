@@ -106,8 +106,9 @@ export function BridgeForm() {
 
   // Use Starknet ERC20 hook for source token balance
   // Pass chainId to enable manual fetching for both Ztarknet and Starknet Sepolia if configured
+  // Only call useERC20 when we have a valid token address to avoid hook order issues
   const { balance: snBalance } = useERC20(
-    sourceTokenAddress || '', 
+    sourceTokenAddress || '0x0', 
     sourceChain?.type === 'starknet' ? sourceChain.chainId : undefined
   )
   console.log("snBalance", snBalance);
@@ -187,12 +188,20 @@ export function BridgeForm() {
   }, [amount, destChain, sourceChain, destTokenAddress, sourceTokenAddress, recipient, starknetAddress]);
 
   const starknetHyperlaneAddress = useMemo(() => {
-    if (sourceChain?.type !== 'starknet') return '';
-    return contracts[sourceChain.id]?.hyperlane7683 || '';
+    if (sourceChain?.type !== 'starknet') return '0x0';
+    return contracts[sourceChain.id]?.hyperlane7683 || '0x0';
   }, [sourceChain]);
 
-  const { calls, orderData } = useOpenOrder(starknetHyperlaneAddress, o);
-  const { sendAsync } = useSendTransaction({ calls });
+  // Always call useOpenOrder with consistent parameters to avoid hook order issues
+  // Use a stable address to ensure hooks are always called in the same order
+  const stableHyperlaneAddress = starknetHyperlaneAddress || '0x0'
+  const { calls, orderData } = useOpenOrder(stableHyperlaneAddress, o);
+  
+  // Always call useSendTransaction with a consistent structure to avoid hook order issues
+  // This must be called unconditionally and after all other hooks
+  // Use useMemo to ensure calls array is stable
+  const stableCalls = useMemo(() => calls || [], [calls])
+  const { sendAsync } = useSendTransaction({ calls: stableCalls });
 
 
 
@@ -241,10 +250,12 @@ export function BridgeForm() {
 
   // Update transfer status when order status changes
   useEffect(() => {
-    if (currentTransfer && orderStatus === 'filled') {
-      updateTransferStatus(TransferStatus.Fulfilled)
-    } else if (currentTransfer && orderStatus === 'settled') {
-      updateTransferStatus(TransferStatus.Completed)
+    if (currentTransfer) {
+      if (orderStatus === 'filled' && currentTransfer.status !== TransferStatus.Fulfilled && currentTransfer.status !== TransferStatus.Completed) {
+        updateTransferStatus(TransferStatus.Fulfilled)
+      } else if (orderStatus === 'settled' && currentTransfer.status !== TransferStatus.Completed) {
+        updateTransferStatus(TransferStatus.Completed)
+      }
     }
   }, [orderStatus, currentTransfer, updateTransferStatus])
 
@@ -463,34 +474,6 @@ export function BridgeForm() {
     isValidRecipient &&
     !isTransferLoading
 
-  // Show transaction status when transfer is in progress
-  if (currentTransfer && currentTransfer.status !== TransferStatus.Idle) {
-    const isFinished = currentTransfer.status === TransferStatus.Completed ||
-      currentTransfer.status === TransferStatus.Failed ||
-      currentTransfer.status === TransferStatus.WaitingForFulfillment ||
-      currentTransfer.status === TransferStatus.Fulfilled ||
-      currentTransfer.status === TransferStatus.Settled
-
-    return (
-      <div className="bridge-terminal">
-        <TransactionStatus
-          transfer={currentTransfer}
-          onClose={isFinished ? handleReset : undefined}
-        />
-
-        {isFinished && (
-          <button className="action-btn primary" onClick={handleReset}>
-            <span className="btn-text">INITIATE NEW TRANSFER</span>
-            <div className="btn-glow" />
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
-  const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
-
   const handleMint = useCallback(async () => {
     if (!sourceChain || !sourceTokenAddress) return
 
@@ -568,6 +551,34 @@ export function BridgeForm() {
       handleBridge()
     }
   }, [buttonText, handleMint, handleBridge])
+
+  const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
+  const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
+
+  // Show transaction status when transfer is in progress
+  if (currentTransfer && currentTransfer.status !== TransferStatus.Idle) {
+    const isFinished = currentTransfer.status === TransferStatus.Completed ||
+      currentTransfer.status === TransferStatus.Failed ||
+      currentTransfer.status === TransferStatus.WaitingForFulfillment ||
+      currentTransfer.status === TransferStatus.Fulfilled ||
+      currentTransfer.status === TransferStatus.Settled
+
+    return (
+      <div className="bridge-terminal">
+        <TransactionStatus
+          transfer={currentTransfer}
+          onClose={isFinished ? handleReset : undefined}
+        />
+
+        {isFinished && (
+          <button className="action-btn primary" onClick={handleReset}>
+            <span className="btn-text">INITIATE NEW TRANSFER</span>
+            <div className="btn-glow" />
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="bridge-terminal">
