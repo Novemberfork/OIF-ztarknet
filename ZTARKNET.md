@@ -49,3 +49,17 @@ Instead of waiting for the inter-chain message, Alice could receive her tokens a
 ## What is not supported?
 
 - Bob (the solver) is not able to collect his profits in this PoC. In order for him to do so, the hyperlane protocol/stack (not just the Hyperlane7683 contract) needs to be deployed onto Ztarknet. The good news is that we are running a solver for this demo, so as long as it stays funded, it should keep filling orders.
+
+### Content
+
+https://github.com/user-attachments/assets/69ede31c-4eb2-4cf8-846e-a475150fc657
+
+https://github.com/user-attachments/assets/f2eb5a84-5405-4675-b036-4c0b1e85de65
+
+https://github.com/user-attachments/assets/45bea4ec-a9be-45cb-b324-fdc039278f87
+
+
+
+
+
+
