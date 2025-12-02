@@ -1,4 +1,4 @@
-[
+export const ABI = [
   {
     "type": "impl",
     "name": "OriginSettlerImpl",
@@ -1225,4 +1225,7 @@
       }
     ]
   }
-]
+] as const;
+
+export default ABI;
+
