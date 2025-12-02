@@ -50,7 +50,7 @@ Instead of waiting for the inter-chain message, Alice could receive her tokens a
 
 - Bob (the solver) is not able to collect his profits in this PoC. In order for him to do so, the hyperlane protocol/stack (not just the Hyperlane7683 contract) needs to be deployed onto Ztarknet. The good news is that we are running a solver for this demo, so as long as it stays funded, it should keep filling orders.
 
-### Content
+### Videos/Transactions
 
 #### Ethereum -> Ztarknet
   
@@ -79,3 +79,10 @@ https://github.com/user-attachments/assets/0d136e95-1489-4436-96e7-d23269b5b50c
 #### Chain Statistics
 
 https://github.com/user-attachments/assets/81a55ef4-986c-4b96-a0e1-658f2704dd29
+
+### Disclaimers
+
+- Ztarknet has the same chain ID as Starknet Sepolia (`SN_SEPOLIA`). Because of this, the demo uses `0x999999` for the domain ID of Ztarknet orders. This prevents orders from being double filled on Starknet & Ztarknet. 
+
+- There is no up-time guarantee for the frontend & backend components used in this demo, but we will try and keep things running over the course of the hackathon. 
+
