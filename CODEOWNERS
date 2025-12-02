@@ -7,5 +7,6 @@
 # GLOBAL OWNERS
 # =============================================================================
 # These owners will be requested for review on ALL pull requests
+# This is after forking Nethermind's repo
 * 0xDegenDeveloper
 * trbutler4
