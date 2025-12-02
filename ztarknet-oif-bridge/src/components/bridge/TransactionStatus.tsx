@@ -6,7 +6,7 @@ interface TransactionStatusProps {
   onClose?: () => void
 }
 
-const STATUS_STEPS = [
+const EVM_STATUS_STEPS = [
   { status: TransferStatus.CheckingApproval, label: 'Checking approval' },
   { status: TransferStatus.WaitingApprovalSignature, label: 'Approve tokens' },
   { status: TransferStatus.ApprovalConfirming, label: 'Confirming approval' },
@@ -16,15 +16,23 @@ const STATUS_STEPS = [
   { status: TransferStatus.Fulfilled, label: 'Fulfilled' },
 ]
 
-function getStepIndex(status: TransferStatus): number {
-  const idx = STATUS_STEPS.findIndex(s => s.status === status)
+const STARKNET_STATUS_STEPS = [
+  { status: TransferStatus.WaitingBridgeSignature, label: 'Sign bridge' },
+  { status: TransferStatus.BridgeConfirming, label: 'Confirming bridge' },
+  { status: TransferStatus.WaitingForFulfillment, label: 'Awaiting solver' },
+  { status: TransferStatus.Fulfilled, label: 'Fulfilled' },
+]
+
+function getStepIndex(status: TransferStatus, isStarknet: boolean): number {
+  const steps = isStarknet ? STARKNET_STATUS_STEPS : EVM_STATUS_STEPS
+  const idx = steps.findIndex(s => s.status === status)
   if (idx !== -1) return idx
 
   // Map other statuses to steps
   if (status === TransferStatus.Preparing) return -1
-  if (status === TransferStatus.ApprovingToken) return 1
-  if (status === TransferStatus.SubmittingBridge) return 3
-  if (status === TransferStatus.Completed || status === TransferStatus.Settled) return STATUS_STEPS.length
+  if (status === TransferStatus.ApprovingToken) return isStarknet ? -1 : 1
+  if (status === TransferStatus.SubmittingBridge) return isStarknet ? 0 : 3
+  if (status === TransferStatus.Completed || status === TransferStatus.Settled) return steps.length
   return -1
 }
 
@@ -59,7 +67,12 @@ function StatusIcon({ status }: { status: 'pending' | 'active' | 'complete' | 'e
 }
 
 export function TransactionStatus({ transfer, onClose }: TransactionStatusProps) {
-  const currentStepIdx = getStepIndex(transfer.status)
+  // Check if origin is Starknet based on chain ID
+  // Starknet Sepolia: 23448591, Ztarknet: 10066329
+  const isStarknet = transfer.originChainId === 23448591 || transfer.originChainId === 10066329
+  const steps = isStarknet ? STARKNET_STATUS_STEPS : EVM_STATUS_STEPS
+  const currentStepIdx = getStepIndex(transfer.status, isStarknet)
+  
   const isComplete = transfer.status === TransferStatus.Completed ||
                      transfer.status === TransferStatus.Fulfilled ||
                      transfer.status === TransferStatus.Settled
@@ -79,7 +92,7 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
       </div>
 
       <div className="tx-status-steps">
-        {STATUS_STEPS.map((step, idx) => {
+        {steps.map((step, idx) => {
           let stepStatus: 'pending' | 'active' | 'complete' | 'error' = 'pending'
           if (isFailed && idx === currentStepIdx) {
             stepStatus = 'error'
