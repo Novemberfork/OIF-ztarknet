@@ -133,6 +133,12 @@ export function BridgeForm() {
     const destContracts = contracts[destChain.id];
     const destinationSettler = destContracts?.hyperlane7683;
 
+    // Fix for Ztarknet origin domain
+    // If source is Ztarknet, origin domain should be 10066329 (0x999999)
+    // getHyperlaneDomain handles this if chainId is correct, but we force it here to be safe
+    // given the shared chainID issues with Starknet Sepolia
+    const effectiveOriginDomain = sourceChain.id === 'ztarknet' ? 10066329 : domainO;
+
     let amountWei = 0n;
     try {
       amountWei = parseEther(amount || '0');
@@ -148,7 +154,7 @@ export function BridgeForm() {
       outputToken: destTokenAddress || contracts['ztarknet'].erc20,
       amountIn: amountWei,
       amountOut: amountOut,
-      originDomain: domainO,
+      originDomain: effectiveOriginDomain,
       destinationDomain: domainD,
       destinationSettler,
     } as OpenOrderParams
@@ -279,6 +285,16 @@ export function BridgeForm() {
 
         const amountOut = amountWei > 0n ? amountWei - 1n : 0n
 
+        // Determine destination settler
+        const destinationSettler = contracts[destChain.id]?.hyperlane7683 || EVM_CONTRACTS.hyperlane7683
+
+        console.log('EVM Bridge Debug:', {
+          destinationChainId: destChain.id,
+          destinationSettler,
+          originDomain,
+          destinationDomain
+        });
+
         const result = await openOrder({
           senderAddress: evmAddress!,
           recipientAddress: recipient,
@@ -288,6 +304,7 @@ export function BridgeForm() {
           amountOut: amountOut,
           originDomain,
           destinationDomain,
+          destinationSettler,
         })
 
         updateTransferStatus(TransferStatus.BridgeConfirming, {

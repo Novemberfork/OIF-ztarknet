@@ -41,6 +41,7 @@ interface OpenOrderParams {
   // Chain info (using Hyperlane domains)
   originDomain: number
   destinationDomain: number
+  destinationSettler?: string
 
   // Timing
   fillDeadlineSeconds?: number
@@ -168,8 +169,11 @@ export function useHyperlane7683() {
     // Calculate fill deadline (default 1 hour from now)
     const fillDeadline = Math.floor(Date.now() / 1000) + (params.fillDeadlineSeconds ?? 3600)
 
-    // Get destination settler (Ztarknet Hyperlane7683)
-    const destinationSettler = feltToBytes32(contracts['ztarknet'].hyperlane7683)
+    // Get destination settler
+    // Use provided settler or default to Ztarknet (legacy behavior, should be provided now)
+    const destinationSettler = params.destinationSettler 
+      ? feltToBytes32(params.destinationSettler)
+      : feltToBytes32(contracts['ztarknet'].hyperlane7683)
 
     // Encode order data matching solver format
     // IMPORTANT: Use localDomain from contract, not params.originDomain
