@@ -46,7 +46,7 @@ function App() {
         {/* Left decorative panel */}
         <aside className="side-panel left-panel">
           <div className="panel-header">
-            <span className="panel-title">NETWORK</span>
+            <span className="panel-title">DETAILS</span>
           </div>
           <div className="data-readout">
             <div className="readout-line">
@@ -72,6 +72,17 @@ function App() {
           <div className="readout-line">
             <span className="readout-label">TOKEN</span>
             <span className="readout-value">DOG COIN</span>
+          </div>
+
+          <div className="readout-line">
+            <span className="readout-label">MORE INFO</span>
+            <a href="https://github.com/novemberfork/OIF-ztarknet/blob/main/ZTARKNET.md" target="_blank" className="readout-value" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
           </div>
 
           <div className="data-readout">
@@ -107,17 +118,6 @@ function App() {
               </a>
             </div>
           </div>
-          <div className="readout-line">
-            <span className="readout-label">MORE INFO</span>
-            <a href="https://github.com/novemberfork/OIF-ztarknet/blob/main/ZTARKNET.md" target="_blank" className="readout-value" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-          </div>
-
 
           <div className="signal-bars">
             {[...Array(8)].map((_, i) => (
@@ -126,6 +126,23 @@ function App() {
                 animationDelay: `${i * 0.1}s`
               }} />
             ))}
+          </div>
+
+          {/* Mobile message */}
+          <div className="mobile-message">
+            <div className="panel-header">
+              <span className="panel-title">NOTICE</span>
+            </div>
+            <div className="data-readout">
+              <div className="readout-line">
+                <span className="readout-label"></span>
+                <span className="readout-value"></span>
+              </div>
+              <div className="readout-line">
+                <span className="readout-label">NOTICE</span>
+                <span className="readout-value">Interface only available on desktop</span>
+              </div>
+            </div>
           </div>
         </aside>
 
@@ -216,6 +233,11 @@ function App() {
       <footer className="info-bar">
         <div className="info-section">
           <a target="_blank" href="https://www.starknet.io/" className="info-label">STARKNET</a>
+          <div className="transmission-indicator">
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+          </div>
         </div>
         <div className="info-section center">
           <div className="transmission-indicator">
@@ -230,6 +252,11 @@ function App() {
           </span>
         </div>
         <div className="info-section">
+          <div className="transmission-indicator">
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+          </div>
           <a target="_blank" href="https://www.ztarknet.cash/" className="info-label">ZTARKNET</a>
         </div>
       </footer>
