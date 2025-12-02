@@ -16,12 +16,12 @@ For simplicity, this demo only bridges "Dog Coins"; however, the protocol is cap
 
 #### Dog Coin Addresses (Sepolia)
 
-- [Ethereum](https://sepolia.etherscan.io/address/0x76878654a2D96dDdF8cF0CFe8FA608aB4CE0D499)
-- [Arbitrum](https://sepolia.arbiscan.io/address/0x1083B934AbB0be83AaE6579c6D5FD974D94e8EA5)
-- [Base](https://sepolia.basescan.org/address/0xB844EEd1581f3fB810FFb6Dd6C5E30C049cF23F4)
-- [Optimism](https://sepolia-optimism.etherscan.io/address/0xe2f9C9ECAB8ae246455be4810Cac8fC7C5009150)
-- [Ztarknet](https://explorer-zstarknet.d.karnot.xyz/contract/0x67c9b63ecb6a191e369a461ab05cf9a4d08093129e5ac8eedb71d4908e4cc5b)
-- [Starknet](https://sepolia.voyager.online/contract/0x312be4cb8416dda9e192d7b4d42520e3365f71414aefad7ccd837595125f503)
+- [Ethereum](https://sepolia.etherscan.io/address/0x76878654a2D96dDdF8cF0CFe8FA608aB4CE0D499#writeContract#F4)
+- [Arbitrum](https://sepolia.arbiscan.io/address/0x1083B934AbB0be83AaE6579c6D5FD974D94e8EA5#writeContract#F4)
+- [Base](https://sepolia.basescan.org/address/0xB844EEd1581f3fB810FFb6Dd6C5E30C049cF23F4#writeContract#F4)
+- [Optimism](https://sepolia-optimism.etherscan.io/address/0xe2f9C9ECAB8ae246455be4810Cac8fC7C5009150#writeContract#F4)
+- [Ztarknet](https://explorer-zstarknet.d.karnot.xyz/contract/0x067c9b63ecb6a191e369a461ab05cf9a4d08093129e5ac8eedb71d4908e4cc5b#writeContract:~:text=1.-,mint,-()
+- [Starknet](https://sepolia.voyager.online/contract/0x0312be4cb8416dda9e192d7b4d42520e3365f71414aefad7ccd837595125f503#writeContract:~:text=1.-,mint,-()
 
 ## OIF Overview 
 
