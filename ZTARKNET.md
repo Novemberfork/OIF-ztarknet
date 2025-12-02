@@ -84,5 +84,8 @@ https://github.com/user-attachments/assets/81a55ef4-986c-4b96-a0e1-658f2704dd29
 
 - Ztarknet has the same chain ID as Starknet Sepolia (`SN_SEPOLIA`). Because of this, the demo uses `0x999999` for the domain ID of Ztarknet orders. This prevents orders from being double filled on Starknet & Ztarknet. 
 
-- There is no up-time guarantee for the frontend & backend components used in this demo, but we will try and keep things running over the course of the hackathon. 
+- Because of the chain IDs matching for Ztarknet & Starknet, the frontend application has a couple caveats. 
 
+  - Changing the origin chain from Ztarknet <-> Starknet will not change your wallet's network automatically, you must do this manually. Failure to do so (i.e not align your wallet's network with the origin chain for Z/Starknet origin orders) may result in invalid orders being created. To avoid, ensure your wallet's network matches the origin chain if you are sending from Starknet or Ztarknet. You may also need to replace the `to` address for the order (or you might risk sending the tokens to the wrong Z/Starknet contract on the destination chain).
+
+- There is no up-time guarantee for the frontend & backend components used in this demo, but we will try and keep things running over the course of the hackathon 🎉
