@@ -4,7 +4,7 @@ export interface ChainOption {
   id: string
   name: string
   chainId: number
-  type: 'evm' | 'starknet'
+  type: 'evm' | 'starknet' | 'ztarknet'
   logo?: string
   isPrivate?: boolean
 }
@@ -79,7 +79,7 @@ export function ChainSelector({
           stroke="currentColor"
           strokeWidth="2"
         >
-          <path d="M6 9l6 6 6-6"/>
+          <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
 

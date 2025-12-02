@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAccount as useEvmAccount, useChainId, useReadContract, useSwitchChain } from 'wagmi'
-import { useAccount as useStarknetAccount } from '@starknet-react/core'
+import { useSendTransaction, useAccount as useStarknetAccount } from '@starknet-react/core'
 import { parseEther, formatUnits, type Address, erc20Abi } from 'viem'
 
 import { useHyperlane7683 } from '@/hooks/useHyperlane7683'
@@ -8,6 +8,13 @@ import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useOrderStatus } from '@/hooks/useOrderStatus'
 import { useBridgeStore } from '@/store'
 import { TransferStatus } from '@/types/transfers'
+import {
+  ORDER_DATA_TYPE_HASH,
+  encodeOrderData,
+  feltToBytes32,
+  computeOrderId,
+  type OrderData
+} from '@/utils/orderEncoding'
 import {
   EVM_CONTRACTS,
   contracts,
@@ -18,6 +25,27 @@ import {
 import { TransactionStatus } from './TransactionStatus'
 import { ChainSelector, type ChainOption } from './ChainSelector'
 import { ChainStats } from './ChainStats'
+import { useOpenOrder } from '@/hooks/useOpenOrder'
+
+interface OpenOrderParams {
+  // User's addresses
+  senderAddress: string      // Starknet sender address
+  recipientAddress: string    // Starknet recipient (full felt)
+
+  // Token info
+  inputToken: string         // Origin chain token (EVM)
+  outputToken: string         // Destination chain token (Starknet felt)
+  amountIn: bigint            // Amount user sends
+  amountOut: bigint           // Amount user receives
+
+  // Chain info (using Hyperlane domains)
+  originDomain: number
+  destinationDomain: number
+  destinationSettler?: string
+
+  // Timing
+  fillDeadlineSeconds?: number
+}
 
 // Convert BridgeChain to ChainOption for the selector
 const chainOptions: ChainOption[] = BRIDGE_CHAINS.map(chain => ({
@@ -90,6 +118,57 @@ export function BridgeForm() {
     setTransferLoading,
     resetCurrentTransfer,
   } = useBridgeStore()
+
+  // Starknet `open` mult-call
+
+  const o: OpenOrderParams | null = useMemo(() => {
+    const _domainO = sourceChain?.chainId;
+    const _domainD = destChain?.chainId;
+
+    if (!_domainO || !_domainD || sourceChain?.type !== 'starknet' || !starknetAddress) return null;
+
+    const domainO = getHyperlaneDomain(_domainO);
+    const domainD = getHyperlaneDomain(_domainD);
+
+    const destContracts = contracts[destChain.id];
+    const destinationSettler = destContracts?.hyperlane7683;
+
+    // Fix for Ztarknet origin domain
+    // If source is Ztarknet, origin domain should be 10066329 (0x999999)
+    // getHyperlaneDomain handles this if chainId is correct, but we force it here to be safe
+    // given the shared chainID issues with Starknet Sepolia
+    const effectiveOriginDomain = sourceChain.id === 'ztarknet' ? 10066329 : domainO;
+
+    let amountWei = 0n;
+    try {
+      amountWei = parseEther(amount || '0');
+    } catch {
+      // Ignore parse errors
+    }
+    const amountOut = amountWei > 0n ? amountWei - 1n : 0n;
+
+    return {
+      senderAddress: starknetAddress,
+      recipientAddress: recipient,
+      inputToken: sourceTokenAddress as `0x${string}`,
+      outputToken: destTokenAddress || contracts['ztarknet'].erc20,
+      amountIn: amountWei,
+      amountOut: amountOut,
+      originDomain: effectiveOriginDomain,
+      destinationDomain: domainD,
+      destinationSettler,
+    } as OpenOrderParams
+  }, [amount, destChain, sourceChain, destTokenAddress, sourceTokenAddress, recipient, starknetAddress]);
+
+  const starknetHyperlaneAddress = useMemo(() => {
+    if (sourceChain?.type !== 'starknet') return '';
+    return contracts[sourceChain.id]?.hyperlane7683 || '';
+  }, [sourceChain]);
+
+  const { calls, orderData } = useOpenOrder(starknetHyperlaneAddress, o);
+  const { sendAsync } = useSendTransaction({ calls });
+
+
 
   const formattedBalance = evmBalance ? formatUnits(evmBalance, 18) : '0'
   const displayBalance = Number(formattedBalance).toFixed(4)
@@ -204,15 +283,28 @@ export function BridgeForm() {
 
         updateTransferStatus(TransferStatus.WaitingBridgeSignature)
 
+        const amountOut = amountWei > 0n ? amountWei - 1n : 0n
+
+        // Determine destination settler
+        const destinationSettler = contracts[destChain.id]?.hyperlane7683 || EVM_CONTRACTS.hyperlane7683
+
+        console.log('EVM Bridge Debug:', {
+          destinationChainId: destChain.id,
+          destinationSettler,
+          originDomain,
+          destinationDomain
+        });
+
         const result = await openOrder({
           senderAddress: evmAddress!,
           recipientAddress: recipient,
           inputToken: tokenAddress,
           outputToken: destTokenAddress || contracts['ztarknet'].erc20,
           amountIn: amountWei,
-          amountOut: amountWei,
+          amountOut: amountOut,
           originDomain,
           destinationDomain,
+          destinationSettler,
         })
 
         updateTransferStatus(TransferStatus.BridgeConfirming, {
@@ -221,8 +313,43 @@ export function BridgeForm() {
         })
 
         updateTransferStatus(TransferStatus.WaitingForFulfillment)
-        startPolling(result.orderId)
+        startPolling(result.orderId, destChain.chainId)
+      } else if (sourceChain.type === 'starknet') {
+        console.log("--- Starknet Bridge Debug ---");
+        console.log("Pre-encoded Order Data:", orderData);
+        console.log("Hyperlane Contract Address:", starknetHyperlaneAddress);
+        console.log("Calldata/Calls:", calls);
+        console.log("-----------------------------");
+
+        updateTransferStatus(TransferStatus.WaitingBridgeSignature)
+        const result = await sendAsync();
+
+        updateTransferStatus(TransferStatus.BridgeConfirming, {
+          originTxHash: result.transaction_hash as `0x${string}`,
+        })
+
+        // Wait for transaction to confirm using provider (not shown here, but sendAsync returns tx hash)
+        // Ideally, you'd wait for receipt here or poll for it.
+        // For now, assuming optimistic progression or using a listener elsewhere (like we do for EVM polling orderId, 
+        // but Starknet might need tx receipt first to get orderId if emitted, or just poll solver with tx hash if supported).
+        // Since we don't have the orderId easily from the sendAsync result (it's in the event), we might need to fetch receipt.
+
+        // Simulating moving to next step after a short delay or if we implement receipt fetching
+        // For proper implementation, we should fetch receipt to get logs -> orderId.
+
+        // TEMPORARY: Just setting status to waiting for fulfillment
+        // In a real implementation: const receipt = await provider.waitForTransaction(result.transaction_hash)
+
+        updateTransferStatus(TransferStatus.WaitingForFulfillment)
+
+        // Compute orderId for polling
+        if (orderData) {
+          const orderId = computeOrderId(orderData);
+          console.log("Computed Order ID:", orderId);
+          startPolling(orderId, destChain.chainId);
+        }
       } else {
+
         throw new Error('Starknet as source chain is not yet supported')
       }
 
@@ -281,31 +408,34 @@ export function BridgeForm() {
   }, [recipient, destChain])
 
   const canBridge = sourceChain &&
-                    destChain &&
-                    isSourceWalletConnected &&
-                    amount &&
-                    parseFloat(amount) > 0 &&
-                    isValidRecipient &&
-                    !isTransferLoading
+    destChain &&
+    isSourceWalletConnected &&
+    amount &&
+    parseFloat(amount) > 0 &&
+    isValidRecipient &&
+    !isTransferLoading
 
   // Show transaction status when transfer is in progress
   if (currentTransfer && currentTransfer.status !== TransferStatus.Idle) {
+    const isFinished = currentTransfer.status === TransferStatus.Completed ||
+      currentTransfer.status === TransferStatus.Failed ||
+      currentTransfer.status === TransferStatus.WaitingForFulfillment ||
+      currentTransfer.status === TransferStatus.Fulfilled ||
+      currentTransfer.status === TransferStatus.Settled
+
     return (
       <div className="bridge-terminal">
         <TransactionStatus
           transfer={currentTransfer}
-          onClose={currentTransfer.status === TransferStatus.Completed ||
-                   currentTransfer.status === TransferStatus.Failed
-                   ? handleReset : undefined}
+          onClose={isFinished ? handleReset : undefined}
         />
 
-        {(currentTransfer.status === TransferStatus.Completed ||
-          currentTransfer.status === TransferStatus.Failed) && (
-          <button className="action-btn primary" onClick={handleReset}>
-            <span className="btn-text">INITIATE NEW TRANSFER</span>
-            <div className="btn-glow" />
-          </button>
-        )}
+        {isFinished && (
+            <button className="action-btn primary" onClick={handleReset}>
+              <span className="btn-text">INITIATE NEW TRANSFER</span>
+              <div className="btn-glow" />
+            </button>
+          )}
       </div>
     )
   }
@@ -367,8 +497,8 @@ export function BridgeForm() {
           type="button"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M7 16V4M7 4L3 8M7 4L11 8"/>
-            <path d="M17 8V20M17 20L21 16M17 20L13 16"/>
+            <path d="M7 16V4M7 4L3 8M7 4L11 8" />
+            <path d="M17 8V20M17 20L21 16M17 20L13 16" />
           </svg>
         </button>
         <div className="transfer-line">
@@ -381,14 +511,14 @@ export function BridgeForm() {
         <div className="section-header">
           <div className="section-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </div>
           <span className="section-label">DESTINATION</span>
           {destChain?.isPrivate && (
             <span className="privacy-tag">
               <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
               </svg>
               SHIELDED
             </span>
@@ -450,7 +580,7 @@ export function BridgeForm() {
           </div>
           <div className="amount-input-container">
             <input
-              type="text"
+              type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
@@ -521,8 +651,8 @@ export function BridgeForm() {
         <div className="privacy-notice">
           <div className="notice-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              <path d="M9 12l2 2 4-4"/>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="M9 12l2 2 4-4" />
             </svg>
           </div>
           <span>Assets will be shielded on {destChain.name}</span>

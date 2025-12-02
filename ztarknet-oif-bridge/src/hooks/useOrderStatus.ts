@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
-import { usePublicClient } from 'wagmi'
+import { useConfig } from 'wagmi'
+import { getPublicClient } from '@wagmi/core'
 import type { Hex } from 'viem'
 import { RpcProvider } from 'starknet'
-import { EVM_CONTRACTS, contracts } from '@/config/contracts'
+import { EVM_CONTRACTS, contracts, getHyperlane7683Address } from '@/config/contracts'
 import { chains } from '@/config/chains'
 import Hyperlane7683Abi from '@/abis/Hyperlane7683.json'
 
@@ -12,9 +13,9 @@ interface UseOrderStatusResult {
   status: OrderState
   isPolling: boolean
   error: string | null
-  startPolling: (orderId: Hex) => void
+  startPolling: (orderId: Hex, destinationChainId?: number) => void
   stopPolling: () => void
-  checkOnce: (orderId: Hex) => Promise<OrderState>
+  checkOnce: (orderId: Hex, destinationChainId?: number) => Promise<OrderState>
 }
 
 // Filled event selector for Starknet
@@ -22,37 +23,34 @@ const FILLED_EVENT_SELECTOR = '0x35D8BA7F4BF26B6E2E2060E5BD28107042BE35460FBD828
 
 /**
  * Hook to monitor order status across chains
- * Polls both origin (EVM) and destination (Ztarknet) for status updates
+ * Polls destination for status updates
  */
 export function useOrderStatus(
   pollIntervalMs: number = 5000
 ): UseOrderStatusResult {
-  const evmClient = usePublicClient()
-
-  // Create a direct RpcProvider for Ztarknet to avoid CORS issues
-  // with the default starknet-react provider which uses BlastAPI
-  const ztarknetProvider = useMemo(() => {
-    return new RpcProvider({
-      nodeUrl: chains.zstarknet.rpcUrl,
-    })
-  }, [])
-
+  const config = useConfig()
+  
   const [status, setStatus] = useState<OrderState>('unknown')
   const [isPolling, setIsPolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const orderIdRef = useRef<Hex | null>(null)
+  const destChainIdRef = useRef<number | undefined>(undefined)
 
   /**
-   * Check order status on EVM origin chain
+   * Check order status on EVM chain
    */
-  const checkEvmStatus = useCallback(async (orderId: Hex): Promise<string> => {
-    if (!evmClient) return 'UNKNOWN'
-
+  const checkEvmStatus = useCallback(async (orderId: Hex, chainId: number): Promise<string> => {
     try {
-      const status = await evmClient.readContract({
-        address: EVM_CONTRACTS.hyperlane7683,
+      const client = getPublicClient(config, { chainId })
+      if (!client) return 'UNKNOWN'
+      
+      const hyperlaneAddress = getHyperlane7683Address(chainId)
+      if (!hyperlaneAddress) return 'UNKNOWN'
+
+      const status = await client.readContract({
+        address: hyperlaneAddress,
         abi: Hyperlane7683Abi,
         functionName: 'orderStatus',
         args: [orderId],
@@ -71,94 +69,110 @@ export function useOrderStatus(
       const statusStr = new TextDecoder().decode(bytes).replace(/\0/g, '').trim()
 
       return statusStr || 'UNKNOWN'
-    } catch {
+    } catch (err) {
+      console.error(`Error checking EVM status on chain ${chainId}:`, err)
       return 'UNKNOWN'
     }
-  }, [evmClient])
+  }, [config])
 
   /**
-   * Check for Filled event on Ztarknet destination chain
+   * Check for Filled status on Starknet chain
    */
-  const checkZtarknetFilled = useCallback(async (orderId: Hex): Promise<boolean> => {
-    if (!ztarknetProvider) return false
-
+  const checkStarknetStatus = useCallback(async (orderId: Hex, chainId: number): Promise<OrderState> => {
     try {
-      const ztarknetHyperlane = contracts['ztarknet'].hyperlane7683
+      let rpcUrl = '';
+      let contractAddress = '';
 
-      // Query events from the Ztarknet Hyperlane contract
+      if (chainId === Number(chains.zstarknet.chainId)) {
+          rpcUrl = chains.zstarknet.rpcUrl;
+          contractAddress = contracts['ztarknet'].hyperlane7683;
+      } else if (chainId === Number(chains.starknetSepolia.chainId)) {
+          rpcUrl = chains.starknetSepolia.rpcUrl;
+          contractAddress = contracts['starknet-sepolia'].hyperlane7683;
+      } else {
+          return 'unknown';
+      }
+
+      const provider = new RpcProvider({ nodeUrl: rpcUrl });
+
+      // First try to call order_status if available
+      // Note: We need to convert hex orderId to u256 for Cairo call
+      // But checking events is often more reliable if view functions are restricted or fail
+      
+      // Query events from the Starknet Hyperlane contract
       // Look for Filled event with matching orderId
-      const events = await ztarknetProvider.getEvents({
-        address: ztarknetHyperlane,
+      const events = await provider.getEvents({
+        address: contractAddress,
         keys: [[FILLED_EVENT_SELECTOR]],
-        from_block: { block_number: 0 },
+        from_block: { block_number: 0 }, // Ideally we'd optimize this to recent blocks
         to_block: 'latest',
         chunk_size: 100,
       })
 
       // Check if any event matches our orderId
       for (const event of events.events) {
-        // The orderId should be in the event data
-        // Format depends on how the Starknet contract emits the event
         if (event.data && event.data.length > 0) {
-          // Convert orderId to felt format for comparison
           const orderIdFelt = orderId.toLowerCase()
           const eventOrderId = event.data[0]?.toLowerCase()
 
-          if (eventOrderId && eventOrderId.includes(orderIdFelt.slice(2))) {
-            return true
+          // Simple containment check for felt/hex match
+          if (eventOrderId && (eventOrderId === orderIdFelt || eventOrderId.includes(orderIdFelt.slice(2)))) {
+            return 'filled'
           }
         }
       }
 
-      return false
+      return 'pending'
     } catch (err) {
-      console.error('Error checking Ztarknet filled status:', err)
-      return false
+      console.error(`Error checking Starknet status on chain ${chainId}:`, err)
+      return 'error'
     }
-  }, [ztarknetProvider])
+  }, [])
 
   /**
    * Check order status once
    */
-  const checkOnce = useCallback(async (orderId: Hex): Promise<OrderState> => {
+  const checkOnce = useCallback(async (orderId: Hex, destinationChainId?: number): Promise<OrderState> => {
     try {
-      // First check EVM status
-      const evmStatus = await checkEvmStatus(orderId)
-
-      if (evmStatus === 'SETTLED') {
-        return 'settled'
+      // Determine if destination is EVM or Starknet
+      const destChainId = destinationChainId || destChainIdRef.current;
+      
+      if (!destChainId) {
+          // Fallback logic if no destination provided (legacy)
+          // Default to checking if it's Ztarknet (Starknet) or assuming EVM connected chain
+          // For safety, let's just try to check Ztarknet as per old logic if no chain provided
+          return await checkStarknetStatus(orderId, Number(chains.zstarknet.chainId));
       }
 
-      if (evmStatus === 'FILLED') {
-        return 'filled'
+      // Check if Starknet
+      if (destChainId === Number(chains.zstarknet.chainId) || destChainId === Number(chains.starknetSepolia.chainId)) {
+          return await checkStarknetStatus(orderId, destChainId);
       }
 
-      // If EVM shows OPENED, check if it's been filled on Ztarknet
-      if (evmStatus === 'OPENED') {
-        const isFilled = await checkZtarknetFilled(orderId)
-        if (isFilled) {
-          return 'filled'
-        }
-        return 'pending'
-      }
+      // Assume EVM otherwise
+      const statusStr = await checkEvmStatus(orderId, destChainId);
+      if (statusStr === 'FILLED') return 'filled';
+      if (statusStr === 'SETTLED') return 'settled';
+      
+      return 'pending';
 
-      return 'pending'
     } catch (err) {
       console.error('Error checking order status:', err)
       return 'error'
     }
-  }, [checkEvmStatus, checkZtarknetFilled])
+  }, [checkEvmStatus, checkStarknetStatus])
 
   /**
    * Start polling for order status
    */
-  const startPolling = useCallback((orderId: Hex) => {
+  const startPolling = useCallback((orderId: Hex, destinationChainId?: number) => {
     // Stop any existing polling
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
     }
 
     orderIdRef.current = orderId
+    destChainIdRef.current = destinationChainId
     setIsPolling(true)
     setError(null)
     setStatus('pending')
@@ -167,7 +181,7 @@ export function useOrderStatus(
       if (!orderIdRef.current) return
 
       try {
-        const newStatus = await checkOnce(orderIdRef.current)
+        const newStatus = await checkOnce(orderIdRef.current, destChainIdRef.current)
         setStatus(newStatus)
 
         // Stop polling if we've reached a terminal state
@@ -205,6 +219,7 @@ export function useOrderStatus(
       pollingRef.current = null
     }
     orderIdRef.current = null
+    destChainIdRef.current = undefined
     setIsPolling(false)
   }, [])
 

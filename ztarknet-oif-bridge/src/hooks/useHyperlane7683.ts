@@ -24,8 +24,8 @@ import {
 } from '@/utils/orderEncoding'
 
 // Log the hash for debugging
-console.log('ORDER_DATA_TYPE_HASH:', ORDER_DATA_TYPE_HASH)
-console.log('Expected hash (from solver): 0x08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e')
+// console.log('ORDER_DATA_TYPE_HASH:', ORDER_DATA_TYPE_HASH)
+// console.log('Expected hash (from solver): 0x08d75650babf4de09c9273d48ef647876057ed91d4323f8a2e3ebc2cd8a63b5e')
 
 interface OpenOrderParams {
   // User's addresses
@@ -41,6 +41,7 @@ interface OpenOrderParams {
   // Chain info (using Hyperlane domains)
   originDomain: number
   destinationDomain: number
+  destinationSettler?: string
 
   // Timing
   fillDeadlineSeconds?: number
@@ -120,11 +121,11 @@ export function useHyperlane7683() {
     // Get the local domain from the contract (not hardcoded)
     // This ensures the orderData.originDomain matches what the contract expects
     const localDomain = await getLocalDomain()
-    console.log('Contract localDomain:', localDomain, 'Passed originDomain:', params.originDomain)
+    //console.log('Contract localDomain:', localDomain, 'Passed originDomain:', params.originDomain)
 
     // Get a valid nonce
     const senderNonce = await findValidNonce(address)
-    console.log('Using senderNonce:', senderNonce.toString())
+    //console.log('Using senderNonce:', senderNonce.toString())
 
     // Debug: Check token allowance
     const allowance = await publicClient.readContract({
@@ -142,7 +143,7 @@ export function useHyperlane7683() {
       functionName: 'allowance',
       args: [address, hyperlaneAddress],
     })
-    console.log('Token allowance:', allowance.toString(), 'Required:', params.amountIn.toString())
+    //console.log('Token allowance:', allowance.toString(), 'Required:', params.amountIn.toString())
 
     // Debug: Check token balance
     const balance = await publicClient.readContract({
@@ -157,7 +158,6 @@ export function useHyperlane7683() {
       functionName: 'balanceOf',
       args: [address],
     })
-    console.log('Token balance:', balance.toString(), 'Required:', params.amountIn.toString())
 
     if (balance < params.amountIn) {
       throw new Error(`Insufficient token balance. Have: ${balance}, Need: ${params.amountIn}`)
@@ -169,8 +169,11 @@ export function useHyperlane7683() {
     // Calculate fill deadline (default 1 hour from now)
     const fillDeadline = Math.floor(Date.now() / 1000) + (params.fillDeadlineSeconds ?? 3600)
 
-    // Get destination settler (Ztarknet Hyperlane7683)
-    const destinationSettler = feltToBytes32(contracts['ztarknet'].hyperlane7683)
+    // Get destination settler
+    // Use provided settler or default to Ztarknet (legacy behavior, should be provided now)
+    const destinationSettler = params.destinationSettler 
+      ? feltToBytes32(params.destinationSettler)
+      : feltToBytes32(contracts['ztarknet'].hyperlane7683)
 
     // Encode order data matching solver format
     // IMPORTANT: Use localDomain from contract, not params.originDomain
@@ -196,11 +199,11 @@ export function useHyperlane7683() {
       orderData,
     }
 
-    console.log('Order structure:', {
-      fillDeadline,
-      orderDataType: ORDER_DATA_TYPE_HASH,
-      orderDataLength: orderData.length,
-    })
+    //    console.log('Order structure:', {
+    //      fillDeadline,
+    //      orderDataType: ORDER_DATA_TYPE_HASH,
+    //      orderDataLength: orderData.length,
+    //    })
 
     // Pre-flight: Try to resolve the order to validate structure
     try {
@@ -210,7 +213,7 @@ export function useHyperlane7683() {
         functionName: 'resolve',
         args: [order],
       })
-      console.log('Order resolved successfully:', resolved)
+      //console.log('Order resolved successfully:', resolved)
     } catch (resolveError) {
       console.error('Order resolve failed:', resolveError)
       throw new Error(`Order validation failed: ${resolveError instanceof Error ? resolveError.message : 'Unknown error'}`)
