@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAccount as useEvmAccount, useConnect as useEvmConnect, useDisconnect as useEvmDisconnect } from 'wagmi'
 import { useAccount as useStarknetAccount, useConnect as useStarknetConnect, useDisconnect as useStarknetDisconnect } from '@starknet-react/core'
+import { useBridgeStore } from '@/store'
 
 type WalletType = 'evm' | 'starknet' | null
 
@@ -12,6 +13,7 @@ export function WalletButton() {
   const { address: starknetAddress, isConnected: starknetConnected } = useStarknetAccount()
   const { connect: starknetConnect, connectors: starknetConnectors } = useStarknetConnect()
   const { disconnect: starknetDisconnect } = useStarknetDisconnect()
+  const { currentTransfer } = useBridgeStore()
 
   const [showModal, setShowModal] = useState(false)
   const [walletType, setWalletType] = useState<WalletType>(null)
@@ -25,6 +27,10 @@ export function WalletButton() {
     setShowModal(false)
     setWalletType(null)
   }
+
+  
+  const { selectedOriginChainId } = useBridgeStore()
+  const isZtarknetMode = selectedOriginChainId === 10066329 // Ztarknet Chain ID
 
   return (
     <>
@@ -44,8 +50,8 @@ export function WalletButton() {
 
         {/* Starknet Wallet */}
         {starknetConnected && starknetAddress ? (
-          <div className="wallet-connected starknet">
-            <span className="wallet-label">SN</span>
+          <div className={`wallet-connected ${isZtarknetMode ? 'ztarknet' : 'starknet'}`}>
+            <span className="wallet-label">{isZtarknetMode ? 'ZK' : 'SN'}</span>
             <span className="address">{starknetAddress.slice(0, 6)}...{starknetAddress.slice(-4)}</span>
             <button className="disconnect-btn" onClick={() => starknetDisconnect()}>×</button>
           </div>

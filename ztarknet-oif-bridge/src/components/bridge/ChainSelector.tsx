@@ -59,8 +59,8 @@ export function ChainSelector({
       >
         {selectedChain ? (
           <div className="chain-selector-selected">
-            <span className={`chain-type-badge ${selectedChain.type}`}>
-              {selectedChain.type === 'evm' ? 'EVM' : 'SN'}
+            <span className={`chain-type-badge ${selectedChain.id === 'ztarknet' ? 'ztarknet' : selectedChain.type}`}>
+              {selectedChain.type === 'evm' ? 'EVM' : selectedChain.id === 'ztarknet' ? 'ZK' : 'SN'}
             </span>
             <span className="chain-name">{selectedChain.name}</span>
             {selectedChain.isPrivate && (
@@ -92,8 +92,8 @@ export function ChainSelector({
               onClick={() => handleSelect(chain)}
               type="button"
             >
-              <span className={`chain-type-badge ${chain.type}`}>
-                {chain.type === 'evm' ? 'EVM' : 'SN'}
+              <span className={`chain-type-badge ${chain.id === 'ztarknet' ? 'ztarknet' : chain.type}`}>
+                {chain.type === 'evm' ? 'EVM' : chain.id === 'ztarknet' ? 'ZK' : 'SN'}
               </span>
               <span className="chain-name">{chain.name}</span>
               {chain.isPrivate && (

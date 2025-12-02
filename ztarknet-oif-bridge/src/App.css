@@ -478,6 +478,49 @@
   color: var(--text-muted);
 }
 
+.stats-toggle-btn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: auto; /* Push to right if no other element does, or sit next to badge */
+}
+
+/* If a badge exists before it, reset margin-left so it doesn't push away unnecessarily, 
+   unless we want it to be the only thing on the right. 
+   Actually, chain-type and privacy-tag have margin-left: auto. 
+   If both exist (badge and button), badge pushes right, button follows.
+   If only button exists (e.g. Dest without private tag), button needs margin-left: auto.
+   The structure is flex container.
+   Case 1: Icon, Label, Badge(ml-auto), Button. Badge goes right, Button right of Badge.
+   Case 2: Icon, Label, Button. Button(ml-auto) goes right.
+*/
+.chain-type + .stats-toggle-btn,
+.privacy-tag + .stats-toggle-btn {
+  margin-left: 0.5rem;
+}
+
+.stats-toggle-btn:hover {
+  color: var(--orange);
+  transform: scale(1.1);
+}
+
+.stats-toggle-btn.active {
+  color: var(--orange);
+}
+
+.stats-toggle-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
 .chain-type {
   margin-left: auto;
   font-size: 0.5rem;
@@ -495,6 +538,11 @@
 .chain-type.starknet {
   background: rgba(255, 102, 0, 0.2);
   color: var(--orange);
+}
+
+.chain-type.ztarknet {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--green);
 }
 
 .privacy-tag {
@@ -1075,12 +1123,8 @@
 }
 
 .chain-type-badge.starknet {
-  /**
   background: rgba(255, 102, 0, 0.2);
   color: var(--orange);
-  **/
- background: rgba(0, 255, 136, 0.15);
- color: var(--green);
 }
 
 .chain-type-badge.ztarknet {

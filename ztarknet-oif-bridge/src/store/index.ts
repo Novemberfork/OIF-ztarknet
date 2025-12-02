@@ -23,6 +23,10 @@ interface BridgeState {
   // Fee quote for current transfer
   feeQuote: FeeQuote | null
 
+  // Selected chain state (lifted for global access)
+  selectedOriginChainId: number | null
+  setSelectedOriginChainId: (chainId: number | null) => void
+
   // Actions
   setCurrentTransfer: (transfer: TransferContext | null) => void
   updateTransferStatus: (status: TransferStatus, updates?: Partial<TransferContext>) => void
@@ -64,6 +68,10 @@ export const useBridgeStore = create<BridgeState>()(
       showHistory: false,
       showReview: false,
       feeQuote: null,
+      selectedOriginChainId: null,
+
+      // Set selected origin chain
+      setSelectedOriginChainId: (chainId) => set({ selectedOriginChainId: chainId }),
 
       // Set current transfer
       setCurrentTransfer: (transfer) => set({ currentTransfer: transfer }),

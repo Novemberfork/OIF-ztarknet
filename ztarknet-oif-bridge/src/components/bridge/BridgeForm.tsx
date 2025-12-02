@@ -66,6 +66,8 @@ export function BridgeForm() {
   const [destChain, setDestChain] = useState<ChainOption | null>(null)
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
+  const [showOriginStats, setShowOriginStats] = useState(false)
+  const [showDestStats, setShowDestStats] = useState(false)
 
   // Determine which wallet is needed for source/destination
   const sourceWalletType = sourceChain?.type
@@ -117,7 +119,17 @@ export function BridgeForm() {
     updateTransferStatus,
     setTransferLoading,
     resetCurrentTransfer,
+    setSelectedOriginChainId,
   } = useBridgeStore()
+
+  // Update store when source chain changes
+  // Only update if the new source chain is Starknet or Ztarknet (type 'starknet')
+  // This preserves the badge style (ZK or SN) when switching back to EVM origin
+  useEffect(() => {
+    if (sourceChain?.type === 'starknet') {
+      setSelectedOriginChainId(sourceChain.chainId)
+    }
+  }, [sourceChain, setSelectedOriginChainId])
 
   // Starknet `open` mult-call
 
@@ -456,7 +468,27 @@ export function BridgeForm() {
           </div>
           <span className="section-label">ORIGIN</span>
           {sourceChain && (
-            <span className={`chain-type ${sourceChain.type}`}>{sourceChain.type.toUpperCase()}</span>
+            <>
+              <span className={`chain-type ${sourceChain.id === 'ztarknet' ? 'ztarknet' : sourceChain.type}`}>
+                {sourceChain.type === 'evm' ? 'EVM' : sourceChain.id === 'ztarknet' ? 'ZK' : 'SN'}
+              </span>
+              <button
+                className={`stats-toggle-btn ${showOriginStats ? 'active' : ''}`}
+                onClick={() => setShowOriginStats(!showOriginStats)}
+                type="button"
+                title={showOriginStats ? "Hide stats" : "Show stats"}
+              >
+                {showOriginStats ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                )}
+              </button>
+            </>
           )}
         </div>
 
@@ -478,7 +510,7 @@ export function BridgeForm() {
         )}
 
         {/* Chain Stats for Origin */}
-        <ChainStats chain={sourceChain} position="origin" />
+        {showOriginStats && <ChainStats chain={sourceChain} position="origin" />}
       </div>
 
       {/* Transfer Visualization */}
@@ -515,6 +547,11 @@ export function BridgeForm() {
             </svg>
           </div>
           <span className="section-label">DESTINATION</span>
+          {destChain && !destChain.isPrivate && (
+            <span className={`chain-type ${destChain.id === 'ztarknet' ? 'ztarknet' : destChain.type}`}>
+              {destChain.type === 'evm' ? 'EVM' : destChain.id === 'ztarknet' ? 'ZK' : 'SN'}
+            </span>
+          )}
           {destChain?.isPrivate && (
             <span className="privacy-tag">
               <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
@@ -522,6 +559,24 @@ export function BridgeForm() {
               </svg>
               SHIELDED
             </span>
+          )}
+          {destChain && (
+            <button
+              className={`stats-toggle-btn ${showDestStats ? 'active' : ''}`}
+              onClick={() => setShowDestStats(!showDestStats)}
+              type="button"
+              title={showDestStats ? "Hide stats" : "Show stats"}
+            >
+              {showDestStats ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              )}
+            </button>
           )}
         </div>
 
@@ -561,7 +616,7 @@ export function BridgeForm() {
         )}
 
         {/* Chain Stats for Destination */}
-        <ChainStats chain={destChain} position="destination" />
+        {showDestStats && <ChainStats chain={destChain} position="destination" />}
       </div>
 
       {/* Amount Section */}
