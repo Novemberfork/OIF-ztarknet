@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useAccount as useEvmAccount, useChainId, useReadContract, useSwitchChain } from 'wagmi'
+import { useAccount as useEvmAccount, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi'
 import { useSendTransaction, useAccount as useStarknetAccount } from '@starknet-react/core'
 import { parseEther, formatUnits, type Address, erc20Abi } from 'viem'
+import { uint256 } from 'starknet'
 
 import { useHyperlane7683 } from '@/hooks/useHyperlane7683'
 import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useOrderStatus } from '@/hooks/useOrderStatus'
+import { useERC20 } from '@/hooks/useERC20'
 import { useBridgeStore } from '@/store'
+import MintableERC20Abi from '@/abis/MintableERC20.json'
 import { TransferStatus } from '@/types/transfers'
 import {
-  ORDER_DATA_TYPE_HASH,
-  encodeOrderData,
-  feltToBytes32,
-  computeOrderId,
-  type OrderData
+  computeOrderId
 } from '@/utils/orderEncoding'
 import {
   EVM_CONTRACTS,
@@ -104,6 +103,21 @@ export function BridgeForm() {
   })
 
   const { openOrder } = useHyperlane7683()
+
+  // Use Starknet ERC20 hook for source token balance
+  // Pass chainId to enable manual fetching for both Ztarknet and Starknet Sepolia if configured
+  const { balance: snBalance } = useERC20(
+    sourceTokenAddress || '', 
+    sourceChain?.type === 'starknet' ? sourceChain.chainId : undefined
+  )
+  console.log("snBalance", snBalance);
+
+  // EVM Minting
+  const { writeContractAsync: mintEvm, isPending: isMintingEvm } = useWriteContract()
+
+  // Starknet Minting
+  const { sendAsync: mintStarknet, isPending: isMintingStarknet } = useSendTransaction({})
+
   const {
     checkAllowance,
     approve,
@@ -182,7 +196,29 @@ export function BridgeForm() {
 
 
 
-  const formattedBalance = evmBalance ? formatUnits(evmBalance, 18) : '0'
+  const formattedBalance = useMemo(() => {
+    if (sourceWalletType === 'evm' && evmBalance) {
+      return formatUnits(evmBalance, 18)
+    } else if (sourceWalletType === 'starknet' && snBalance) {
+      try {
+        console.log("Processing snBalance:", snBalance);
+        // snBalance is likely { low: ..., high: ... } from starknet-react
+        // or a bigint directly. Let's check type.
+        let balanceBN;
+        if (typeof snBalance === 'bigint') {
+          balanceBN = snBalance;
+        } else {
+          balanceBN = uint256.uint256ToBN(snBalance as any)
+        }
+        return formatUnits(balanceBN, 18)
+      } catch (e) {
+        console.error('Error formatting Starknet balance:', e)
+        return '0'
+      }
+    }
+    return '0'
+  }, [evmBalance, snBalance, sourceWalletType])
+
   const displayBalance = Number(formattedBalance).toFixed(4)
 
   // Auto-switch EVM network when source chain changes
@@ -455,6 +491,84 @@ export function BridgeForm() {
   const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
   const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
 
+  const handleMint = useCallback(async () => {
+    if (!sourceChain || !sourceTokenAddress) return
+
+    // Amount to mint: 42,069 * 10^18
+    const mintAmount = parseEther('42069')
+
+    try {
+      if (sourceChain.type === 'evm' && evmAddress) {
+        console.log("Minting EVM:", {
+          address: sourceTokenAddress,
+          recipient: evmAddress,
+          amount: mintAmount.toString()
+        });
+        await mintEvm({
+          address: sourceTokenAddress as Address,
+          abi: MintableERC20Abi,
+          functionName: 'mint',
+          args: [evmAddress, mintAmount],
+        })
+      } else if (sourceChain.type === 'starknet' && starknetAddress) {
+        const amountUint256 = uint256.bnToUint256(mintAmount)
+        console.log("Minting Starknet:", {
+          contract: sourceTokenAddress,
+          recipient: starknetAddress,
+          amount: mintAmount.toString(),
+          u256: amountUint256
+        });
+        await mintStarknet([{
+          contractAddress: sourceTokenAddress,
+          entrypoint: 'mint',
+          calldata: [starknetAddress, amountUint256.low, amountUint256.high]
+        }])
+      }
+    } catch (error) {
+      console.error('Mint failed:', error)
+    }
+  }, [sourceChain, sourceTokenAddress, evmAddress, starknetAddress, mintEvm, mintStarknet])
+
+  // Execute Button Text Logic
+  const buttonText = useMemo(() => {
+    if (isTransferLoading) return 'PROCESSING'
+    if (isMintingEvm || isMintingStarknet) return 'MINTING...'
+    if (!sourceChain || !destChain) return 'SELECT CHAINS'
+    if (!isSourceWalletConnected) return 'CONNECT WALLET'
+
+    // Check if balance is 0 or less than input amount (if amount entered)
+    const currentBalance = formattedBalance ? parseFloat(formattedBalance) : 0
+    const inputAmount = amount ? parseFloat(amount) : 0
+
+    console.log("Button Logic:", {
+      currentBalance,
+      inputAmount,
+      isApproving,
+      needsApproval,
+      formattedBalance,
+      amount
+    });
+
+    // Show mint if balance is 0 OR if input amount > balance
+    // This allows users to mint if they have 0 balance OR if they try to send more than they have
+    if (currentBalance === 0 || (inputAmount > 0 && inputAmount > currentBalance)) {
+      return 'MINT DOG COINS'
+    }
+
+    if (isApproving) return 'APPROVING'
+    if (needsApproval) return 'APPROVE & EXECUTE'
+    return 'EXECUTE TRANSFER'
+  }, [isTransferLoading, isMintingEvm, isMintingStarknet, sourceChain, destChain, isSourceWalletConnected, formattedBalance, isApproving, needsApproval, amount])
+
+  // Execute Button Click Handler
+  const handleButtonClick = useCallback(() => {
+    if (buttonText === 'MINT DOG COINS') {
+      handleMint()
+    } else {
+      handleBridge()
+    }
+  }, [buttonText, handleMint, handleBridge])
+
   return (
     <div className="bridge-terminal">
       {/* Origin Section */}
@@ -657,7 +771,7 @@ export function BridgeForm() {
               <span className="token-symbol">DOG</span>
             </div>
           </div>
-          {isSourceWalletConnected && sourceWalletType === 'evm' && (
+          {isSourceWalletConnected && (
             <div className="balance-display">
               <span className="balance-label">AVAILABLE</span>
               <span className="balance-value">{displayBalance} DOG</span>
@@ -686,28 +800,14 @@ export function BridgeForm() {
 
       {/* Execute Button */}
       <button
-        className={`action-btn primary ${canBridge ? 'ready' : ''}`}
-        onClick={handleBridge}
-        disabled={!canBridge}
+        className={`action-btn primary ${canBridge || buttonText === 'MINT DOG COINS' ? 'ready' : ''}`}
+        onClick={handleButtonClick}
+        disabled={(!canBridge && buttonText !== 'MINT DOG COINS') || isTransferLoading || isMintingEvm || isMintingStarknet}
         type="button"
       >
         <div className="btn-inner">
-          {isTransferLoading ? (
-            <>
-              <div className="loading-spinner" />
-              <span className="btn-text">PROCESSING</span>
-            </>
-          ) : !sourceChain || !destChain ? (
-            <span className="btn-text">SELECT CHAINS</span>
-          ) : !isSourceWalletConnected ? (
-            <span className="btn-text">CONNECT WALLET</span>
-          ) : isApproving ? (
-            <span className="btn-text">APPROVING</span>
-          ) : needsApproval ? (
-            <span className="btn-text">APPROVE & EXECUTE</span>
-          ) : (
-            <span className="btn-text">EXECUTE TRANSFER</span>
-          )}
+          {(isTransferLoading || isMintingEvm || isMintingStarknet) && <div className="loading-spinner" />}
+          <span className="btn-text">{buttonText}</span>
         </div>
         <div className="btn-glow" />
         <div className="btn-scanline" />

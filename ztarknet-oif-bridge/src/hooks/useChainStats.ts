@@ -22,8 +22,8 @@ const initialStats: ChainStats = {
   error: null,
 }
 
-const STARKNET_RPC_URLS: Record<number, string> = {
-  [CHAIN_IDS.starknetSepolia]: 'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_9/9rvOFV5vjhFiCpd5znbZK',
+export const STARKNET_RPC_URLS: Record<number, string> = {
+  [CHAIN_IDS.starknetSepolia]: 'https://api.cartridge.gg/x/starknet/sepolia',
   [CHAIN_IDS.ztarknet]: 'https://ztarknet-madara.d.karnot.xyz',
 }
 
