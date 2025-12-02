@@ -1148,6 +1148,19 @@
   font-weight: 600;
 }
 
+.loading-dots {
+  display: inline-block;
+  animation: dots 1.5s infinite;
+  color: var(--orange);
+  font-weight: bold;
+}
+
+@keyframes dots {
+  0%, 20% { content: "."; }
+  40% { content: ".."; }
+  60%, 100% { content: "..."; }
+}
+
 /* ═══════════════════════════════════════════════════════════════
    INFO BAR (Footer)
    ═══════════════════════════════════════════════════════════════ */

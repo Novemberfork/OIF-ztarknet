@@ -1,8 +1,11 @@
 import './App.css'
 import { WalletButton } from './components/wallet/WalletButton'
 import { BridgeForm } from './components/bridge/BridgeForm'
+import { useGlobalBridgeStats } from './hooks/useGlobalBridgeStats'
 
 function App() {
+  const { bridgesPerHour, isLoading: isStatsLoading } = useGlobalBridgeStats()
+
   return (
     <div className="app">
       {/* Animated background elements */}
@@ -58,6 +61,24 @@ function App() {
               <span className="readout-value status-active">OPERATIONAL</span>
             </div>
           </div>
+          <div className="panel-header">
+            <span className="panel-title">DEMO</span>
+          </div>
+          <div className="data-readout">
+            <div className="readout-line">
+              <span className="readout-label">INTENT</span>
+              <span className="readout-value">SIMPLE BRIDGE</span>
+            </div>
+            <div className="readout-line">
+              <span className="readout-label">TOKEN</span>
+              <span className="readout-value">DOG COIN</span>
+            </div>
+            <div className="readout-line">
+              <span className="readout-label">MINT</span>
+              <span className="readout-value status-active">HERE</span>
+            </div>
+          </div>
+
           <div className="signal-bars">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="signal-bar" style={{
@@ -67,6 +88,7 @@ function App() {
             ))}
           </div>
         </aside>
+
 
         {/* Central bridge interface */}
         <div className="bridge-interface">
@@ -97,11 +119,19 @@ function App() {
             </div>
             <div className="activity-stats">
               <div className="stat">
-                <span className="stat-value">123</span>
+                <span className="stat-value">
+                  {isStatsLoading ? (
+                    <span className="loading-dots">...</span>
+                  ) : bridgesPerHour !== null ? (
+                    bridgesPerHour
+                  ) : (
+                    '--'
+                  )}
+                </span>
                 <span className="stat-label">BRIDGES/HR</span>
               </div>
               <div className="stat">
-                <span className="stat-value">45.6%</span>
+                <span className="stat-value">99.9%</span>
                 <span className="stat-label">UPTIME</span>
               </div>
             </div>
@@ -113,6 +143,7 @@ function App() {
           </div>
         </aside>
       </main>
+
 
       {/* Bottom info bar */}
       <footer className="info-bar">
