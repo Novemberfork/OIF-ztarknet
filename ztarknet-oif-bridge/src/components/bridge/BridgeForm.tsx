@@ -400,17 +400,20 @@ export function BridgeForm() {
 
   // Show transaction status when transfer is in progress
   if (currentTransfer && currentTransfer.status !== TransferStatus.Idle) {
+    const isFinished = currentTransfer.status === TransferStatus.Completed ||
+      currentTransfer.status === TransferStatus.Failed ||
+      currentTransfer.status === TransferStatus.WaitingForFulfillment ||
+      currentTransfer.status === TransferStatus.Fulfilled ||
+      currentTransfer.status === TransferStatus.Settled
+
     return (
       <div className="bridge-terminal">
         <TransactionStatus
           transfer={currentTransfer}
-          onClose={currentTransfer.status === TransferStatus.Completed ||
-            currentTransfer.status === TransferStatus.Failed
-            ? handleReset : undefined}
+          onClose={isFinished ? handleReset : undefined}
         />
 
-        {(currentTransfer.status === TransferStatus.Completed ||
-          currentTransfer.status === TransferStatus.Failed) && (
+        {isFinished && (
             <button className="action-btn primary" onClick={handleReset}>
               <span className="btn-text">INITIATE NEW TRANSFER</span>
               <div className="btn-glow" />

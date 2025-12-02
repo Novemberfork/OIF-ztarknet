@@ -1075,9 +1075,19 @@
 }
 
 .chain-type-badge.starknet {
+  /**
   background: rgba(255, 102, 0, 0.2);
   color: var(--orange);
+  **/
+ background: rgba(0, 255, 136, 0.15);
+ color: var(--green);
 }
+
+.chain-type-badge.ztarknet {
+ background: rgba(0, 255, 136, 0.15);
+ color: var(--green);
+}
+
 
 .chain-name {
   flex: 1;
@@ -1203,6 +1213,11 @@
 .wallet-connected.starknet .wallet-label {
   background: rgba(255, 102, 0, 0.2);
   color: var(--orange);
+}
+
+.wallet-connected.ztarknet .wallet-label {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--green);
 }
 
 .wallet-connected .address {

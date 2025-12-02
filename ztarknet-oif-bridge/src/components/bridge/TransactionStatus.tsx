@@ -12,15 +12,13 @@ const EVM_STATUS_STEPS = [
   { status: TransferStatus.ApprovalConfirming, label: 'Confirming approval' },
   { status: TransferStatus.WaitingBridgeSignature, label: 'Sign bridge' },
   { status: TransferStatus.BridgeConfirming, label: 'Confirming bridge' },
-  { status: TransferStatus.WaitingForFulfillment, label: 'Awaiting solver' },
-  { status: TransferStatus.Fulfilled, label: 'Fulfilled' },
+  { status: TransferStatus.WaitingForFulfillment, label: 'Order placed' },
 ]
 
 const STARKNET_STATUS_STEPS = [
   { status: TransferStatus.WaitingBridgeSignature, label: 'Sign bridge' },
   { status: TransferStatus.BridgeConfirming, label: 'Confirming bridge' },
-  { status: TransferStatus.WaitingForFulfillment, label: 'Awaiting solver' },
-  { status: TransferStatus.Fulfilled, label: 'Fulfilled' },
+  { status: TransferStatus.WaitingForFulfillment, label: 'Order placed' },
 ]
 
 function getStepIndex(status: TransferStatus, isStarknet: boolean): number {
@@ -32,7 +30,14 @@ function getStepIndex(status: TransferStatus, isStarknet: boolean): number {
   if (status === TransferStatus.Preparing) return -1
   if (status === TransferStatus.ApprovingToken) return isStarknet ? -1 : 1
   if (status === TransferStatus.SubmittingBridge) return isStarknet ? 0 : 3
-  if (status === TransferStatus.Completed || status === TransferStatus.Settled) return steps.length
+
+  // All post-bridge confirmation steps are considered "complete" in terms of steps shown
+  if (status === TransferStatus.WaitingForFulfillment ||
+    status === TransferStatus.Fulfilled ||
+    status === TransferStatus.WaitingForSettlement ||
+    status === TransferStatus.Completed ||
+    status === TransferStatus.Settled) return steps.length
+
   return -1
 }
 
@@ -40,15 +45,15 @@ function StatusIcon({ status }: { status: 'pending' | 'active' | 'complete' | 'e
   if (status === 'complete') {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
-        <path d="M20 6L9 17l-5-5"/>
+        <path d="M20 6L9 17l-5-5" />
       </svg>
     )
   }
   if (status === 'error') {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M15 9l-6 6M9 9l6 6"/>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M15 9l-6 6M9 9l6 6" />
       </svg>
     )
   }
@@ -56,7 +61,7 @@ function StatusIcon({ status }: { status: 'pending' | 'active' | 'complete' | 'e
     return (
       <div className="status-spinner">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" strokeDasharray="40" strokeDashoffset="10"/>
+          <circle cx="12" cy="12" r="10" strokeDasharray="40" strokeDashoffset="10" />
         </svg>
       </div>
     )
@@ -72,10 +77,13 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
   const isStarknet = transfer.originChainId === 23448591 || transfer.originChainId === 10066329
   const steps = isStarknet ? STARKNET_STATUS_STEPS : EVM_STATUS_STEPS
   const currentStepIdx = getStepIndex(transfer.status, isStarknet)
-  
+
   const isComplete = transfer.status === TransferStatus.Completed ||
-                     transfer.status === TransferStatus.Fulfilled ||
-                     transfer.status === TransferStatus.Settled
+    transfer.status === TransferStatus.Fulfilled ||
+    transfer.status === TransferStatus.Settled ||
+    transfer.status === TransferStatus.WaitingForFulfillment ||
+    transfer.status === TransferStatus.WaitingForSettlement
+
   const isFailed = transfer.status === TransferStatus.Failed
 
   return (
@@ -85,7 +93,7 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
         {onClose && (
           <button className="close-btn" onClick={onClose}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         )}
@@ -115,12 +123,25 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
       <div className="tx-status-message">
         {isFailed ? (
           <div className="error-message">
-            <span>Transaction failed</span>
-            {transfer.error && <p>{transfer.error}</p>}
+            {
+              transfer.error &&
+              <>
+                {
+                  transfer.error.includes("rejected the request") ? <>
+                    <p>
+                      Txn rejected
+                    </p>
+                    <span>Transaction failed</span>
+                  </> : <>
+                    <p>{transfer.error}</p>
+                  </>
+                }
+              </>
+            }
           </div>
         ) : isComplete ? (
           <div className="success-message">
-            <span>Bridge successful!</span>
+            <span>The solver will fill your order shortly</span>
           </div>
         ) : (
           <div className="pending-message">
