@@ -774,8 +774,11 @@ export function BridgeForm() {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0.00"
               className="amount-input"
+              min="0"
+              step="any"
               disabled={!sourceChain || isTransferLoading}
             />
             <div className="token-badge">
