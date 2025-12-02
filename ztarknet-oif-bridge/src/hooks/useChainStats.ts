@@ -129,7 +129,7 @@ export function useStarknetChainStats(chainId: number | undefined, enabled: bool
         isLoading: false,
         error: null,
       })
-    } catch {
+    } catch (e) {
       console.error('Starknet stats error:', e)
       retryCount.current += 1
       hasError.current = true
