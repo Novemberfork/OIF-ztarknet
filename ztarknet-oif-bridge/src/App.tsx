@@ -101,7 +101,7 @@ function App() {
                 <span className="stat-label">BRIDGES/HR</span>
               </div>
               <div className="stat">
-                <span className="stat-value">98.7%</span>
+                <span className="stat-value">45.6%</span>
                 <span className="stat-label">UPTIME</span>
               </div>
             </div>

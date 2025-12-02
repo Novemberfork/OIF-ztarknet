@@ -440,12 +440,12 @@
 
 .terminal-section.origin {
   border-radius: 8px 8px 0 0;
-  border-bottom: none;
+  border-bottom: 1px dashed rgba(255, 102, 0, 0.15);
 }
 
 .terminal-section.destination {
   border-radius: 0 0 8px 8px;
-  border-top: none;
+  border-top: 1px dashed rgba(255, 102, 0, 0.15);
 }
 
 .terminal-section.private {

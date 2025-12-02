@@ -443,11 +443,11 @@ export function BridgeForm() {
         />
 
         {isFinished && (
-            <button className="action-btn primary" onClick={handleReset}>
-              <span className="btn-text">INITIATE NEW TRANSFER</span>
-              <div className="btn-glow" />
-            </button>
-          )}
+          <button className="action-btn primary" onClick={handleReset}>
+            <span className="btn-text">INITIATE NEW TRANSFER</span>
+            <div className="btn-glow" />
+          </button>
+        )}
       </div>
     )
   }
@@ -458,7 +458,7 @@ export function BridgeForm() {
   return (
     <div className="bridge-terminal">
       {/* Origin Section */}
-      <div className="terminal-section origin">
+      <div className={`terminal-section origin ${sourceChain?.isPrivate ? 'private' : ''}`}>
         <div className="section-header">
           <div className="section-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -467,11 +467,22 @@ export function BridgeForm() {
             </svg>
           </div>
           <span className="section-label">ORIGIN</span>
+          {sourceChain && !sourceChain.isPrivate && (
+            <span className={`chain-type ${sourceChain.id === 'ztarknet' ? 'ztarknet' : sourceChain.type}`}>
+              {sourceChain.type === 'evm' ? 'EVM' : sourceChain.id === 'ztarknet' ? 'ZK' : 'SN'}
+            </span>
+          )}
+          {sourceChain?.isPrivate && (
+            <span className="privacy-tag">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+              </svg>
+              ZK
+            </span>
+          )}
+
           {sourceChain && (
             <>
-              <span className={`chain-type ${sourceChain.id === 'ztarknet' ? 'ztarknet' : sourceChain.type}`}>
-                {sourceChain.type === 'evm' ? 'EVM' : sourceChain.id === 'ztarknet' ? 'ZK' : 'SN'}
-              </span>
               <button
                 className={`stats-toggle-btn ${showOriginStats ? 'active' : ''}`}
                 onClick={() => setShowOriginStats(!showOriginStats)}
@@ -557,7 +568,7 @@ export function BridgeForm() {
               <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
               </svg>
-              SHIELDED
+              ZK
             </span>
           )}
           {destChain && (

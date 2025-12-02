@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePublicClient } from 'wagmi'
 import { formatGwei } from 'viem'
-import { useProvider as useStarknetProvider } from '@starknet-react/core'
+import { RpcProvider } from 'starknet'
+import { CHAIN_IDS } from '@/config/contracts'
 
 export interface ChainStats {
   blockNumber: number | null
@@ -19,6 +20,11 @@ const initialStats: ChainStats = {
   tps: null,
   isLoading: true,
   error: null,
+}
+
+const STARKNET_RPC_URLS: Record<number, string> = {
+  [CHAIN_IDS.starknetSepolia]: 'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_9/9rvOFV5vjhFiCpd5znbZK',
+  [CHAIN_IDS.ztarknet]: 'https://ztarknet-madara.d.karnot.xyz',
 }
 
 export function useEvmChainStats(chainId: number | undefined, enabled: boolean = true) {
@@ -83,15 +89,24 @@ export function useEvmChainStats(chainId: number | undefined, enabled: boolean =
 
 export function useStarknetChainStats(chainId: number | undefined, enabled: boolean = true) {
   const [stats, setStats] = useState<ChainStats>(initialStats)
-  const { provider } = useStarknetProvider()
   const retryCount = useRef(0)
   const hasError = useRef(false)
 
   const fetchStats = useCallback(async () => {
-    if (!provider || !enabled || !chainId) {
+    if (!enabled || !chainId) {
       setStats(prev => ({ ...prev, isLoading: false }))
       return
     }
+
+    // Get specific provider for the requested chain
+    const rpcUrl = STARKNET_RPC_URLS[chainId]
+    if (!rpcUrl) {
+      // Fallback or error if unknown chain
+      setStats(prev => ({ ...prev, isLoading: false, error: 'Unknown Starknet Chain' }))
+      return
+    }
+
+    const provider = new RpcProvider({ nodeUrl: rpcUrl })
 
     // If we've had CORS/network errors, stop retrying to avoid console spam
     if (hasError.current && retryCount.current > 2) {
@@ -115,6 +130,7 @@ export function useStarknetChainStats(chainId: number | undefined, enabled: bool
         error: null,
       })
     } catch {
+      console.error('Starknet stats error:', e)
       retryCount.current += 1
       hasError.current = true
       // Silently handle CORS and network errors
@@ -124,7 +140,7 @@ export function useStarknetChainStats(chainId: number | undefined, enabled: bool
         error: 'RPC unavailable',
       }))
     }
-  }, [provider, enabled, chainId])
+  }, [enabled, chainId])
 
   useEffect(() => {
     if (!enabled || !chainId) {
