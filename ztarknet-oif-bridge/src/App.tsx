@@ -176,9 +176,36 @@ function App() {
             </div>
           </div>
           <div className="hex-grid">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className={`hex ${i % 3 === 0 ? 'active' : ''}`} />
-            ))}
+            {[...Array(12)].map((_, i) => {
+              // Create variety: some active, some dim, some fade, some disappear
+              // Use deterministic "randomness" based on index for consistency
+              const seed = (i * 7 + 13) % 100 / 100;
+              let hexClass = 'hex';
+              let animationDelay = i * 0.15 + (i % 2) * 0.3;
+              let animationDuration = 3 + (i % 4) * 1.2;
+              
+              if (seed < 0.25) {
+                hexClass += ' active'; // Full orange pulsing
+              } else if (seed < 0.45) {
+                hexClass += ' dim'; // Dim orange
+              } else if (seed < 0.65) {
+                hexClass += ' fade'; // Fades to dark/transparent
+              } else if (seed < 0.8) {
+                hexClass += ' glow'; // Glowing effect
+              }
+              // else: base transparent state
+              
+              return (
+                <div 
+                  key={i} 
+                  className={hexClass}
+                  style={{
+                    animationDelay: `${animationDelay}s`,
+                    animationDuration: `${animationDuration}s`
+                  }}
+                />
+              );
+            })}
           </div>
         </aside>
       </main>

@@ -340,20 +340,114 @@
 
 .hex {
   aspect-ratio: 1;
-  background: rgba(255, 102, 0, 0.1);
+  background: rgba(255, 102, 0, 0.05);
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
   transition: all 0.3s ease;
+  position: relative;
 }
 
+/* Active - Full orange pulsing */
 .hex.active {
-  background: var(--orange);
-  box-shadow: 0 0 10px var(--orange-glow);
-  animation: hex-pulse 2s ease-in-out infinite;
+  background: rgba(255, 102, 0, 0.8);
+  box-shadow: 0 0 15px rgba(255, 102, 0, 0.6);
+  animation: hex-pulse 3s ease-in-out infinite;
 }
 
 @keyframes hex-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%, 100% { 
+    opacity: 0.4;
+    background: rgba(255, 102, 0, 0.4);
+    box-shadow: 0 0 8px rgba(255, 102, 0, 0.3);
+  }
+  50% { 
+    opacity: 1;
+    background: rgba(255, 102, 0, 1);
+    box-shadow: 0 0 20px rgba(255, 102, 0, 0.9);
+  }
+}
+
+/* Dim - Subtle orange glow */
+.hex.dim {
+  background: rgba(255, 102, 0, 0.2);
+  box-shadow: 0 0 5px rgba(255, 102, 0, 0.2);
+  animation: hex-dim-pulse 4s ease-in-out infinite;
+}
+
+@keyframes hex-dim-pulse {
+  0%, 100% { 
+    opacity: 0.3;
+    background: rgba(255, 102, 0, 0.15);
+  }
+  50% { 
+    opacity: 0.6;
+    background: rgba(255, 102, 0, 0.3);
+  }
+}
+
+/* Fade - Transitions from light to dark/transparent */
+.hex.fade {
+  background: rgba(255, 102, 0, 0.3);
+  animation: hex-fade 5s ease-in-out infinite;
+}
+
+@keyframes hex-fade {
+  0% { 
+    opacity: 0.1;
+    background: rgba(255, 102, 0, 0.05);
+    box-shadow: 0 0 0px transparent;
+  }
+  30% { 
+    opacity: 0.8;
+    background: rgba(255, 102, 0, 0.6);
+    box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
+  }
+  60% { 
+    opacity: 0.9;
+    background: rgba(255, 102, 0, 0.8);
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.6);
+  }
+  100% { 
+    opacity: 0;
+    background: rgba(255, 102, 0, 0);
+    box-shadow: 0 0 0px transparent;
+  }
+}
+
+/* Glow - Strong glowing effect */
+.hex.glow {
+  background: rgba(255, 102, 0, 0.4);
+  box-shadow: 0 0 12px rgba(255, 102, 0, 0.5);
+  animation: hex-glow 3.5s ease-in-out infinite;
+}
+
+@keyframes hex-glow {
+  0%, 100% { 
+    opacity: 0.5;
+    background: rgba(255, 102, 0, 0.3);
+    box-shadow: 0 0 8px rgba(255, 102, 0, 0.3);
+  }
+  50% { 
+    opacity: 1;
+    background: rgba(255, 102, 0, 0.7);
+    box-shadow: 0 0 25px rgba(255, 102, 0, 0.8), 0 0 40px rgba(255, 102, 0, 0.4);
+  }
+}
+
+/* Base hexes - Very subtle, some may stay minimal */
+.hex:not(.active):not(.dim):not(.fade):not(.glow) {
+  background: rgba(255, 102, 0, 0.05);
+  animation: hex-subtle 6s ease-in-out infinite;
+}
+
+@keyframes hex-subtle {
+  0%, 100% { 
+    opacity: 0.2;
+    background: rgba(255, 102, 0, 0.03);
+  }
+  50% { 
+    opacity: 0.4;
+    background: rgba(255, 102, 0, 0.1);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
