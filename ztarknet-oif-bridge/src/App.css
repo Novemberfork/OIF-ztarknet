@@ -752,15 +752,13 @@
 .data-packet-out {
   background: var(--orange);
   box-shadow: 0 0 10px var(--orange-glow);
-  animation: packet-flow-out 2.8s linear infinite;
+  animation: packet-flow-out 2s linear infinite;
   animation-delay: 2.2s; /* Start after orange packets finish their journey */
   opacity: 0; /* Hidden until animation starts */
 }
 
 .data-packet-out.delay-1 { animation-delay: calc(2.2s + 0.6s); }
 .data-packet-out.delay-2 { animation-delay: calc(2.2s + 1.2s); }
-.data-packet-out.delay-3 { animation-delay: calc(2.2s + 1.8s); }
-.data-packet-out.delay-4 { animation-delay: calc(2.2s + 2.4s); }
 
 /* Green packets - used when ztarknet is origin or destination */
 .data-packet-green {

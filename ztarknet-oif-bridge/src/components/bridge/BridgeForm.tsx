@@ -674,8 +674,6 @@ export function BridgeForm() {
           <div className={`data-packet data-packet-out ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
           <div className={`data-packet data-packet-out delay-1 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
           <div className={`data-packet data-packet-out delay-2 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
-          <div className={`data-packet data-packet-out delay-3 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
-          <div className={`data-packet data-packet-out delay-4 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
         </div>
       </div>
 
