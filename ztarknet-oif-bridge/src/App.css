@@ -7,7 +7,8 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -99,8 +100,15 @@
   padding: 0.75rem 1.5rem;
   background: linear-gradient(180deg, rgba(255, 102, 0, 0.05) 0%, transparent 100%);
   border-bottom: 1px solid rgba(255, 102, 0, 0.2);
-  position: relative;
-  z-index: 10;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  transition: background 0.3s ease;
+  isolation: isolate;
+  width: 100%;
 }
 
 .status-bar::after {
@@ -111,6 +119,8 @@
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--orange), transparent);
+  z-index: 101;
+  pointer-events: none;
 }
 
 .status-left {
@@ -186,6 +196,7 @@
   flex: 1;
   display: flex;
   padding: 1.5rem;
+  padding-top: calc(1.5rem + 5rem);
   gap: 1.5rem;
   position: relative;
   z-index: 1;
@@ -281,13 +292,20 @@
   stroke: var(--orange);
   stroke-width: 2;
   fill: none;
-  stroke-dasharray: 200;
-  animation: wave-flow 2s linear infinite;
+  stroke-dasharray: 100;
+  animation: wave-flow 3s linear infinite;
 }
 
 @keyframes wave-flow {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: -200; }
+  0% { 
+    stroke-dashoffset: 90; /* Start hidden - dash pattern starts after the path */
+  }
+  50% { 
+    stroke-dashoffset: 0; /* Fully drawn - dash pattern aligns with path */
+  }
+  100% { 
+    stroke-dashoffset: -110; /* Undrawn - dash pattern shifts left, hiding the path */
+  }
 }
 
 .activity-stats {
@@ -1171,7 +1189,7 @@
   padding: 0.75rem 1.5rem;
   background: linear-gradient(0deg, rgba(255, 102, 0, 0.03) 0%, transparent 100%);
   border-top: 1px solid rgba(255, 102, 0, 0.1);
-  position: relative;
+  position: sticky;
   z-index: 10;
 }
 
