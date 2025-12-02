@@ -13,7 +13,7 @@ export function WalletButton() {
   const { address: starknetAddress, isConnected: starknetConnected } = useStarknetAccount()
   const { connect: starknetConnect, connectors: starknetConnectors } = useStarknetConnect()
   const { disconnect: starknetDisconnect } = useStarknetDisconnect()
-  const { currentTransfer } = useBridgeStore()
+  //const { currentTransfer } = useBridgeStore()
 
   const [showModal, setShowModal] = useState(false)
   const [walletType, setWalletType] = useState<WalletType>(null)
@@ -28,7 +28,7 @@ export function WalletButton() {
     setWalletType(null)
   }
 
-  
+
   const { selectedOriginChainId } = useBridgeStore()
   const isZtarknetMode = selectedOriginChainId === 10066329 // Ztarknet Chain ID
 

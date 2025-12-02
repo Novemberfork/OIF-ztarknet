@@ -1,7 +1,7 @@
-import { useAccount, useContract } from '@starknet-react/core'
-import ERC20Abi from '@/abis/ERC20.json'
-import HyperlaneAbi from '@/abis/Hyperlane7683Cairo'
-import { type Abi, type Call } from 'starknet'
+import { useAccount } from '@starknet-react/core'
+//import ERC20Abi from '@/abis/ERC20.json'
+//import HyperlaneAbi from '@/abis/Hyperlane7683Cairo'
+import { type Call } from 'starknet'
 import { useMemo } from 'react'
 import { useErc20Contract } from "../hooks/useERC20sn"
 import { useHyperlaneContract } from './useHyperlaneCairo'
@@ -14,8 +14,8 @@ import {
 import { toCairoU256, hexToCairoBytes } from '@/utils/cairoEncoding'
 
 //const erc20Abi = ERC20Abi as Abi
-const hyperlaneAbi = HyperlaneAbi as Abi;
-const erc20Abi = ERC20Abi as Abi
+//const hyperlaneAbi = HyperlaneAbi as Abi;
+//const erc20Abi = ERC20Abi as Abi
 
 interface OpenOrderParams {
   // User's addresses
@@ -89,15 +89,15 @@ export function useOpenOrder(hyperlaneAddress: string, order: OpenOrderParams | 
 
     // Prepare open call
     const openCall = hyperlaneContract.populateTransaction.open({
-        fill_deadline: orderData.fillDeadline,
-        order_data_type: toCairoU256(ORDER_DATA_TYPE_HASH),
-        order_data: hexToCairoBytes(encodedOrderData)
+      fill_deadline: orderData.fillDeadline,
+      order_data_type: toCairoU256(ORDER_DATA_TYPE_HASH),
+      order_data: hexToCairoBytes(encodedOrderData)
     });
 
     if (approveCall) {
       callsArr.push(approveCall);
     }
-    
+
     if (openCall) {
       callsArr.push(openCall);
     }

@@ -15,7 +15,7 @@ export function useERC20(tokenAddress: string, chainId?: number) {
 
   // Standard hook for normal Starknet usage (fallback/default)
   // Disable if tokenAddress is invalid (empty or '0x0') to avoid hook order issues
-  const isValidAddress = tokenAddress && tokenAddress !== '' && tokenAddress !== '0x0'
+  const isValidAddress = !!(tokenAddress && tokenAddress !== '' && tokenAddress !== '0x0')
   const { data: hookBalance, refetch: refetchHook } = useReadContract({
     address: tokenAddress as `0x${string}`,
     abi: erc20Abi,

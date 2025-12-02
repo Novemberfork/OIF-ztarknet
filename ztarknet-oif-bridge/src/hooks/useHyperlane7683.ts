@@ -171,7 +171,7 @@ export function useHyperlane7683() {
 
     // Get destination settler
     // Use provided settler or default to Ztarknet (legacy behavior, should be provided now)
-    const destinationSettler = params.destinationSettler 
+    const destinationSettler = params.destinationSettler
       ? feltToBytes32(params.destinationSettler)
       : feltToBytes32(contracts['ztarknet'].hyperlane7683)
 
@@ -207,7 +207,7 @@ export function useHyperlane7683() {
 
     // Pre-flight: Try to resolve the order to validate structure
     try {
-      const resolved = await publicClient.readContract({
+      await publicClient.readContract({
         address: hyperlaneAddress,
         abi: Hyperlane7683Abi,
         functionName: 'resolve',

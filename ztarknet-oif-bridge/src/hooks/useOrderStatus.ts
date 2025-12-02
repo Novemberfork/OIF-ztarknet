@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConfig } from 'wagmi'
 import { getPublicClient } from '@wagmi/core'
 import type { Hex } from 'viem'
 import { RpcProvider } from 'starknet'
-import { EVM_CONTRACTS, contracts, getHyperlane7683Address } from '@/config/contracts'
+import { contracts, getHyperlane7683Address } from '@/config/contracts'
 import { chains } from '@/config/chains'
 import Hyperlane7683Abi from '@/abis/Hyperlane7683.json'
 
@@ -29,7 +29,7 @@ export function useOrderStatus(
   pollIntervalMs: number = 5000
 ): UseOrderStatusResult {
   const config = useConfig()
-  
+
   const [status, setStatus] = useState<OrderState>('unknown')
   const [isPolling, setIsPolling] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +45,7 @@ export function useOrderStatus(
     try {
       const client = getPublicClient(config, { chainId })
       if (!client) return 'UNKNOWN'
-      
+
       const hyperlaneAddress = getHyperlane7683Address(chainId)
       if (!hyperlaneAddress) return 'UNKNOWN'
 
@@ -84,13 +84,13 @@ export function useOrderStatus(
       let contractAddress = '';
 
       if (chainId === Number(chains.zstarknet.chainId)) {
-          rpcUrl = chains.zstarknet.rpcUrl;
-          contractAddress = contracts['ztarknet'].hyperlane7683;
+        rpcUrl = chains.zstarknet.rpcUrl;
+        contractAddress = contracts['ztarknet'].hyperlane7683;
       } else if (chainId === Number(chains.starknetSepolia.chainId)) {
-          rpcUrl = chains.starknetSepolia.rpcUrl;
-          contractAddress = contracts['starknet-sepolia'].hyperlane7683;
+        rpcUrl = chains.starknetSepolia.rpcUrl;
+        contractAddress = contracts['starknet-sepolia'].hyperlane7683;
       } else {
-          return 'unknown';
+        return 'unknown';
       }
 
       const provider = new RpcProvider({ nodeUrl: rpcUrl });
@@ -98,7 +98,7 @@ export function useOrderStatus(
       // First try to call order_status if available
       // Note: We need to convert hex orderId to u256 for Cairo call
       // But checking events is often more reliable if view functions are restricted or fail
-      
+
       // Query events from the Starknet Hyperlane contract
       // Look for Filled event with matching orderId
       const events = await provider.getEvents({
@@ -136,24 +136,24 @@ export function useOrderStatus(
     try {
       // Determine if destination is EVM or Starknet
       const destChainId = destinationChainId || destChainIdRef.current;
-      
+
       if (!destChainId) {
-          // Fallback logic if no destination provided (legacy)
-          // Default to checking if it's Ztarknet (Starknet) or assuming EVM connected chain
-          // For safety, let's just try to check Ztarknet as per old logic if no chain provided
-          return await checkStarknetStatus(orderId, Number(chains.zstarknet.chainId));
+        // Fallback logic if no destination provided (legacy)
+        // Default to checking if it's Ztarknet (Starknet) or assuming EVM connected chain
+        // For safety, let's just try to check Ztarknet as per old logic if no chain provided
+        return await checkStarknetStatus(orderId, Number(chains.zstarknet.chainId));
       }
 
       // Check if Starknet
       if (destChainId === Number(chains.zstarknet.chainId) || destChainId === Number(chains.starknetSepolia.chainId)) {
-          return await checkStarknetStatus(orderId, destChainId);
+        return await checkStarknetStatus(orderId, destChainId);
       }
 
       // Assume EVM otherwise
       const statusStr = await checkEvmStatus(orderId, destChainId);
       if (statusStr === 'FILLED') return 'filled';
       if (statusStr === 'SETTLED') return 'settled';
-      
+
       return 'pending';
 
     } catch (err) {
