@@ -52,26 +52,30 @@ Instead of waiting for the inter-chain message, Alice could receive her tokens a
 
 ### Content
 
-- Ethereum -> Ztarknet
+#### Ethereum -> Ztarknet
+  
+- [Open Txn](https://sepolia.etherscan.io/tx/0x83b58d8aab7d0161061b75acb856c5aaa6d2d1915f622d06092ab7849753f1f2)
 
- - [Open Txn](https://sepolia.etherscan.io/tx/0x83b58d8aab7d0161061b75acb856c5aaa6d2d1915f622d06092ab7849753f1f2)
+- [Fill Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x5ae38d709e60197c38a30e24ba2637dff13ee42f82bd77d61084add74fc3779)
 
- - [Fill Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x5ae38d709e60197c38a30e24ba2637dff13ee42f82bd77d61084add74fc3779)
+https://github.com/user-attachments/assets/ed6bb7b2-5879-4acb-aeab-435884ef6391
 
-<>
+#### Starknet -> Ztarknet
 
-- Starknet -> Ztarknet
+- [Open Txn](https://sepolia.voyager.online/tx/0x55e67a4a0eb9b54f9b3ab6e686f19f018fc7ce903f3596a9c661ad8c28d6625)
 
- - [Open Txn](https://sepolia.voyager.online/tx/0x55e67a4a0eb9b54f9b3ab6e686f19f018fc7ce903f3596a9c661ad8c28d6625)
+- [Fill Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x8f45cb6d948388bafbb1d158e2f62f3c5e74bcc13fc1ec317d4a2f0ea19cef)
 
- - [Fill Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x8f45cb6d948388bafbb1d158e2f62f3c5e74bcc13fc1ec317d4a2f0ea19cef)
+https://github.com/user-attachments/assets/c75a5e5f-ad86-4d73-b934-f2ba16752588
 
-<>
+#### Ztarknet -> Starknet
 
-- Ztarknet -> Starknet
+- [Open Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x381deb79784ea404b009779a771a6e3c448d641c30907e22652e223ebe1ada4)
 
- - [Open Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x381deb79784ea404b009779a771a6e3c448d641c30907e22652e223ebe1ada4)
+- [Fill Txn](https://sepolia.voyager.online/tx/0x6c6f55a04286a82224b313a9f65d709cb51c857c68a12f62795b95aaae3adda)
 
- - [Fill Txn](https://sepolia.voyager.online/tx/0x6c6f55a04286a82224b313a9f65d709cb51c857c68a12f62795b95aaae3adda)
+https://github.com/user-attachments/assets/0d136e95-1489-4436-96e7-d23269b5b50c
 
+#### Chain Statistics
 
+https://github.com/user-attachments/assets/81a55ef4-986c-4b96-a0e1-658f2704dd29
