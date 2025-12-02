@@ -653,9 +653,9 @@ export function BridgeForm() {
       <div className="transfer-visual">
         <div className="transfer-line">
           <div className="line-segment" />
-          <div className="data-packet" />
-          <div className="data-packet delay-1" />
-          <div className="data-packet delay-2" />
+          <div className={`data-packet ${sourceChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet delay-1 ${sourceChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet delay-2 ${sourceChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
         </div>
         <button
           className="swap-btn"
@@ -671,6 +671,11 @@ export function BridgeForm() {
         </button>
         <div className="transfer-line">
           <div className="line-segment" />
+          <div className={`data-packet data-packet-out ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-1 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-2 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-3 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-4 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
         </div>
       </div>
 
