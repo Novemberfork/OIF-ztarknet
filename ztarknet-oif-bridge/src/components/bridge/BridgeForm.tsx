@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useAccount as useEvmAccount, useChainId, useReadContract, useSwitchChain } from 'wagmi'
+import { useAccount as useEvmAccount, useChainId, useReadContract, useSwitchChain, useWriteContract } from 'wagmi'
 import { useSendTransaction, useAccount as useStarknetAccount } from '@starknet-react/core'
 import { parseEther, formatUnits, type Address, erc20Abi } from 'viem'
+import { uint256 } from 'starknet'
 
 import { useHyperlane7683 } from '@/hooks/useHyperlane7683'
 import { useTokenApproval } from '@/hooks/useTokenApproval'
 import { useOrderStatus } from '@/hooks/useOrderStatus'
+import { useERC20 } from '@/hooks/useERC20'
 import { useBridgeStore } from '@/store'
+import MintableERC20Abi from '@/abis/MintableERC20.json'
 import { TransferStatus } from '@/types/transfers'
 import {
-  ORDER_DATA_TYPE_HASH,
-  encodeOrderData,
-  feltToBytes32,
-  computeOrderId,
-  type OrderData
+  computeOrderId
 } from '@/utils/orderEncoding'
 import {
   EVM_CONTRACTS,
@@ -66,6 +65,8 @@ export function BridgeForm() {
   const [destChain, setDestChain] = useState<ChainOption | null>(null)
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
+  const [showOriginStats, setShowOriginStats] = useState(false)
+  const [showDestStats, setShowDestStats] = useState(false)
 
   // Determine which wallet is needed for source/destination
   const sourceWalletType = sourceChain?.type
@@ -102,6 +103,22 @@ export function BridgeForm() {
   })
 
   const { openOrder } = useHyperlane7683()
+
+  // Use Starknet ERC20 hook for source token balance
+  // Pass chainId to enable manual fetching for both Ztarknet and Starknet Sepolia if configured
+  // Only call useERC20 when we have a valid token address to avoid hook order issues
+  const { balance: snBalance } = useERC20(
+    sourceTokenAddress || '0x0',
+    sourceChain?.type === 'starknet' ? sourceChain.chainId : undefined
+  )
+  console.log("snBalance", snBalance);
+
+  // EVM Minting
+  const { writeContractAsync: mintEvm, isPending: isMintingEvm } = useWriteContract()
+
+  // Starknet Minting
+  const { sendAsync: mintStarknet, isPending: isMintingStarknet } = useSendTransaction({})
+
   const {
     checkAllowance,
     approve,
@@ -117,7 +134,17 @@ export function BridgeForm() {
     updateTransferStatus,
     setTransferLoading,
     resetCurrentTransfer,
+    setSelectedOriginChainId,
   } = useBridgeStore()
+
+  // Update store when source chain changes
+  // Only update if the new source chain is Starknet or Ztarknet (type 'starknet')
+  // This preserves the badge style (ZK or SN) when switching back to EVM origin
+  useEffect(() => {
+    if (sourceChain?.type === 'starknet') {
+      setSelectedOriginChainId(sourceChain.chainId)
+    }
+  }, [sourceChain, setSelectedOriginChainId])
 
   // Starknet `open` mult-call
 
@@ -161,16 +188,46 @@ export function BridgeForm() {
   }, [amount, destChain, sourceChain, destTokenAddress, sourceTokenAddress, recipient, starknetAddress]);
 
   const starknetHyperlaneAddress = useMemo(() => {
-    if (sourceChain?.type !== 'starknet') return '';
-    return contracts[sourceChain.id]?.hyperlane7683 || '';
+    if (sourceChain?.type !== 'starknet') return '0x0';
+    return contracts[sourceChain.id]?.hyperlane7683 || '0x0';
   }, [sourceChain]);
 
-  const { calls, orderData } = useOpenOrder(starknetHyperlaneAddress, o);
-  const { sendAsync } = useSendTransaction({ calls });
+  // Always call useOpenOrder with consistent parameters to avoid hook order issues
+  // Use a stable address to ensure hooks are always called in the same order
+  const stableHyperlaneAddress = starknetHyperlaneAddress || '0x0'
+  const { calls, orderData } = useOpenOrder(stableHyperlaneAddress, o);
+
+  // Always call useSendTransaction with a consistent structure to avoid hook order issues
+  // This must be called unconditionally and after all other hooks
+  // Use useMemo to ensure calls array is stable
+  const stableCalls = useMemo(() => calls || [], [calls])
+  const { sendAsync } = useSendTransaction({ calls: stableCalls });
 
 
 
-  const formattedBalance = evmBalance ? formatUnits(evmBalance, 18) : '0'
+  const formattedBalance = useMemo(() => {
+    if (sourceWalletType === 'evm' && evmBalance) {
+      return formatUnits(evmBalance, 18)
+    } else if (sourceWalletType === 'starknet' && snBalance) {
+      try {
+        console.log("Processing snBalance:", snBalance);
+        // snBalance is likely { low: ..., high: ... } from starknet-react
+        // or a bigint directly. Let's check type.
+        let balanceBN;
+        if (typeof snBalance === 'bigint') {
+          balanceBN = snBalance;
+        } else {
+          balanceBN = uint256.uint256ToBN(snBalance as any)
+        }
+        return formatUnits(balanceBN, 18)
+      } catch (e) {
+        console.error('Error formatting Starknet balance:', e)
+        return '0'
+      }
+    }
+    return '0'
+  }, [evmBalance, snBalance, sourceWalletType])
+
   const displayBalance = Number(formattedBalance).toFixed(4)
 
   // Auto-switch EVM network when source chain changes
@@ -193,10 +250,12 @@ export function BridgeForm() {
 
   // Update transfer status when order status changes
   useEffect(() => {
-    if (currentTransfer && orderStatus === 'filled') {
-      updateTransferStatus(TransferStatus.Fulfilled)
-    } else if (currentTransfer && orderStatus === 'settled') {
-      updateTransferStatus(TransferStatus.Completed)
+    if (currentTransfer) {
+      if (orderStatus === 'filled' && currentTransfer.status !== TransferStatus.Fulfilled && currentTransfer.status !== TransferStatus.Completed) {
+        updateTransferStatus(TransferStatus.Fulfilled)
+      } else if (orderStatus === 'settled' && currentTransfer.status !== TransferStatus.Completed) {
+        updateTransferStatus(TransferStatus.Completed)
+      }
     }
   }, [orderStatus, currentTransfer, updateTransferStatus])
 
@@ -415,6 +474,87 @@ export function BridgeForm() {
     isValidRecipient &&
     !isTransferLoading
 
+  const handleMint = useCallback(async () => {
+    if (!sourceChain || !sourceTokenAddress) return
+
+    // Amount to mint: 42,069 * 10^18
+    const mintAmount = parseEther('42069')
+
+    try {
+      if (sourceChain.type === 'evm' && evmAddress) {
+        console.log("Minting EVM:", {
+          address: sourceTokenAddress,
+          recipient: evmAddress,
+          amount: mintAmount.toString()
+        });
+        await mintEvm({
+          address: sourceTokenAddress as Address,
+          abi: MintableERC20Abi,
+          functionName: 'mint',
+          args: [evmAddress, mintAmount],
+        })
+      } else if (sourceChain.type === 'starknet' && starknetAddress) {
+        const amountUint256 = uint256.bnToUint256(mintAmount)
+        console.log("Minting Starknet:", {
+          contract: sourceTokenAddress,
+          recipient: starknetAddress,
+          amount: mintAmount.toString(),
+          u256: amountUint256
+        });
+        await mintStarknet([{
+          contractAddress: sourceTokenAddress,
+          entrypoint: 'mint',
+          calldata: [starknetAddress, amountUint256.low, amountUint256.high]
+        }])
+      }
+    } catch (error) {
+      console.error('Mint failed:', error)
+    }
+  }, [sourceChain, sourceTokenAddress, evmAddress, starknetAddress, mintEvm, mintStarknet])
+
+  // Execute Button Text Logic
+  const buttonText = useMemo(() => {
+    if (isTransferLoading) return 'PROCESSING'
+    if (isMintingEvm || isMintingStarknet) return 'MINTING...'
+    if (!sourceChain || !destChain) return 'SELECT CHAINS'
+    if (!isSourceWalletConnected) return 'CONNECT WALLET'
+
+    // Check if balance is 0 or less than input amount (if amount entered)
+    const currentBalance = formattedBalance ? parseFloat(formattedBalance) : 0
+    const inputAmount = amount ? parseFloat(amount) : 0
+
+    console.log("Button Logic:", {
+      currentBalance,
+      inputAmount,
+      isApproving,
+      needsApproval,
+      formattedBalance,
+      amount
+    });
+
+    // Show mint if balance is 0 OR if input amount > balance
+    // This allows users to mint if they have 0 balance OR if they try to send more than they have
+    if (currentBalance === 0 || (inputAmount > 0 && inputAmount > currentBalance)) {
+      return 'MINT DOG COINS'
+    }
+
+    if (isApproving) return 'APPROVING'
+    if (needsApproval) return 'APPROVE & EXECUTE'
+    return 'EXECUTE TRANSFER'
+  }, [isTransferLoading, isMintingEvm, isMintingStarknet, sourceChain, destChain, isSourceWalletConnected, formattedBalance, isApproving, needsApproval, amount])
+
+  // Execute Button Click Handler
+  const handleButtonClick = useCallback(() => {
+    if (buttonText === 'MINT DOG COINS') {
+      handleMint()
+    } else {
+      handleBridge()
+    }
+  }, [buttonText, handleMint, handleBridge])
+
+  const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
+  const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
+
   // Show transaction status when transfer is in progress
   if (currentTransfer && currentTransfer.status !== TransferStatus.Idle) {
     const isFinished = currentTransfer.status === TransferStatus.Completed ||
@@ -431,22 +571,19 @@ export function BridgeForm() {
         />
 
         {isFinished && (
-            <button className="action-btn primary" onClick={handleReset}>
-              <span className="btn-text">INITIATE NEW TRANSFER</span>
-              <div className="btn-glow" />
-            </button>
-          )}
+          <button className="action-btn primary" onClick={handleReset}>
+            <span className="btn-text">INITIATE NEW TRANSFER</span>
+            <div className="btn-glow" />
+          </button>
+        )}
       </div>
     )
   }
 
-  const needsEvmWallet = sourceWalletType === 'evm' || destWalletType === 'evm'
-  const needsStarknetWallet = sourceWalletType === 'starknet' || destWalletType === 'starknet'
-
   return (
     <div className="bridge-terminal">
       {/* Origin Section */}
-      <div className="terminal-section origin">
+      <div className={`terminal-section origin ${sourceChain?.isPrivate ? 'private' : ''}`}>
         <div className="section-header">
           <div className="section-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -455,8 +592,39 @@ export function BridgeForm() {
             </svg>
           </div>
           <span className="section-label">ORIGIN</span>
+          {sourceChain && !sourceChain.isPrivate && (
+            <span className={`chain-type ${sourceChain.id === 'ztarknet' ? 'ztarknet' : sourceChain.type}`}>
+              {sourceChain.type === 'evm' ? 'EVM' : sourceChain.id === 'ztarknet' ? 'ZK' : 'SN'}
+            </span>
+          )}
+          {sourceChain?.isPrivate && (
+            <span className="privacy-tag">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+              </svg>
+              ZK
+            </span>
+          )}
+
           {sourceChain && (
-            <span className={`chain-type ${sourceChain.type}`}>{sourceChain.type.toUpperCase()}</span>
+            <>
+              <button
+                className={`stats-toggle-btn ${showOriginStats ? 'active' : ''}`}
+                onClick={() => setShowOriginStats(!showOriginStats)}
+                type="button"
+                title={showOriginStats ? "Hide stats" : "Show stats"}
+              >
+                {showOriginStats ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                )}
+              </button>
+            </>
           )}
         </div>
 
@@ -478,16 +646,16 @@ export function BridgeForm() {
         )}
 
         {/* Chain Stats for Origin */}
-        <ChainStats chain={sourceChain} position="origin" />
+        {showOriginStats && <ChainStats chain={sourceChain} position="origin" />}
       </div>
 
       {/* Transfer Visualization */}
       <div className="transfer-visual">
         <div className="transfer-line">
           <div className="line-segment" />
-          <div className="data-packet" />
-          <div className="data-packet delay-1" />
-          <div className="data-packet delay-2" />
+          <div className={`data-packet ${sourceChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet delay-1 ${sourceChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet delay-2 ${sourceChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
         </div>
         <button
           className="swap-btn"
@@ -503,6 +671,11 @@ export function BridgeForm() {
         </button>
         <div className="transfer-line">
           <div className="line-segment" />
+          <div className={`data-packet data-packet-out ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-1 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-2 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-3 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
+          <div className={`data-packet data-packet-out delay-4 ${destChain?.id === 'ztarknet' ? 'data-packet-green' : ''}`} />
         </div>
       </div>
 
@@ -515,13 +688,36 @@ export function BridgeForm() {
             </svg>
           </div>
           <span className="section-label">DESTINATION</span>
+          {destChain && !destChain.isPrivate && (
+            <span className={`chain-type ${destChain.id === 'ztarknet' ? 'ztarknet' : destChain.type}`}>
+              {destChain.type === 'evm' ? 'EVM' : destChain.id === 'ztarknet' ? 'ZK' : 'SN'}
+            </span>
+          )}
           {destChain?.isPrivate && (
             <span className="privacy-tag">
               <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
                 <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
               </svg>
-              SHIELDED
+              ZK
             </span>
+          )}
+          {destChain && (
+            <button
+              className={`stats-toggle-btn ${showDestStats ? 'active' : ''}`}
+              onClick={() => setShowDestStats(!showDestStats)}
+              type="button"
+              title={showDestStats ? "Hide stats" : "Show stats"}
+            >
+              {showDestStats ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              )}
+            </button>
           )}
         </div>
 
@@ -561,7 +757,7 @@ export function BridgeForm() {
         )}
 
         {/* Chain Stats for Destination */}
-        <ChainStats chain={destChain} position="destination" />
+        {showDestStats && <ChainStats chain={destChain} position="destination" />}
       </div>
 
       {/* Amount Section */}
@@ -583,15 +779,18 @@ export function BridgeForm() {
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               placeholder="0.00"
               className="amount-input"
+              min="0"
+              step="any"
               disabled={!sourceChain || isTransferLoading}
             />
             <div className="token-badge">
-              <span className="token-symbol">DOG</span>
+              <span className="token-symbol">DOG COIN</span>
             </div>
           </div>
-          {isSourceWalletConnected && sourceWalletType === 'evm' && (
+          {isSourceWalletConnected && (
             <div className="balance-display">
               <span className="balance-label">AVAILABLE</span>
               <span className="balance-value">{displayBalance} DOG</span>
@@ -620,28 +819,14 @@ export function BridgeForm() {
 
       {/* Execute Button */}
       <button
-        className={`action-btn primary ${canBridge ? 'ready' : ''}`}
-        onClick={handleBridge}
-        disabled={!canBridge}
+        className={`action-btn primary ${canBridge || buttonText === 'MINT DOG COINS' ? 'ready' : ''}`}
+        onClick={handleButtonClick}
+        disabled={(!canBridge && buttonText !== 'MINT DOG COINS') || isTransferLoading || isMintingEvm || isMintingStarknet}
         type="button"
       >
         <div className="btn-inner">
-          {isTransferLoading ? (
-            <>
-              <div className="loading-spinner" />
-              <span className="btn-text">PROCESSING</span>
-            </>
-          ) : !sourceChain || !destChain ? (
-            <span className="btn-text">SELECT CHAINS</span>
-          ) : !isSourceWalletConnected ? (
-            <span className="btn-text">CONNECT WALLET</span>
-          ) : isApproving ? (
-            <span className="btn-text">APPROVING</span>
-          ) : needsApproval ? (
-            <span className="btn-text">APPROVE & EXECUTE</span>
-          ) : (
-            <span className="btn-text">EXECUTE TRANSFER</span>
-          )}
+          {(isTransferLoading || isMintingEvm || isMintingStarknet) && <div className="loading-spinner" />}
+          <span className="btn-text">{buttonText}</span>
         </div>
         <div className="btn-glow" />
         <div className="btn-scanline" />

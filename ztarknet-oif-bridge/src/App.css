@@ -7,7 +7,8 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -99,8 +100,15 @@
   padding: 0.75rem 1.5rem;
   background: linear-gradient(180deg, rgba(255, 102, 0, 0.05) 0%, transparent 100%);
   border-bottom: 1px solid rgba(255, 102, 0, 0.2);
-  position: relative;
-  z-index: 10;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  transition: background 0.3s ease;
+  isolation: isolate;
+  width: 100%;
 }
 
 .status-bar::after {
@@ -111,6 +119,8 @@
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--orange), transparent);
+  z-index: 101;
+  pointer-events: none;
 }
 
 .status-left {
@@ -186,6 +196,7 @@
   flex: 1;
   display: flex;
   padding: 1.5rem;
+  padding-top: calc(1.5rem + 5rem);
   gap: 1.5rem;
   position: relative;
   z-index: 1;
@@ -239,6 +250,11 @@
   text-shadow: 0 0 8px var(--green-glow);
 }
 
+/* Mobile message - hidden on desktop */
+.mobile-message {
+  display: none;
+}
+
 /* Signal Bars */
 .signal-bars {
   display: flex;
@@ -281,13 +297,20 @@
   stroke: var(--orange);
   stroke-width: 2;
   fill: none;
-  stroke-dasharray: 200;
-  animation: wave-flow 2s linear infinite;
+  stroke-dasharray: 100;
+  animation: wave-flow 3s linear infinite;
 }
 
 @keyframes wave-flow {
-  from { stroke-dashoffset: 0; }
-  to { stroke-dashoffset: -200; }
+  0% { 
+    stroke-dashoffset: 90; /* Start hidden - dash pattern starts after the path */
+  }
+  50% { 
+    stroke-dashoffset: 0; /* Fully drawn - dash pattern aligns with path */
+  }
+  100% { 
+    stroke-dashoffset: -110; /* Undrawn - dash pattern shifts left, hiding the path */
+  }
 }
 
 .activity-stats {
@@ -322,20 +345,114 @@
 
 .hex {
   aspect-ratio: 1;
-  background: rgba(255, 102, 0, 0.1);
+  background: rgba(255, 102, 0, 0.05);
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
   transition: all 0.3s ease;
+  position: relative;
 }
 
+/* Active - Full orange pulsing */
 .hex.active {
-  background: var(--orange);
-  box-shadow: 0 0 10px var(--orange-glow);
-  animation: hex-pulse 2s ease-in-out infinite;
+  background: rgba(255, 102, 0, 0.8);
+  box-shadow: 0 0 15px rgba(255, 102, 0, 0.6);
+  animation: hex-pulse 3s ease-in-out infinite;
 }
 
 @keyframes hex-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%, 100% { 
+    opacity: 0.4;
+    background: rgba(255, 102, 0, 0.4);
+    box-shadow: 0 0 8px rgba(255, 102, 0, 0.3);
+  }
+  50% { 
+    opacity: 1;
+    background: rgba(255, 102, 0, 1);
+    box-shadow: 0 0 20px rgba(255, 102, 0, 0.9);
+  }
+}
+
+/* Dim - Subtle orange glow */
+.hex.dim {
+  background: rgba(255, 102, 0, 0.2);
+  box-shadow: 0 0 5px rgba(255, 102, 0, 0.2);
+  animation: hex-dim-pulse 4s ease-in-out infinite;
+}
+
+@keyframes hex-dim-pulse {
+  0%, 100% { 
+    opacity: 0.3;
+    background: rgba(255, 102, 0, 0.15);
+  }
+  50% { 
+    opacity: 0.6;
+    background: rgba(255, 102, 0, 0.3);
+  }
+}
+
+/* Fade - Transitions from light to dark/transparent */
+.hex.fade {
+  background: rgba(255, 102, 0, 0.3);
+  animation: hex-fade 5s ease-in-out infinite;
+}
+
+@keyframes hex-fade {
+  0% { 
+    opacity: 0.1;
+    background: rgba(255, 102, 0, 0.05);
+    box-shadow: 0 0 0px transparent;
+  }
+  30% { 
+    opacity: 0.8;
+    background: rgba(255, 102, 0, 0.6);
+    box-shadow: 0 0 10px rgba(255, 102, 0, 0.4);
+  }
+  60% { 
+    opacity: 0.9;
+    background: rgba(255, 102, 0, 0.8);
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.6);
+  }
+  100% { 
+    opacity: 0;
+    background: rgba(255, 102, 0, 0);
+    box-shadow: 0 0 0px transparent;
+  }
+}
+
+/* Glow - Strong glowing effect */
+.hex.glow {
+  background: rgba(255, 102, 0, 0.4);
+  box-shadow: 0 0 12px rgba(255, 102, 0, 0.5);
+  animation: hex-glow 3.5s ease-in-out infinite;
+}
+
+@keyframes hex-glow {
+  0%, 100% { 
+    opacity: 0.5;
+    background: rgba(255, 102, 0, 0.3);
+    box-shadow: 0 0 8px rgba(255, 102, 0, 0.3);
+  }
+  50% { 
+    opacity: 1;
+    background: rgba(255, 102, 0, 0.7);
+    box-shadow: 0 0 25px rgba(255, 102, 0, 0.8), 0 0 40px rgba(255, 102, 0, 0.4);
+  }
+}
+
+/* Base hexes - Very subtle, some may stay minimal */
+.hex:not(.active):not(.dim):not(.fade):not(.glow) {
+  background: rgba(255, 102, 0, 0.05);
+  animation: hex-subtle 6s ease-in-out infinite;
+}
+
+@keyframes hex-subtle {
+  0%, 100% { 
+    opacity: 0.2;
+    background: rgba(255, 102, 0, 0.03);
+  }
+  50% { 
+    opacity: 0.4;
+    background: rgba(255, 102, 0, 0.1);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -440,12 +557,12 @@
 
 .terminal-section.origin {
   border-radius: 8px 8px 0 0;
-  border-bottom: none;
+  border-bottom: 1px dashed rgba(255, 102, 0, 0.15);
 }
 
 .terminal-section.destination {
   border-radius: 0 0 8px 8px;
-  border-top: none;
+  border-top: 1px dashed rgba(255, 102, 0, 0.15);
 }
 
 .terminal-section.private {
@@ -478,6 +595,49 @@
   color: var(--text-muted);
 }
 
+.stats-toggle-btn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: auto; /* Push to right if no other element does, or sit next to badge */
+}
+
+/* If a badge exists before it, reset margin-left so it doesn't push away unnecessarily, 
+   unless we want it to be the only thing on the right. 
+   Actually, chain-type and privacy-tag have margin-left: auto. 
+   If both exist (badge and button), badge pushes right, button follows.
+   If only button exists (e.g. Dest without private tag), button needs margin-left: auto.
+   The structure is flex container.
+   Case 1: Icon, Label, Badge(ml-auto), Button. Badge goes right, Button right of Badge.
+   Case 2: Icon, Label, Button. Button(ml-auto) goes right.
+*/
+.chain-type + .stats-toggle-btn,
+.privacy-tag + .stats-toggle-btn {
+  margin-left: 0.5rem;
+}
+
+.stats-toggle-btn:hover {
+  color: var(--orange);
+  transform: scale(1.1);
+}
+
+.stats-toggle-btn.active {
+  color: var(--orange);
+}
+
+.stats-toggle-btn svg {
+  width: 100%;
+  height: 100%;
+}
+
 .chain-type {
   margin-left: auto;
   font-size: 0.5rem;
@@ -495,6 +655,11 @@
 .chain-type.starknet {
   background: rgba(255, 102, 0, 0.2);
   color: var(--orange);
+}
+
+.chain-type.ztarknet {
+  background: rgba(0, 255, 136, 0.15);
+  color: var(--green);
 }
 
 .privacy-tag {
@@ -577,12 +742,40 @@
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
   animation: packet-flow 2s linear infinite;
   box-shadow: 0 0 10px var(--orange-glow);
+  opacity: 0; /* Hidden until animation starts */
 }
 
 .data-packet.delay-1 { animation-delay: 0.6s; }
 .data-packet.delay-2 { animation-delay: 1.2s; }
 
+/* Outgoing packets - appear to come out from the swap button (orange by default) */
+.data-packet-out {
+  background: var(--orange);
+  box-shadow: 0 0 10px var(--orange-glow);
+  animation: packet-flow-out 2.8s linear infinite;
+  animation-delay: 2.2s; /* Start after orange packets finish their journey */
+  opacity: 0; /* Hidden until animation starts */
+}
+
+.data-packet-out.delay-1 { animation-delay: calc(2.2s + 0.6s); }
+.data-packet-out.delay-2 { animation-delay: calc(2.2s + 1.2s); }
+.data-packet-out.delay-3 { animation-delay: calc(2.2s + 1.8s); }
+.data-packet-out.delay-4 { animation-delay: calc(2.2s + 2.4s); }
+
+/* Green packets - used when ztarknet is origin or destination */
+.data-packet-green {
+  background: #22c55e !important;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.6) !important;
+}
+
 @keyframes packet-flow {
+  0% { left: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: calc(100% - 8px); opacity: 0; }
+}
+
+@keyframes packet-flow-out {
   0% { left: 0; opacity: 0; }
   10% { opacity: 1; }
   90% { opacity: 1; }
@@ -761,6 +954,19 @@
   outline: none;
 }
 
+/* Hide number input spinners */
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+.amount-input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .amount-input::placeholder {
   color: var(--text-muted);
   opacity: 0.3;
@@ -778,6 +984,7 @@
   font-weight: 600;
   color: var(--orange);
   letter-spacing: 0.1em;
+  white-space: nowrap;
 }
 
 .balance-display {
@@ -1075,12 +1282,8 @@
 }
 
 .chain-type-badge.starknet {
-  /**
   background: rgba(255, 102, 0, 0.2);
   color: var(--orange);
-  **/
- background: rgba(0, 255, 136, 0.15);
- color: var(--green);
 }
 
 .chain-type-badge.ztarknet {
@@ -1104,6 +1307,19 @@
   font-weight: 600;
 }
 
+.loading-dots {
+  display: inline-block;
+  animation: dots 1.5s infinite;
+  color: var(--orange);
+  font-weight: bold;
+}
+
+@keyframes dots {
+  0%, 20% { content: "."; }
+  40% { content: ".."; }
+  60%, 100% { content: "..."; }
+}
+
 /* ═══════════════════════════════════════════════════════════════
    INFO BAR (Footer)
    ═══════════════════════════════════════════════════════════════ */
@@ -1114,8 +1330,9 @@
   padding: 0.75rem 1.5rem;
   background: linear-gradient(0deg, rgba(255, 102, 0, 0.03) 0%, transparent 100%);
   border-top: 1px solid rgba(255, 102, 0, 0.1);
-  position: relative;
+  position: sticky;
   z-index: 10;
+  text-decoration: none;
 }
 
 .info-bar::before {
@@ -1137,6 +1354,8 @@
 .info-section.center {
   flex-direction: column;
   gap: 0.25rem;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .info-label {
@@ -1154,6 +1373,11 @@
 .transmission-indicator {
   display: flex;
   gap: 4px;
+}
+
+/* Hide center transmission indicator on desktop */
+.info-section.center .transmission-indicator {
+  display: none;
 }
 
 .transmission-dot {
@@ -1266,13 +1490,19 @@
 /* Wallet Select Modal */
 .wallet-select-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
   background: rgba(5, 5, 5, 0.95);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 1000;
 }
 
 .wallet-select {
@@ -1601,7 +1831,7 @@
    RESPONSIVE
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 1024px) {
-  .side-panel {
+  .side-panel.right-panel {
     display: none;
   }
 
@@ -1622,7 +1852,64 @@
     margin-bottom: 0.5rem;
   }
 
-  .interface-frame {
-    padding: 1rem;
+  /* Hide bridge interface on mobile */
+  .bridge-interface {
+    display: none;
+  }
+
+  /* Show only left panel on mobile */
+  .side-panel.left-panel {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .command-center {
+    justify-content: center;
+    padding: 1.5rem;
+    padding-top: calc(1.5rem + 9rem); /* Add padding for navbar */
+  }
+
+  /* Hide signal bars on mobile */
+  .signal-bars {
+    display: none;
+  }
+
+  /* Mobile message styling - show on mobile */
+  .mobile-message {
+    display: block;
+    margin-top: auto;
+    padding-top: 2rem;
+  }
+
+  .mobile-message .readout-line {
+    flex-wrap: wrap;
+  }
+
+  .mobile-message .readout-value {
+    text-align: right;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Footer - show only center section on mobile */
+  .info-bar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .info-bar .info-section:first-child,
+  .info-bar .info-section:last-child {
+    display: none;
+  }
+
+  .info-bar .info-section.center {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Show transmission indicator on mobile */
+  .info-section.center .transmission-indicator {
+    display: flex;
   }
 }

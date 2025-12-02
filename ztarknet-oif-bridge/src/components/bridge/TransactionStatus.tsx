@@ -1,5 +1,6 @@
 import { TransferStatus, TRANSFER_STATUS_LABELS } from '@/types/transfers'
 import type { TransferContext } from '@/types/transfers'
+import { getExplorerTxUrl } from '@/config/contracts'
 
 interface TransactionStatusProps {
   transfer: TransferContext
@@ -156,7 +157,7 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
           <div className="tx-hash-row">
             <span className="hash-label">Approval:</span>
             <a
-              href={`https://sepolia.etherscan.io/tx/${transfer.approvalTxHash}`}
+              href={getExplorerTxUrl(transfer.originChainId, transfer.approvalTxHash)}
               target="_blank"
               rel="noopener noreferrer"
               className="hash-link"
@@ -169,7 +170,7 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
           <div className="tx-hash-row">
             <span className="hash-label">Bridge TX:</span>
             <a
-              href={`https://sepolia.etherscan.io/tx/${transfer.originTxHash}`}
+              href={getExplorerTxUrl(transfer.originChainId, transfer.originTxHash)}
               target="_blank"
               rel="noopener noreferrer"
               className="hash-link"

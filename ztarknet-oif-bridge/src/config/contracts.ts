@@ -148,3 +148,30 @@ export const OPEN_EVENT_TOPIC = '0x3448bbc2203c608599ad448eeb1007cea04b788ac631f
 
 // Filled event topic
 export const FILLED_EVENT_TOPIC = '0x...' as const // TODO: Calculate from event signature
+
+/**
+ * Get block explorer URL for a transaction hash on a given chain
+ * @param chainId - The chain ID (number)
+ * @param txHash - The transaction hash
+ * @returns The full explorer URL for the transaction
+ */
+export function getExplorerTxUrl(chainId: number, txHash: string): string {
+  switch (chainId) {
+    case CHAIN_IDS.ztarknet:
+      return `https://explorer-zstarknet.d.karnot.xyz/tx/${txHash}`
+    case CHAIN_IDS.starknetSepolia:
+      return `https://sepolia.voyager.online/tx/${txHash}`
+    case CHAIN_IDS.ethereumSepolia:
+      return `https://sepolia.etherscan.io/tx/${txHash}`
+    case CHAIN_IDS.arbitrumSepolia:
+      return `https://sepolia.arbiscan.io/tx/${txHash}`
+    case CHAIN_IDS.optimismSepolia:
+      return `https://sepolia-optimism.etherscan.io/tx/${txHash}`
+    case CHAIN_IDS.baseSepolia:
+      // Base uses a different URL format
+      return `https://sepolia.basescan.org/tx/${txHash}`
+    default:
+      // Fallback to etherscan if unknown
+      return `https://sepolia.etherscan.io/tx/${txHash}`
+  }
+}

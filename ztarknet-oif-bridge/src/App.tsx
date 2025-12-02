@@ -1,8 +1,12 @@
 import './App.css'
 import { WalletButton } from './components/wallet/WalletButton'
 import { BridgeForm } from './components/bridge/BridgeForm'
+import { useGlobalBridgeStats } from './hooks/useGlobalBridgeStats'
+
 
 function App() {
+  const { bridgesPerHour, isLoading: isStatsLoading } = useGlobalBridgeStats()
+
   return (
     <div className="app">
       {/* Animated background elements */}
@@ -42,22 +46,79 @@ function App() {
         {/* Left decorative panel */}
         <aside className="side-panel left-panel">
           <div className="panel-header">
-            <span className="panel-title">NETWORK</span>
+            <span className="panel-title">DETAILS</span>
           </div>
           <div className="data-readout">
+            <div className="readout-line">
+              <span className="readout-label">INTENT</span>
+              <span className="readout-value">SIMPLE BRIDGE</span>
+            </div>
             <div className="readout-line">
               <span className="readout-label">PROTOCOL</span>
               <span className="readout-value">HYPERLANE-7683</span>
             </div>
             <div className="readout-line">
               <span className="readout-label">SUPPORTED VMs</span>
-              <span className="readout-value">EVM & CairoVM</span>
-            </div>
-            <div className="readout-line">
-              <span className="readout-label">STATUS</span>
-              <span className="readout-value status-active">OPERATIONAL</span>
+              <span className="readout-value">ETHEREUM & CAIRO</span>
             </div>
           </div>
+          <div className="panel-header">
+            <span className="panel-title">DEMO</span>
+          </div>
+          <div className="readout-line">
+            <span className="readout-label">STATUS</span>
+            <span className="readout-value status-active">OPERATIONAL</span>
+          </div>
+          <div className="readout-line">
+            <span className="readout-label">TOKEN</span>
+            <span className="readout-value">DOG COIN</span>
+          </div>
+
+          <div className="readout-line">
+            <span className="readout-label">MORE INFO</span>
+            <a href="https://github.com/novemberfork/OIF-ztarknet/blob/main/ZTARKNET.md" target="_blank" className="readout-value" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          </div>
+
+          <div className="data-readout">
+            <div className="readout-line">
+              <span className="readout-label">TRBUTLER4</span>
+              <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                <a href="https://github.com/NovemberFork" target="_blank" className="readout-value" rel="noopener noreferrer">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                  </svg>
+                </a>
+
+                <a href="https://x.com/trb_iv" target="_blank" className="readout-value" rel="noopener noreferrer">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="readout-line">
+            <span className="readout-label">0xDEGENDEVELOPER</span>
+            <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+              <a href="https://x.com/degendeveloper" target="_blank" className="readout-value" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </a>
+              <a href="https://github.com/0xDegenDeveloper" target="_blank" className="readout-value" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                </svg>
+              </a>
+            </div>
+          </div>
+
           <div className="signal-bars">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="signal-bar" style={{
@@ -66,7 +127,25 @@ function App() {
               }} />
             ))}
           </div>
+
+          {/* Mobile message */}
+          <div className="mobile-message">
+            <div className="panel-header">
+              <span className="panel-title">NOTICE</span>
+            </div>
+            <div className="data-readout">
+              <div className="readout-line">
+                <span className="readout-label"></span>
+                <span className="readout-value"></span>
+              </div>
+              <div className="readout-line">
+                <span className="readout-label">NOTICE</span>
+                <span className="readout-value">Interface only available on desktop</span>
+              </div>
+            </div>
+          </div>
         </aside>
+
 
         {/* Central bridge interface */}
         <div className="bridge-interface">
@@ -97,28 +176,68 @@ function App() {
             </div>
             <div className="activity-stats">
               <div className="stat">
-                <span className="stat-value">123</span>
+                <span className="stat-value">
+                  {isStatsLoading ? (
+                    <span className="loading-dots">...</span>
+                  ) : bridgesPerHour !== null ? (
+                    bridgesPerHour
+                  ) : (
+                    '--'
+                  )}
+                </span>
                 <span className="stat-label">BRIDGES/HR</span>
               </div>
               <div className="stat">
-                <span className="stat-value">98.7%</span>
+                <span className="stat-value">99.9%</span>
                 <span className="stat-label">UPTIME</span>
               </div>
             </div>
           </div>
           <div className="hex-grid">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className={`hex ${i % 3 === 0 ? 'active' : ''}`} />
-            ))}
+            {[...Array(12)].map((_, i) => {
+              // Create variety: some active, some dim, some fade, some disappear
+              // Use deterministic "randomness" based on index for consistency
+              const seed = (i * 7 + 13) % 100 / 100;
+              let hexClass = 'hex';
+              const animationDelay = i * 0.15 + (i % 2) * 0.3;
+              const animationDuration = 3 + (i % 4) * 1.2;
+
+              if (seed < 0.25) {
+                hexClass += ' active'; // Full orange pulsing
+              } else if (seed < 0.45) {
+                hexClass += ' dim'; // Dim orange
+              } else if (seed < 0.65) {
+                hexClass += ' fade'; // Fades to dark/transparent
+              } else if (seed < 0.8) {
+                hexClass += ' glow'; // Glowing effect
+              }
+              // else: base transparent state
+
+              return (
+                <div
+                  key={i}
+                  className={hexClass}
+                  style={{
+                    animationDelay: `${animationDelay}s`,
+                    animationDuration: `${animationDuration}s`
+                  }}
+                />
+              );
+            })}
           </div>
         </aside>
       </main>
 
+
       {/* Bottom info bar */}
       <footer className="info-bar">
         <div className="info-section">
-          <span className="info-label">BLOCK</span>
-          <span className="info-value">███████</span>
+          <a target="_blank" href="https://www.starknet.io/" className="info-label">STARKNET</a>
+          <div className="transmission-indicator">
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+          </div>
         </div>
         <div className="info-section center">
           <div className="transmission-indicator">
@@ -126,11 +245,19 @@ function App() {
             <div className="transmission-dot" />
             <div className="transmission-dot" />
           </div>
-          <span className="info-text">CROSS-CHAIN TRANSMISSION READY</span>
+          <span className="info-text">
+            <a href="https://novemberfork.io" target="_blank" className="info-text">NOVEMBERFORK</a>
+            <span className="info-text"> x </span>
+            <a href="https://suffixlabs.xyz/" target="_blank" className="info-text">SUFFIX LABS</a>
+          </span>
         </div>
         <div className="info-section">
-          <span className="info-label">LATENCY</span>
-          <span className="info-value">&lt;100ms</span>
+          <div className="transmission-indicator">
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+            <div className="transmission-dot" />
+          </div>
+          <a target="_blank" href="https://www.ztarknet.cash/" className="info-label">ZTARKNET</a>
         </div>
       </footer>
     </div>
