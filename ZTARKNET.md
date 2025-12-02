@@ -52,14 +52,26 @@ Instead of waiting for the inter-chain message, Alice could receive her tokens a
 
 ### Content
 
-https://github.com/user-attachments/assets/69ede31c-4eb2-4cf8-846e-a475150fc657
+- Ethereum -> Ztarknet
 
-https://github.com/user-attachments/assets/f2eb5a84-5405-4675-b036-4c0b1e85de65
+ - [Open Txn](https://sepolia.etherscan.io/tx/0x83b58d8aab7d0161061b75acb856c5aaa6d2d1915f622d06092ab7849753f1f2)
 
-https://github.com/user-attachments/assets/45bea4ec-a9be-45cb-b324-fdc039278f87
+ - [Fill Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x5ae38d709e60197c38a30e24ba2637dff13ee42f82bd77d61084add74fc3779)
 
+<>
 
+- Starknet -> Ztarknet
 
+ - [Open Txn](https://sepolia.voyager.online/tx/0x55e67a4a0eb9b54f9b3ab6e686f19f018fc7ce903f3596a9c661ad8c28d6625)
 
+ - [Fill Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x8f45cb6d948388bafbb1d158e2f62f3c5e74bcc13fc1ec317d4a2f0ea19cef)
+
+<>
+
+- Ztarknet -> Starknet
+
+ - [Open Txn](https://explorer-zstarknet.d.karnot.xyz/tx/0x381deb79784ea404b009779a771a6e3c448d641c30907e22652e223ebe1ada4)
+
+ - [Fill Txn](https://sepolia.voyager.online/tx/0x6c6f55a04286a82224b313a9f65d709cb51c857c68a12f62795b95aaae3adda)
 
 
