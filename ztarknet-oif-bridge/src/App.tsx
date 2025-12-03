@@ -58,25 +58,50 @@ function App() {
               <span className="readout-value">HYPERLANE-7683</span>
             </div>
             <div className="readout-line">
+              <span className="readout-label">TOKEN</span>
+              <span className="readout-value">DOG COIN</span>
+            </div>
+
+
+            <div className="readout-line">
               <span className="readout-label">SUPPORTED VMs</span>
               <span className="readout-value">ETHEREUM & CAIRO</span>
             </div>
+            <div className="readout-line">
+              <span className="readout-label">DOCS</span>
+              <a href="https://github.com/novemberfork/OIF-ztarknet/blob/main/ZTARKNET.md" target="_blank" className="readout-value" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            </div>
           </div>
           <div className="panel-header">
-            <span className="panel-title">DEMO</span>
+            <span className="panel-title">ZYPERPUNK HACKATHON</span>
           </div>
           <div className="readout-line">
-            <span className="readout-label">STATUS</span>
+            <span className="readout-label">DEMO</span>
             <span className="readout-value status-active">OPERATIONAL</span>
           </div>
           <div className="readout-line">
-            <span className="readout-label">TOKEN</span>
-            <span className="readout-value">DOG COIN</span>
+            <span className="readout-label">SUBMISSION</span>
+            <a href="https://devfolio.co/projects/oifztarknet-7ca4" target="_blank" className="readout-value" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
           </div>
+
+
+
 
           <div className="data-readout">
             <div className="readout-line">
-              <span className="readout-label">TRB_IV</span>
+              <span className="readout-label">SUFFIX LABS</span>
               <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
                 {
                   <a href="https://github.com/Suffix-Labs" target="_blank" className="readout-value" rel="noopener noreferrer">
@@ -94,7 +119,7 @@ function App() {
             </div>
           </div>
           <div className="readout-line">
-            <span className="readout-label">DEGENDEVELOPER</span>
+            <span className="readout-label">NOVEMBERFORK</span>
             <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
               <a href="https://x.com/degendeveloper" target="_blank" className="readout-value" rel="noopener noreferrer">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
@@ -110,18 +135,6 @@ function App() {
               }
             </div>
           </div>
-          <div className="readout-line">
-            <span className="readout-label">MORE INFO</span>
-            <a href="https://github.com/novemberfork/OIF-ztarknet/blob/main/ZTARKNET.md" target="_blank" className="readout-value" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </a>
-          </div>
-
-
           <div className="signal-bars">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="signal-bar" style={{
