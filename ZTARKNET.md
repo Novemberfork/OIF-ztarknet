@@ -10,7 +10,7 @@ A demo of this application is hosted [here](https://oif-demo.novemberfork.io/).
 
 This demo allows anyone to create a cross-chain intent (basic bridge order) on an origin chain and have it filled on a desired destination chain. 4 EVM and 2 **CairoVM** networks are supported (Sepolia: Ethereum, Base, Arbitrum, Optimism, **Starknet**, and **Ztarknet**), and orders can go any direction (origin and destination chains must be different, i.e, Ethereum -> Base is valid, but Ethereum -> Ethereum is not). All order paths can be filled (ZK<>EVM<>STRK<>ZK).
 
-Orders are filled on destination chains as soon as they are detected on origin chains. This means when Alice opens an order on Starknet, it will be filled almost immediately.
+Orders are filled on destination chains as soon as they are detected on origin chains. This means once an order is opened, it will be filled almost immediately.
 
 For simplicity, this demo only bridges "Dog Coins"; however, the protocol is capable of bridging any input token for any output token (allowing for cross-chain-bridge-swaps). Each Dog Coin contract (ERC-20) exposes a public mint function, you will need Dog Coins on the origin chain you are bridging from (the UI can assist with this as well).
 
