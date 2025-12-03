@@ -168,7 +168,7 @@ export function TransactionStatus({ transfer, onClose }: TransactionStatusProps)
         )}
         {transfer.originTxHash && (
           <div className="tx-hash-row">
-            <span className="hash-label">Bridge TX:</span>
+            <span className="hash-label">Order Opened:</span>
             <a
               href={getExplorerTxUrl(transfer.originChainId, transfer.originTxHash)}
               target="_blank"
