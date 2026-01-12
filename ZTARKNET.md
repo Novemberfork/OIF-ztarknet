@@ -8,7 +8,7 @@ This project forks Nethermind's [OIF-starknet](https://github.com/NethermindEth/
 
 A demo of this application is hosted [here](https://oif-demo.novemberfork.io/).
 
-> ⚠️ We are still hosting the frontend, but are no longer running a solver. Use this repo to run your own and test out the demo.
+> ⚠️ We are still hosting the frontend, but are no longer running a solver. This means the bridge is offline (orders are not processed) until someone uses this repo to process them. 
 
 
 ## What is supported? 
