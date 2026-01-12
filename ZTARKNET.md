@@ -2,9 +2,14 @@
 
 This project forks Nethermind's [OIF-starknet](https://github.com/NethermindEth/OIF-starknet) to add support for Ztarknet. 
 
+> 🎉 OIF-Ztarknet tied for 1st in the Starknet track.
+
 # Demo 
 
 A demo of this application is hosted [here](https://oif-demo.novemberfork.io/).
+
+> ⚠️ We are still hosting the frontend, but are no longer running a solver. Use this repo to run your own and test out the demo.
+
 
 ## What is supported? 
 
