@@ -250,6 +250,11 @@
   text-shadow: 0 0 8px var(--green-glow);
 }
 
+.readout-value.status-not-active {
+  color: var(--amber);
+  text-shadow: 0 0 8px var(--amber-glow);
+}
+
 /* Mobile message - hidden on desktop */
 .mobile-message {
   display: none;
