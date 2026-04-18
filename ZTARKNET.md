@@ -13,7 +13,7 @@ A demo of this application is hosted [here](https://oif-demo.novemberfork.io/).
 
 ## What is supported? 
 
-This demo allows anyone to create a cross-chain intent (basic bridge order) on an origin chain and have it filled on a desired destination chain. 4 EVM and 2 **CairoVM** networks are supported (Sepolia: Ethereum, Base, Arbitrum, Optimism, **Starknet**, and **Ztarknet**), and orders can go any direction (origin and destination chains must be different, i.e, Ethereum -> Base is valid, but Ethereum -> Ethereum is not). All order paths can be filled (ZK<>EVM<>STRK<>ZK).
+This demo allows anyone to create a cross-chain intent (basic bridge order) on an origin chain and have it filled on a desired destination chain. 4 **EVM** and 2 **CairoVM** networks are supported (Sepolia: Ethereum, Base, Arbitrum, Optimism, **Starknet**, and **Ztarknet**), and orders can go any direction (origin and destination chains must be different, i.e, Ethereum -> Base is valid, but Ethereum -> Ethereum is not). All order paths can be filled (ZK<>EVM<>STRK<>ZK).
 
 Orders are filled on destination chains as soon as they are detected on origin chains. This means once an order is opened, it will be filled almost immediately.
 
